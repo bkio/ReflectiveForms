@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ReflectiveForms.Core\ReflectiveForms.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CrossCloudKit.Database.Basic" Version="2025.9.21.32" />
+    <PackageReference Include="CrossCloudKit.File.Basic" Version="2025.9.21.32" />
+    <PackageReference Include="CrossCloudKit.Memory.Basic" Version="2025.9.21.32" />
+    <PackageReference Include="CrossCloudKit.PubSub.Basic" Version="2025.9.21.32" />
+  </ItemGroup>
+
+</Project>

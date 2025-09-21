@@ -1,0 +1,49 @@
+@page
+@model ReflectiveForms.Sample1.Pages.LogoutModel
+@{
+    ViewData["Title"] = "Logging out";
+    Layout = "_Layout";
+}
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 text-center">
+            <div class="card">
+                <div class="card-body">
+                    <div class="spinner-border text-primary mb-3" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <h4>Logging you out...</h4>
+                    <p class="text-muted">Please wait while we sign you out securely.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Clear any stored JWT tokens
+    localStorage.removeItem('authToken');
+    sessionStorage.removeItem('authToken');
+
+    // Call the API logout endpoint to ensure server-side cleanup
+    fetch('/rf/api/logout', {
+        method: 'POST',
+        credentials: 'include' // Include cookies
+    }).then(() => {
+        // Redirect to home page after a short delay
+        setTimeout(() => {
+            window.location.href = '/';
+        }, 1500);
+    }).catch((error) => {
+        console.error('Logout error:', error);
+        // Still redirect even if API call fails
+        setTimeout(() => {
+            window.location.href = '/';
+        }, 1500);
+    });
+});
+</script>
+}

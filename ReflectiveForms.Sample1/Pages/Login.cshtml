@@ -1,0 +1,362 @@
+@page
+@model ReflectiveForms.Sample1.Pages.LoginModel
+@{
+    ViewData["Title"] = "Sign In";
+    Layout = "_Layout";
+}
+
+<style>
+    .login-container {
+        min-height: 80vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .login-card {
+        background: #ffffff;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+        padding: 2rem;
+        width: 100%;
+        max-width: 400px;
+    }
+
+    .login-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .login-title {
+        font-size: 1.875rem;
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 0.5rem;
+    }
+
+    .login-subtitle {
+        color: #6b7280;
+        font-size: 0.875rem;
+    }
+
+    .form-floating {
+        margin-bottom: 1rem;
+    }
+
+    .form-control {
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        transition: all 0.15s ease-in-out;
+    }
+
+    .form-control:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .btn-login {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        border-radius: 6px;
+        color: white;
+        font-weight: 600;
+        padding: 0.75rem;
+        width: 100%;
+        transition: all 0.15s ease-in-out;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .btn-login:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        color: white;
+    }
+
+    .btn-login:disabled {
+        opacity: 0.6;
+        transform: none;
+        box-shadow: none;
+        cursor: not-allowed;
+    }
+
+    .spinner {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 2px solid #ffffff;
+        border-radius: 50%;
+        border-top-color: transparent;
+        animation: spin 0.8s ease-in-out infinite;
+        margin-right: 8px;
+    }
+
+    @@keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .alert {
+        border-radius: 6px;
+        border: none;
+        margin-bottom: 1rem;
+    }
+
+    .alert-danger {
+        background: #fef2f2;
+        color: #dc2626;
+        border-left: 4px solid #dc2626;
+    }
+
+    .alert-success {
+        background: #f0fdf4;
+        color: #16a34a;
+        border-left: 4px solid #16a34a;
+    }
+
+    .forgot-password {
+        text-align: center;
+        margin-top: 1.5rem;
+    }
+
+    .forgot-password a {
+        color: #3b82f6;
+        text-decoration: none;
+        font-size: 0.875rem;
+    }
+
+    .forgot-password a:hover {
+        text-decoration: underline;
+    }
+</style>
+
+<div class="login-container">
+    <div class="login-card">
+        <div class="login-header">
+            <h1 class="login-title">Welcome back</h1>
+            <p class="login-subtitle">Please sign in to your account</p>
+        </div>
+
+        <div id="alertContainer" style="display: none;">
+            <div id="alertMessage" class="alert" role="alert"></div>
+        </div>
+
+        <form id="loginForm" method="post" asp-antiforgery="false">
+            <div class="form-floating">
+                <input type="email"
+                       class="form-control"
+                       id="email"
+                       name="EmailAddress"
+                       placeholder="name@example.com"
+                       value="@(Model.Email ?? "")"
+                       autocomplete="email"
+                       required>
+                <label for="email">Email address</label>
+            </div>
+
+            <div class="form-floating">
+                <input type="password"
+                       class="form-control"
+                       id="password"
+                       name="Password"
+                       placeholder="Password"
+                       autocomplete="current-password"
+                       required>
+                <label for="password">Password</label>
+            </div>
+
+            <div class="captcha-container mb-3">
+                <div class="d-flex align-items-center">
+                    <div class="captcha-question me-3">
+                        <span id="captchaQuestion" class="fw-bold fs-5">Loading...</span>
+                        <span class="text-muted ms-2">=</span>
+                    </div>
+                    <div class="flex-fill">
+                        <input type="number"
+                               class="form-control"
+                               id="captchaAnswer"
+                               name="CaptchaAnswer"
+                               placeholder="?"
+                               autocomplete="off"
+                               required
+                               style="width: 80px; display: inline-block;">
+                    </div>
+                    <button type="button" class="btn btn-outline-secondary btn-sm ms-2" id="refreshCaptcha" title="Get new challenge">
+                        <span>↻</span>
+                    </button>
+                </div>
+                <small class="text-muted">Please solve the math problem above</small>
+            </div>
+
+            <input type="hidden" name="ReturnUrl" value="@(Model.ReturnUrl ?? "")" />
+
+            <button type="submit" class="btn btn-login" id="loginButton">
+                <span id="loginSpinner" class="spinner" style="display: none;"></span>
+                <span id="loginText">Sign in</span>
+            </button>
+        </form>
+
+        <div class="forgot-password">
+            <a href="#" onclick="alert('Contact your administrator to reset your password.'); return false;">
+                Forgot your password?
+            </a>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('loginForm');
+    const emailInput = document.getElementById('email');
+    const passwordInput = document.getElementById('password');
+    const captchaAnswerInput = document.getElementById('captchaAnswer');
+    const captchaQuestionSpan = document.getElementById('captchaQuestion');
+    const refreshCaptchaBtn = document.getElementById('refreshCaptcha');
+    const submitButton = document.getElementById('loginButton');
+    const spinner = document.getElementById('loginSpinner');
+    const loginText = document.getElementById('loginText');
+    const alertContainer = document.getElementById('alertContainer');
+    const alertMessage = document.getElementById('alertMessage');
+
+    // Load initial CAPTCHA
+    loadCaptcha();
+
+    // Focus on email input
+    emailInput.focus();
+
+    // Refresh CAPTCHA button
+    refreshCaptchaBtn.addEventListener('click', loadCaptcha);
+
+    // Handle form submission
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const email = emailInput.value.trim();
+        const password = passwordInput.value;
+        const captchaAnswer = parseInt(captchaAnswerInput.value);
+
+        // Basic validation
+        if (!email || !password) {
+            showAlert('Please fill in all fields.', 'danger');
+            return;
+        }
+
+        if (!captchaAnswer || isNaN(captchaAnswer)) {
+            showAlert('Please solve the CAPTCHA.', 'danger');
+            return;
+        }
+
+        // Show loading state
+        setLoading(true);
+        hideAlert();
+
+        try {
+            const response = await fetch('/rf/api/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    email: email,
+                    password: password,
+                    captcha_answer: captchaAnswer
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                showAlert('Login successful! Redirecting...', 'success');
+
+                // Store JWT token in localStorage for API calls (optional)
+                if (data.token) {
+                    localStorage.setItem('authToken', data.token);
+                }
+
+                // Redirect after success
+                setTimeout(() => {
+                    window.location.href = document.querySelector('input[name="ReturnUrl"]').value || '/';
+                }, 1000);
+
+            } else {
+                let errorMessage = 'Login failed. Please check your credentials.';
+
+                try {
+                    const responseText = await response.text();
+
+                    if (response.status === 401) {
+                        errorMessage = 'Invalid email or password.';
+                    } else if (response.status === 404) {
+                        errorMessage = 'User not found.';
+                    } else if (responseText && responseText.includes('CAPTCHA')) {
+                        errorMessage = 'Invalid CAPTCHA. Please try again.';
+                        loadCaptcha(); // Load new CAPTCHA
+                    } else if (responseText) {
+                        errorMessage = responseText.length > 200 ? responseText.substring(0, 200) + '...' : responseText;
+                    }
+                } catch (parseError) {
+                    console.error('Error parsing response:', parseError);
+                    errorMessage = `Login failed (${response.status}). Please try again.`;
+                }
+
+                showAlert(errorMessage, 'danger');
+            }
+        } catch (error) {
+            console.error('Login error:', error);
+            showAlert('Network error. Please try again.', 'danger');
+            loadCaptcha(); // Reload CAPTCHA on network error
+        } finally {
+            setLoading(false);
+        }
+    });
+
+    // Enter key handling
+    passwordInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            form.dispatchEvent(new Event('submit'));
+        }
+    });
+
+    function setLoading(isLoading) {
+        submitButton.disabled = isLoading;
+        spinner.style.display = isLoading ? 'inline-block' : 'none';
+        loginText.textContent = isLoading ? 'Signing in...' : 'Sign in';
+    }
+
+    function showAlert(message, type) {
+        alertMessage.textContent = message;
+        alertMessage.className = `alert alert-${type}`;
+        alertContainer.style.display = 'block';
+        alertContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function hideAlert() {
+        alertContainer.style.display = 'none';
+    }
+
+    async function loadCaptcha() {
+        try {
+            refreshCaptchaBtn.disabled = true;
+            captchaQuestionSpan.textContent = 'Loading...';
+            captchaAnswerInput.value = '';
+
+            const response = await fetch('/rf/api/captcha-challenge', {
+                credentials: 'include' // Include session cookie
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                captchaQuestionSpan.textContent = data.question;
+            } else {
+                captchaQuestionSpan.textContent = 'Error loading CAPTCHA';
+            }
+        } catch (error) {
+            console.error('CAPTCHA load error:', error);
+            captchaQuestionSpan.textContent = 'Error loading CAPTCHA';
+        } finally {
+            refreshCaptchaBtn.disabled = false;
+        }
+    }
+});
+</script>
+}

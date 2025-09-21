@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Title>ReflectiveForms.Core</Title>
+    <Authors>Burak Kara</Authors>
+    <Copyright>Copyright (c) 2022- Burak Kara - AGPL-3.0 license</Copyright>
+    <PackageProjectUrl>https://github.com/bkio/CrossCloudKit</PackageProjectUrl>
+    
+    <RepositoryUrl>https://github.com/bkio/ReflectiveForms</RepositoryUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- optional: suppress "missing XML comment" warnings -->
+    <NoWarn>$(NoWarn);1591</NoWarn>
+    <PackageLicenseExpression>AGPL-3.0 license</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="AngleSharp" Version="1.3.1-beta.491" />
+    <PackageReference Include="CrossCloudKit.Interfaces" Version="2025.9.21.32" />
+    <PackageReference Include="JetBrains.Annotations" Version="2025.2.2" />
+    <PackageReference Include="Jint" Version="4.4.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0-preview.7.25380.108" />
+    <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.14.0" />
+    <PackageReference Include="SkiaSharp" Version="3.119.0" />
+  </ItemGroup>
+
+</Project>
