@@ -28,6 +28,6 @@ internal class CaptchaChallenge : BaseEndpoint
 
         CaptchaService.StoreCaptchaInSession(context, question, answer);
 
-        return Task.FromResult(Results.Ok(new { question = question }));
+        return Task.FromResult(Results.Ok(new { question }));
     }
 }

@@ -1,8 +1,9 @@
 // Copyright (c) 2022- Burak Kara, AGPL-3.0 license
 // See LICENSE file in the project root for full license information.
 
-using CrossCloudKit.Interfaces;
 using CrossCloudKit.Interfaces.Classes;
+using CrossCloudKit.Interfaces.Classes.Asp;
+using CrossCloudKit.Utilities.Common;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
@@ -114,7 +115,8 @@ public static class RfEndpointMapper
         // Add session support for CAPTCHA
         webAppBuilder.Services.AddSingleton<IDistributedCache>(
             new MemoryServiceDistributedCache(
-                RfConfiguration.RepositoryService.MemoryServiceInstance));
+                RfConfiguration.RepositoryService.MemoryServiceInstance,
+                new MemoryScopeLambda($"cache-{RfConfiguration.EndpointConfiguration.JwtIssuer.NotNull()}")));
 
         webAppBuilder.Services.AddSession(options =>
         {

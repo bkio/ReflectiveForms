@@ -58,7 +58,7 @@ public static class CaptchaService
         context.Session.Remove(CaptchaAnswerKey);
         context.Session.Remove(CaptchaQuestionKey);
 
-        return correctAnswer.HasValue && correctAnswer.Value == userAnswer;
+        return correctAnswer == userAnswer;
     }
 
     public static string? GetCurrentCaptchaQuestion(HttpContext context)

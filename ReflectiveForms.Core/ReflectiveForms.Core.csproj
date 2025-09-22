@@ -20,7 +20,7 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="AngleSharp" Version="1.3.1-beta.491" />
-    <PackageReference Include="CrossCloudKit.Interfaces" Version="2025.9.21.32" />
+    <PackageReference Include="CrossCloudKit.Interfaces" Version="2025.9.22.33" />
     <PackageReference Include="JetBrains.Annotations" Version="2025.2.2" />
     <PackageReference Include="Jint" Version="4.4.1" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0-preview.7.25380.108" />
