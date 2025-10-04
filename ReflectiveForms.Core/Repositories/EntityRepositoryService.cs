@@ -48,8 +48,6 @@ public class EntityRepositoryService
     private readonly IMemoryScope _mutexScope = new MemoryScopeLambda("ReflectiveForms.Core.Repositories.EntityRepositoryService");
     private const string PubSubEntityChangedTopicPrefix = "ReflectiveForms.Core.Repositories.EntityRepositoryService.OnEntityChanged";
 
-    private static readonly string[] PossibleKeyNames = [EntityModelAttributes.Id];
-
     public async Task SubscribeToOnEntityChangedAsync<T>(string entityName, int entityId, Action<EntityChangedMessage<T>> callback, CancellationToken cancellationToken) where T : EntityFieldsModel, new()
     {
         await SubscribeAsync($"{PubSubEntityChangedTopicPrefix}-{entityName}-{entityId}", callback, cancellationToken);
@@ -132,79 +130,71 @@ public class EntityRepositoryService
     {
         var result = await _databaseService.ScanTableAsync(
             GetEntityTableName(entityName),
-            PossibleKeyNames,
             cancellationToken);
         return !result.IsSuccessful
             ? OperationResult<JArray>.Failure($"GetAllAsync has failed with: {result.ErrorMessage}", result.StatusCode)
-            : OperationResult<JArray>.Success(ListOfJObjectToJArray(result.Data));
+            : OperationResult<JArray>.Success(ListOfJObjectToJArray(result.Data.Items));
     }
 
     public async Task<OperationResult<JArray>> GetAllByAuthorIdAsync(string entityName, int authorId, CancellationToken cancellationToken)
     {
         var result = await _databaseService.ScanTableWithFilterAsync(
             GetEntityTableName(entityName),
-            PossibleKeyNames,
-            _databaseService.BuildAttributeEqualsCondition(EntityModelAttributes.Author, new PrimitiveType(authorId)),
+            _databaseService.AttributeEquals(EntityModelAttributes.Author, authorId),
             cancellationToken);
         return !result.IsSuccessful
             ? OperationResult<JArray>.Failure($"GetAllByAuthorIdAsync has failed with: {result.ErrorMessage}", result.StatusCode)
-            : OperationResult<JArray>.Success(ListOfJObjectToJArray(result.Data));
+            : OperationResult<JArray>.Success(ListOfJObjectToJArray(result.Data.Items));
     }
 
     public async Task<OperationResult<JArray>> GetAllByFilterAsync(string entityName, Func<JToken, bool> filter, CancellationToken cancellationToken)
     {
         var result = await _databaseService.ScanTableAsync(
             GetEntityTableName(entityName),
-            PossibleKeyNames,
             cancellationToken);
         return !result.IsSuccessful
             ? OperationResult<JArray>.Failure($"GetAllByFilterAsync has failed with: {result.ErrorMessage}", result.StatusCode)
-            : OperationResult<JArray>.Success(ListOfJObjectToJArray(result.Data, filter));
+            : OperationResult<JArray>.Success(ListOfJObjectToJArray(result.Data.Items, filter));
     }
 
     public async Task<OperationResult<JArray>> GetAllByFilterByAuthorIdAsync(string entityName, int authorId, Func<JToken, bool> filter, CancellationToken cancellationToken)
     {
         var result = await _databaseService.ScanTableWithFilterAsync(
             GetEntityTableName(entityName),
-            PossibleKeyNames,
-            _databaseService.BuildAttributeEqualsCondition(EntityModelAttributes.Author, new PrimitiveType(authorId)),
+            _databaseService.AttributeEquals(EntityModelAttributes.Author, authorId),
             cancellationToken);
         return !result.IsSuccessful
             ? OperationResult<JArray>.Failure($"GetAllByFilterByAuthorIdAsync has failed with: {result.ErrorMessage}", result.StatusCode)
-            : OperationResult<JArray>.Success(ListOfJObjectToJArray(result.Data, filter));
+            : OperationResult<JArray>.Success(ListOfJObjectToJArray(result.Data.Items, filter));
     }
 
     public async Task<OperationResult<JArray>> GetAllByFilterByTagIdAsync(string entityName, int tagId, Func<JToken, bool> filter, CancellationToken cancellationToken)
     {
         var result = await _databaseService.ScanTableWithFilterAsync(
             GetEntityTableName(entityName),
-            PossibleKeyNames,
-            _databaseService.BuildArrayElementExistsCondition(EntityModelAttributes.Tags, new PrimitiveType(tagId)),
+            _databaseService.ArrayElementExists(EntityModelAttributes.Tags, tagId),
             cancellationToken);
         return !result.IsSuccessful
             ? OperationResult<JArray>.Failure($"GetAllByFilterByTagIdAsync has failed with: {result.ErrorMessage}", result.StatusCode)
-            : OperationResult<JArray>.Success(ListOfJObjectToJArray(result.Data, filter));
+            : OperationResult<JArray>.Success(ListOfJObjectToJArray(result.Data.Items, filter));
     }
 
     public async Task<OperationResult<JArray>> GetAllByTagIdAsync(string entityName, int tagId, CancellationToken cancellationToken)
     {
         var result = await _databaseService.ScanTableWithFilterAsync(
             GetEntityTableName(entityName),
-            PossibleKeyNames,
-            _databaseService.BuildArrayElementExistsCondition(EntityModelAttributes.Tags, new PrimitiveType(tagId)),
+            _databaseService.ArrayElementExists(EntityModelAttributes.Tags, tagId),
             cancellationToken);
         return !result.IsSuccessful
             ? OperationResult<JArray>.Failure($"GetAllByTagIdAsync has failed with: {result.ErrorMessage}", result.StatusCode)
-            : OperationResult<JArray>.Success(ListOfJObjectToJArray(result.Data));
+            : OperationResult<JArray>.Success(ListOfJObjectToJArray(result.Data.Items));
     }
 
-    // ReSharper disable once MemberCanBePrivate.Global
     public async Task<OperationResult<JObject>> GetOneAsync(string entityName, int id, CancellationToken cancellationToken)
     {
         var result = await _databaseService.GetItemAsync(
             GetEntityTableName(entityName),
-            PossibleKeyNames[0],
-            new PrimitiveType(id),
+            new DbKey(EntityModelAttributes.Id, id),
             null,
             cancellationToken);
         return !result.IsSuccessful
@@ -218,29 +208,24 @@ public class EntityRepositoryService
     {
         var result = await _databaseService.ItemExistsAsync(
             GetEntityPeekOverviewTableName(entityName),
-            PossibleKeyNames[0],
-            new PrimitiveType(id),
+            new DbKey(EntityModelAttributes.Id, id),
             null,
             cancellationToken);
         return !result.IsSuccessful
-            ?
-            OperationResult<bool>.Failure($"DoesExistAsync has failed with: {result.ErrorMessage}", result.StatusCode)
-            : !result.Data
-                ? OperationResult<bool>.Failure($"Not found.", HttpStatusCode.NotFound)
-                : OperationResult<bool>.Success(true);
+            ? OperationResult<bool>.Failure($"DoesExistAsync has failed with: {result.ErrorMessage}", result.StatusCode)
+            : result;
     }
     public async Task<OperationResult<JObject>> GetOneFromAllByAuthorIdByFilter(string entityName, int authorId, Func<JToken, bool> filter, CancellationToken cancellationToken)
     {
         var result = await _databaseService.ScanTableWithFilterAsync(
             GetEntityTableName(entityName),
-            PossibleKeyNames,
-            _databaseService.BuildAttributeEqualsCondition(EntityModelAttributes.Author, new PrimitiveType(authorId)),
+            _databaseService.AttributeEquals(EntityModelAttributes.Author, authorId),
             cancellationToken);
 
         if (!result.IsSuccessful)
             return OperationResult<JObject>.Failure($"GetOneFromAllByAuthorIdByFilter has failed with: {result.ErrorMessage}", result.StatusCode);
 
-        var filtered = InternalGetOneFromAll(result.Data, filter);
+        var filtered = InternalGetOneFromAll(result.Data.Items, filter);
         return filtered == null
             ? OperationResult<JObject>.Failure($"Not found.", HttpStatusCode.NotFound)
             : OperationResult<JObject>.Success(filtered);
@@ -250,13 +235,12 @@ public class EntityRepositoryService
     {
         var result = await _databaseService.ScanTableAsync(
             GetEntityTableName(entityName),
-            PossibleKeyNames,
             cancellationToken);
 
         if (!result.IsSuccessful)
             return OperationResult<JObject>.Failure($"GetOneFromAllByFilter has failed with: {result.ErrorMessage}", result.StatusCode);
 
-        var filtered = InternalGetOneFromAll(result.Data, filter);
+        var filtered = InternalGetOneFromAll(result.Data.Items, filter);
         return filtered == null
             ? OperationResult<JObject>.Failure("Not found.", HttpStatusCode.NotFound)
             : OperationResult<JObject>.Success(filtered);
@@ -266,14 +250,13 @@ public class EntityRepositoryService
     {
         var result = await _databaseService.ScanTableWithFilterAsync(
             GetEntityTableName(entityName),
-            PossibleKeyNames,
-            _databaseService.BuildArrayElementExistsCondition(EntityModelAttributes.Tags, new PrimitiveType(tagId)),
+            _databaseService.ArrayElementExists(EntityModelAttributes.Tags, tagId),
             cancellationToken);
 
         if (!result.IsSuccessful)
             return OperationResult<JObject>.Failure($"GetOneFromAllByTagIdByFilter has failed with: {result.ErrorMessage}", result.StatusCode);
 
-        var filtered = InternalGetOneFromAll(result.Data, filter);
+        var filtered = InternalGetOneFromAll(result.Data.Items, filter);
         return filtered == null
             ? OperationResult<JObject>.Failure("Not found.", HttpStatusCode.NotFound)
             : OperationResult<JObject>.Success(filtered);
@@ -298,8 +281,7 @@ public class EntityRepositoryService
         while (++trialCount <= 5)
         {
             var incrementResult = await _databaseService.IncrementAttributeAsync(GlobalIndexesTableName,
-                PossibleKeyNames[0],
-                new PrimitiveType(GlobalIndexesKeyName),
+                new DbKey(EntityModelAttributes.Id, GlobalIndexesKeyName),
                 GlobalIndexesLastValueAttributeName,
                 1.0,
                 null,
@@ -312,13 +294,13 @@ public class EntityRepositoryService
             await using var mutex = await MemoryScopeMutex.CreateScopeAsync(
                 MemoryServiceInstance,
                 _mutexScope,
-                $"{PossibleKeyNames[0]}:{newId}",
+                $"{EntityModelAttributes.Id}:{newId}",
                 TimeSpan.FromMinutes(1),
                 cancellationToken);
 
-            var idAsPrimitive = new PrimitiveType(newId);
+            var idKey = new DbKey(EntityModelAttributes.Id, newId);
 
-            body[PossibleKeyNames[0]] = newId;
+            body[EntityModelAttributes.Id] = newId;
             body[EntityModelAttributes.Link] = $"{RfConfiguration.EndpointConfiguration.FinalEntitiesBaseRoute}?type={entityName}&id={newId}";
 
             var configuration = RfConfiguration.EntityNameToConfiguration[entityName];
@@ -331,12 +313,11 @@ public class EntityRepositoryService
 
             var sanityCheck = await configuration.UpsertSanityCheck((newBody, cancellationToken));
             if (!sanityCheck.IsSuccessful)
-                return OperationResult<JObject>.Failure($"Sanity check for {entityName}, entity {PossibleKeyNames[0]}: {newId} has failed with {sanityCheck.ErrorMessage}", HttpStatusCode.BadRequest);
+                return OperationResult<JObject>.Failure($"Sanity check for {entityName}, entity {EntityModelAttributes.Id}: {newId} has failed with {sanityCheck.ErrorMessage}", HttpStatusCode.BadRequest);
 
             var putItemResult = await _databaseService.PutItemAsync(
                 GetEntityTableName(entityName),
-                PossibleKeyNames[0],
-                idAsPrimitive,
+                idKey,
                 newBody,
                 DbReturnItemBehavior.ReturnNewValues,
                 false,
@@ -355,19 +336,17 @@ public class EntityRepositoryService
 
                 var updateResult = await _databaseService.UpdateItemAsync(
                     GetEntityPeekOverviewTableName(entityName),
-                    PossibleKeyNames[0],
-                    idAsPrimitive,
+                    idKey,
                     peekOverview,
                     DbReturnItemBehavior.DoNotReturn,
                     null,
                     cancellationToken);
                 if (!updateResult.IsSuccessful)
                 {
-                    var error = $"Error: EntityRepository->PutOneAsync: PutItemAsync has succeeded, but UpdateItemAsync has failed. Id: {idAsPrimitive.AsInteger} Peek Overview: {peekOverview} ({updateResult.StatusCode})";
+                    var error = $"Error: EntityRepository->PutOneAsync: PutItemAsync has succeeded, but UpdateItemAsync has failed. Id: {idKey.Value.AsInteger} Peek Overview: {peekOverview} ({updateResult.StatusCode})";
                     var deleteResult = await _databaseService.DeleteItemAsync(
                         GetEntityTableName(entityName),
-                        PossibleKeyNames[0],
-                        idAsPrimitive,
+                        idKey,
                         DbReturnItemBehavior.DoNotReturn,
                         null,
                         cancellationToken);
@@ -411,7 +390,7 @@ public class EntityRepositoryService
     {
         // Note: If parameters of this method change, remember to update Crud.cs as well. Reflection is used there.
 
-        body[PossibleKeyNames[0]] = id;
+        body[EntityModelAttributes.Id] = id;
 
         JObject? result;
         JObject? oldObject;
@@ -421,16 +400,15 @@ public class EntityRepositoryService
             await using var mutex = await MemoryScopeMutex.CreateScopeAsync(
                 MemoryServiceInstance,
                 _mutexScope,
-                $"{PossibleKeyNames[0]}:{id}",
+                $"{EntityModelAttributes.Id}:{id}",
                 TimeSpan.FromMinutes(1),
                 cancellationToken);
 
-            var idAsPrimitive = new PrimitiveType(id);
+            var key = new DbKey(EntityModelAttributes.Id, id);
 
             var getItemResult = await _databaseService.GetItemAsync(
                 GetEntityTableName(entityName),
-                PossibleKeyNames[0],
-                idAsPrimitive,
+                key,
                 null,
                 cancellationToken);
             if (!getItemResult.IsSuccessful)
@@ -446,8 +424,7 @@ public class EntityRepositoryService
             {
                 var revertBackUpdateResult = await _databaseService.UpdateItemAsync(
                     GetEntityTableName(entityName),
-                    PossibleKeyNames[0],
-                    idAsPrimitive,
+                    key,
                     oldObject,
                     DbReturnItemBehavior.DoNotReturn,
                     null,
@@ -471,16 +448,15 @@ public class EntityRepositoryService
             var sanityCheckResult = await RfConfiguration.EntityNameToConfiguration[entityName].UpsertSanityCheck((newBody, cancellationToken));
             if (!sanityCheckResult.IsSuccessful)
             {
-                return OperationResult<JObject>.Failure($"Sanity check for {entityName}, entity {PossibleKeyNames[0]}: {id} has failed with {sanityCheckResult.ErrorMessage}", HttpStatusCode.BadRequest);
+                return OperationResult<JObject>.Failure($"Sanity check for {entityName}, entity {EntityModelAttributes.Id}: {id} has failed with {sanityCheckResult.ErrorMessage}", HttpStatusCode.BadRequest);
             }
 
             var updateResult = await _databaseService.UpdateItemAsync(
                 GetEntityTableName(entityName),
-                PossibleKeyNames[0],
-                idAsPrimitive,
+                key,
                 newBody,
                 DbReturnItemBehavior.ReturnNewValues,
-                _databaseService.BuildAttributeEqualsCondition(PossibleKeyNames[0], idAsPrimitive),
+                _databaseService.AttributeEquals(EntityModelAttributes.Id, key.Value.AsInteger),
                 cancellationToken);
             if (!updateResult.IsSuccessful)
             {
@@ -494,13 +470,12 @@ public class EntityRepositoryService
             {
                 var historyGetItemResult = await _databaseService.GetItemAsync(
                     GetEntityHistoryTableName(entityName),
-                    PossibleKeyNames[0],
-                    idAsPrimitive,
+                    key,
                     null,
                     cancellationToken);
                 if (!historyGetItemResult.IsSuccessful)
                 {
-                    return await RevertBackUpdate($"Error: EntityRepository->UpdateOneAsync: GetItemAsync for {entityName}-history has failed. Id: {idAsPrimitive.AsInteger} ({historyGetItemResult.StatusCode})");
+                    return await RevertBackUpdate($"Error: EntityRepository->UpdateOneAsync: GetItemAsync for {entityName}-history has failed. Id: {key.Value.AsInteger} ({historyGetItemResult.StatusCode})");
                 }
 
                 var oldRevisions = historyGetItemResult.Data;
@@ -527,15 +502,14 @@ public class EntityRepositoryService
 
                     var historyPutItemResult = await _databaseService.PutItemAsync(
                         GetEntityHistoryTableName(entityName),
-                        PossibleKeyNames[0],
-                        idAsPrimitive,
+                        key,
                         oldRevisions,
                         DbReturnItemBehavior.DoNotReturn,
                         false,
                         cancellationToken);
                     if (!historyPutItemResult.IsSuccessful)
                     {
-                        return await RevertBackUpdate($"Error: EntityRepository->UpdateOneAsync: PutItemAsync for {entityName}-history has failed. Id: {idAsPrimitive.AsInteger} ({historyPutItemResult.StatusCode})");
+                        return await RevertBackUpdate($"Error: EntityRepository->UpdateOneAsync: PutItemAsync for {entityName}-history has failed. Id: {key.Value.AsInteger} ({historyPutItemResult.StatusCode})");
                     }
                 }
                 else
@@ -548,15 +522,14 @@ public class EntityRepositoryService
 
                     var updateHistoryResult = await _databaseService.UpdateItemAsync(
                         GetEntityHistoryTableName(entityName),
-                        PossibleKeyNames[0],
-                        idAsPrimitive,
+                        key,
                         oldRevisions,
                         DbReturnItemBehavior.DoNotReturn,
                         null,
                         cancellationToken);
                     if (!updateHistoryResult.IsSuccessful)
                     {
-                        return await RevertBackUpdate($"Error: EntityRepository->UpdateOneAsync: UpdateItemAsync for {entityName}-history has failed. Id: {idAsPrimitive.AsInteger} ({updateHistoryResult.StatusCode})");
+                        return await RevertBackUpdate($"Error: EntityRepository->UpdateOneAsync: UpdateItemAsync for {entityName}-history has failed. Id: {key.Value.AsInteger} ({updateHistoryResult.StatusCode})");
                     }
                 }
             }
@@ -570,8 +543,7 @@ public class EntityRepositoryService
                 {
                     var revertBackRevisionsUpdateResult = await _databaseService.UpdateItemAsync(
                         GetEntityHistoryTableName(entityName),
-                        PossibleKeyNames[0],
-                        idAsPrimitive,
+                        key,
                         previousOldRevisionsState,
                         DbReturnItemBehavior.DoNotReturn,
                         null,
@@ -588,8 +560,7 @@ public class EntityRepositoryService
                 {
                     var revertBackRevisionsDeleteResult = await _databaseService.DeleteItemAsync(
                         GetEntityHistoryTableName(entityName),
-                        PossibleKeyNames[0],
-                        idAsPrimitive,
+                        key,
                         DbReturnItemBehavior.DoNotReturn,
                         null,
                         cancellationToken);
@@ -613,8 +584,7 @@ public class EntityRepositoryService
 
                 var updatePeekOverviewResult = await _databaseService.UpdateItemAsync(
                     GetEntityPeekOverviewTableName(entityName),
-                    PossibleKeyNames[0],
-                    idAsPrimitive,
+                    key,
                     peekOverview,
                     DbReturnItemBehavior.ReturnOldValues,
                     null,
@@ -624,7 +594,7 @@ public class EntityRepositoryService
                     return
                         await RevertBackRevisionsUpdate(
                         (await RevertBackUpdate(
-                            $"Error: EntityRepository->UpdateOneAsync: UpdateItemAsync for {entityName}-peek-overview has failed. Id: {idAsPrimitive.AsInteger} Peek Overview: {peekOverview} ({updatePeekOverviewResult.StatusCode})"))
+                            $"Error: EntityRepository->UpdateOneAsync: UpdateItemAsync for {entityName}-peek-overview has failed. Id: {key.Value.AsInteger} Peek Overview: {peekOverview} ({updatePeekOverviewResult.StatusCode})"))
                                 .ErrorMessage);
                 }
                 oldPeekOverviewExtractSucceeded = true;
@@ -637,8 +607,7 @@ public class EntityRepositoryService
                 {
                     var revertBackPeekOverviewUpdateResult = await _databaseService.UpdateItemAsync(
                         GetEntityPeekOverviewTableName(entityName),
-                        PossibleKeyNames[0],
-                        idAsPrimitive,
+                        key,
                         oldPeekOverview,
                         DbReturnItemBehavior.DoNotReturn,
                         null,
@@ -655,8 +624,7 @@ public class EntityRepositoryService
                 {
                     var revertBackPeekOverviewDeleteResult = await _databaseService.DeleteItemAsync(
                         GetEntityPeekOverviewTableName(entityName),
-                        PossibleKeyNames[0],
-                        idAsPrimitive,
+                        key,
                         DbReturnItemBehavior.DoNotReturn,
                         null,
                         cancellationToken);
@@ -703,8 +671,7 @@ public class EntityRepositoryService
     {
         var getItemResult = await _databaseService.GetItemAsync(
             GetEntityHistoryTableName(entityName),
-            PossibleKeyNames[0],
-            new PrimitiveType(id),
+            new DbKey(EntityModelAttributes.Id, id),
             null,
             cancellationToken);
         return !getItemResult.IsSuccessful
@@ -812,12 +779,9 @@ public class EntityRepositoryService
 
             var scanResult = await _databaseService.ScanTableWithFilterAsync(
                 tableName,
-                PossibleKeyNames,
                 conditionIsArray
-                    ? _databaseService.BuildArrayElementExistsCondition(conditionIdAttribute,
-                        new PrimitiveType(conditionIdValue))
-                    : _databaseService.BuildAttributeEqualsCondition(conditionIdAttribute,
-                        new PrimitiveType(conditionIdValue)),
+                    ? _databaseService.ArrayElementExists(conditionIdAttribute, conditionIdValue)
+                    : _databaseService.AttributeEquals(conditionIdAttribute, conditionIdValue),
                 cancellationTokenForEach);
             if (!scanResult.IsSuccessful)
             {
@@ -829,7 +793,7 @@ public class EntityRepositoryService
 
             if (hasFailed.Value) return;
 
-            var relevantPosts = scanResult.Data;
+            var relevantPosts = scanResult.Data.Items;
 
             foreach (var relevantPost in relevantPosts)
             {
@@ -854,8 +818,7 @@ public class EntityRepositoryService
 
                 var updateResult = await _databaseService.UpdateItemAsync(
                     tableName,
-                    PossibleKeyNames[0],
-                    new PrimitiveType((long)relevantPost[PossibleKeyNames[0]].NotNull()),
+                    new DbKey(EntityModelAttributes.Id, (long)relevantPost[EntityModelAttributes.Id].NotNull()),
                     relevantPost,
                     DbReturnItemBehavior.DoNotReturn,
                     null,
@@ -863,7 +826,7 @@ public class EntityRepositoryService
                 if (updateResult.IsSuccessful) continue;
                 if (hasFailed.Value) return;
                 hasFailed.Value = true;
-                errors.Add($"Error: FixTheUpdateForRelevantPostTypesAsync: UpdateItem for table {tableName} has failed for id {(long)relevantPost[PossibleKeyNames[0]].NotNull()}.");
+                errors.Add($"Error: FixTheUpdateForRelevantPostTypesAsync: UpdateItem for table {tableName} has failed for id {(long)relevantPost[EntityModelAttributes.Id].NotNull()}.");
                 return;
             }
         });
@@ -893,12 +856,9 @@ public class EntityRepositoryService
 
             var scanTableResult = await _databaseService.ScanTableWithFilterAsync(
                 actualTableName,
-                PossibleKeyNames,
                 conditionIsArray
-                    ? _databaseService.BuildArrayElementExistsCondition(conditionIdAttributeActualTable,
-                        new PrimitiveType(oldConditionIdValue))
-                    : _databaseService.BuildAttributeEqualsCondition(conditionIdAttributeActualTable,
-                        new PrimitiveType(oldConditionIdValue)),
+                    ? _databaseService.ArrayElementExists(conditionIdAttributeActualTable, oldConditionIdValue)
+                    : _databaseService.AttributeEquals(conditionIdAttributeActualTable, oldConditionIdValue),
                 cancellationTokenForEach);
             if (!scanTableResult.IsSuccessful)
             {
@@ -907,7 +867,7 @@ public class EntityRepositoryService
                 errors.Add($"Error: FixTheDeleteForRelevantPostTypesAsync: ScanTableWithFilterAsync for table {actualTableName} has failed.");
                 return;
             }
-            var actualRelevantPosts = scanTableResult.Data;
+            var actualRelevantPosts = scanTableResult.Data.Items;
 
             if (failure.Value) return;
 
@@ -935,8 +895,7 @@ public class EntityRepositoryService
 
                 var updateResult = await _databaseService.UpdateItemAsync(
                     actualTableName,
-                    PossibleKeyNames[0],
-                    new PrimitiveType((long)actualRelevantPost[PossibleKeyNames[0]].NotNull()),
+                    new DbKey(EntityModelAttributes.Id, (long)actualRelevantPost[EntityModelAttributes.Id].NotNull()),
                     actualRelevantPost,
                     DbReturnItemBehavior.DoNotReturn,
                     null,
@@ -944,7 +903,7 @@ public class EntityRepositoryService
                 if (updateResult.IsSuccessful) continue;
                 if (failure.Value) return;
                 failure.Value = true;
-                errors.Add($"Error: FixTheDeleteForRelevantPostTypesAsync: UpdateItemAsync for table {actualTableName} has failed for id {(long)actualRelevantPost[PossibleKeyNames[0]].NotNull()}.");
+                errors.Add($"Error: FixTheDeleteForRelevantPostTypesAsync: UpdateItemAsync for table {actualTableName} has failed for id {(long)actualRelevantPost[EntityModelAttributes.Id].NotNull()}.");
                 return;
             }
 
@@ -958,12 +917,9 @@ public class EntityRepositoryService
 
             scanTableResult = await _databaseService.ScanTableWithFilterAsync(
                 peekAllTableName,
-                PossibleKeyNames,
                 conditionIsArray
-                    ? _databaseService.BuildArrayElementExistsCondition(conditionIdAttributePeekAllTable,
-                        new PrimitiveType(oldConditionIdValue))
-                    : _databaseService.BuildAttributeEqualsCondition(conditionIdAttributePeekAllTable,
-                        new PrimitiveType(oldConditionIdValue)),
+                    ? _databaseService.ArrayElementExists(conditionIdAttributePeekAllTable, oldConditionIdValue)
+                    : _databaseService.AttributeEquals(conditionIdAttributePeekAllTable, oldConditionIdValue),
                 cancellationTokenForEach);
             if (!scanTableResult.IsSuccessful)
             {
@@ -972,7 +928,7 @@ public class EntityRepositoryService
                 errors.Add($"Error: FixTheDeleteForRelevantPostTypesAsync: ScanTableWithFilterAsync for table {peekAllTableName} has failed.");
                 return;
             }
-            var peekAllRelevantPosts = scanTableResult.Data;
+            var peekAllRelevantPosts = scanTableResult.Data.Items;
 
             if (failure.Value) return;
 
@@ -1001,8 +957,7 @@ public class EntityRepositoryService
 
                 var updateResult = await _databaseService.UpdateItemAsync(
                     peekAllTableName,
-                    PossibleKeyNames[0],
-                    new PrimitiveType((long)peekAllRelevantPost[PossibleKeyNames[0]].NotNull()),
+                    new DbKey(EntityModelAttributes.Id, (long)peekAllRelevantPost[EntityModelAttributes.Id].NotNull()),
                     peekAllRelevantPost,
                     DbReturnItemBehavior.DoNotReturn,
                     null,
@@ -1010,7 +965,7 @@ public class EntityRepositoryService
                 if (updateResult.IsSuccessful) continue;
                 if (failure.Value) return;
                 failure.Value = true;
-                errors.Add($"Error: FixTheDeleteForRelevantPostTypesAsync: UpdateItemAsync for table {peekAllTableName} has failed for id {(long)peekAllRelevantPost[PossibleKeyNames[0]].NotNull()}.");
+                errors.Add($"Error: FixTheDeleteForRelevantPostTypesAsync: UpdateItemAsync for table {peekAllTableName} has failed for id {(long)peekAllRelevantPost[EntityModelAttributes.Id].NotNull()}.");
                 return;
             }
         });
@@ -1036,7 +991,7 @@ public class EntityRepositoryService
         }
 
         //Link
-        if (!body.TryGetTypedValue(PossibleKeyNames[0], out int bodyId))
+        if (!body.TryGetTypedValue(EntityModelAttributes.Id, out int bodyId))
         {
             bodyId = -1;
             //In case this is creating operation, we will create the link later in the flow.
@@ -1066,7 +1021,7 @@ public class EntityRepositoryService
                 }
                 else
                 {
-                    RfConfiguration.LogError(new Exception($"Warning: FixBodyForMustHaveFields-> Failed to parse {modifiedGmtString} into DateTime. Fallen back to current date. Entity: {entityName} entity {PossibleKeyNames[0]}: {bodyId}"));
+                    RfConfiguration.LogError(new Exception($"Warning: FixBodyForMustHaveFields-> Failed to parse {modifiedGmtString} into DateTime. Fallen back to current date. Entity: {entityName} entity {EntityModelAttributes.Id}: {bodyId}"));
 
                     body[EntityModelAttributes.DateGmt] = gmtNowTimeString;
                     body[EntityModelAttributes.Date] = localNowTimeString;
@@ -1096,19 +1051,20 @@ public class EntityRepositoryService
     {
         // Note: If parameters of this method change, remember to update Crud.cs as well. Reflection is used there.
 
+        var key = new DbKey(EntityModelAttributes.Id, id);
+
         JObject? lastBody;
         {
             await using var mutex = await MemoryScopeMutex.CreateScopeAsync(
                 MemoryServiceInstance,
                 _mutexScope,
-                $"{PossibleKeyNames[0]}:{id}",
+                $"{EntityModelAttributes.Id}:{id}",
                 TimeSpan.FromMinutes(1),
                 cancellationToken);
 
             var deleteResult = await _databaseService.DeleteItemAsync(
                 GetEntityTableName(entityName),
-                PossibleKeyNames[0],
-                new PrimitiveType(id),
+                key,
                 DbReturnItemBehavior.ReturnOldValues,
                 null,
                 cancellationToken);
@@ -1116,8 +1072,7 @@ public class EntityRepositoryService
             {
                 var existsResult = await _databaseService.ItemExistsAsync(
                     GetEntityTableName(entityName),
-                    PossibleKeyNames[0],
-                    new PrimitiveType(id),
+                    key,
                     null,
                     cancellationToken);
                 if (existsResult is { IsSuccessful: true, Data: true })
@@ -1129,8 +1084,7 @@ public class EntityRepositoryService
 
             var deletePeekOverviewResult = await _databaseService.DeleteItemAsync(
                 GetEntityPeekOverviewTableName(entityName),
-                PossibleKeyNames[0],
-                new PrimitiveType(id),
+                key,
                 DbReturnItemBehavior.DoNotReturn,
                 null,
                 cancellationToken);
@@ -1138,8 +1092,7 @@ public class EntityRepositoryService
             {
                 var existsResult = await _databaseService.ItemExistsAsync(
                     GetEntityPeekOverviewTableName(entityName),
-                    PossibleKeyNames[0],
-                    new PrimitiveType(id),
+                    key,
                     null,
                     cancellationToken);
                 if (existsResult is { IsSuccessful: true, Data: true })
@@ -1172,23 +1125,22 @@ public class EntityRepositoryService
     {
         var scanResult = await _databaseService.ScanTableAsync(
             GetEntityPeekOverviewTableName(entityName),
-            PossibleKeyNames,
             cancellationToken);
         return !scanResult.IsSuccessful
             ? OperationResult<JArray>.Failure($"Error: EntityRepository->PeekAllAsync: ScanTableAsync has failed with: {scanResult.ErrorMessage}", scanResult.StatusCode)
-            : OperationResult<JArray>.Success(ListOfJObjectToJArray(scanResult.Data));
+            : OperationResult<JArray>.Success(ListOfJObjectToJArray(scanResult.Data.Items));
     }
 
     private async Task<OperationResult<JObject>> TryExtractingPeekOverviewFromBodyAsync(string entityName, JObject? body, CancellationToken cancellationToken)
     {
         if (body == null)
             return OperationResult<JObject>.Failure("Body is null", HttpStatusCode.InternalServerError);
-        if (!body.TryGetTypedValue(PossibleKeyNames[0], out int id))
-            return OperationResult<JObject>.Failure($"Body does not have {PossibleKeyNames[0]}", HttpStatusCode.InternalServerError);
+        if (!body.TryGetTypedValue(EntityModelAttributes.Id, out int id))
+            return OperationResult<JObject>.Failure($"Body does not have {EntityModelAttributes.Id}", HttpStatusCode.InternalServerError);
 
         var result = new JObject
         {
-            [PossibleKeyNames[0]] = id
+            [EntityModelAttributes.Id] = id
         };
 
         if (body.TryGetTypedValue(EntityModelAttributes.Author, out int authorId) && authorId > 0)
