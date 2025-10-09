@@ -104,8 +104,8 @@ internal class Entities : BaseEndpoint
             userFields.CanUserDo("CREATE", entityName),
             userFields.CanUserDo("DELETE", entityName),
             showOnlyByAuthor,
-            showOnlyByCategoryNames.NotNull(),
-            showOnlyByTagNames.NotNull(),
+            showOnlyByCategoryNames,
+            showOnlyByTagNames,
             sortBy);
 
         var generateResult = await generator.GenerateAsync(cancellationToken);

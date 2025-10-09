@@ -22,8 +22,8 @@ namespace ReflectiveForms.Core.PageGenerators
         bool canUserCreateAnEntity,
         bool canUserDeleteAnEntity,
         int showOnlyByAuthorId,
-        List<string> showOnlyByCategoryNamesNullable,
-        List<string> showOnlyByTagNamesNullable,
+        List<string>? showOnlyByCategoryNamesNullable,
+        List<string>? showOnlyByTagNamesNullable,
         string? sortByNullable)
     {
         private const string Template = """
