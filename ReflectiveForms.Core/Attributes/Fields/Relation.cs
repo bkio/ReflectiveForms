@@ -151,7 +151,7 @@ public sealed class Relation : Field
             defaultSelection = ((int)nullableCurrentValueJToken).ToString();
 
             if (isForReserveParentElement
-                && (defaultSelection == "-1" ||  defaultSelection == "0"))
+                && defaultSelection is "-1" or "0")
             {
                 tmp = defaultSelection;
                 defaultSelection = null;

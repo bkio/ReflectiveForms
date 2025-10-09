@@ -1,6 +1,8 @@
 // Copyright (c) 2022- Burak Kara, AGPL-3.0 license
 // See LICENSE file in the project root for full license information.
 
+using System.Net;
+using CrossCloudKit.Interfaces.Classes;
 using CrossCloudKit.Utilities.Common;
 using Newtonsoft.Json.Linq;
 using ReflectiveForms.Core.Models;
@@ -64,13 +66,22 @@ internal static class RootManager
                     ownerRoleFields.Capabilities = currentOwnerCapabilities;
 
                     //We cannot use UsersCache here because it is not initialized yet.
-                    var rootUserGetResult = await RfConfiguration.RepositoryService.GetOneFromAllByFilter(
-                        RfReservedEntities.UsersEntityName,
-                        u => ((JObject)u).TryGetTypedValue(EntityModelAttributes.Title, out JObject? titleJObject)
-                             && titleJObject.NotNull().TryGetTypedValue(EntityModelAttributes.TitleRendered,
-                                 out string? titleText)
-                             && titleText == RootUserTitleConstant,
-                        cancellationToken);
+                    var rootUserGetResult = OperationResult<JObject>.Failure(
+                        "Not found.",
+                        HttpStatusCode.NotFound
+                    );
+                    await foreach (var result in RfConfiguration.RepositoryService
+                                       .GetByFilterAsync(
+                                           RfReservedEntities.UsersEntityName,
+                                           ConditionBuilder.AttributeEquals(
+                                               $"{EntityModelAttributes.Title}.{EntityModelAttributes.TitleRendered}",
+                                               RootUserTitleConstant),
+                                           1,
+                                           cancellationToken))
+                    {
+                        rootUserGetResult = result;
+                        break;
+                    }
 
                     EntityUpdaterIdentity updaterIdentity;
                     if (rootUserGetResult.IsSuccessful)

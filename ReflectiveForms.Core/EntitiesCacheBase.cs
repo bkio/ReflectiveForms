@@ -24,16 +24,18 @@ public class EntitiesCacheBase<T> where T : EntityFieldsModel, new()
                 }
             }, cancellationToken).GetAwaiter().GetResult();
 
-        var getEntitiesResult =
-            RfConfiguration.RepositoryService.GetAllAsync(
-                entityType,
-                cancellationToken).GetAwaiter().GetResult();
-        if (!getEntitiesResult.IsSuccessful)
-        {
-            throw new Exception($"GetAllAsync operation for {entityType} entities has failed with {getEntitiesResult.ErrorMessage}");
-        }
+        var enumerator = RfConfiguration.RepositoryService
+            .GetAllAsync(entityType, null, cancellationToken)
+            .GetAsyncEnumerator(cancellationToken);
 
-        var entities = getEntitiesResult.Data.Select(entityToken => ((JObject)entityToken).ToObjectWithPolymorphism<EntityModel<T>>()).Select(entityObject => entityObject.NotNull()).ToList();
+        // Loop synchronously
+        var entities = new List<EntityModel<T>>();
+        while (enumerator.MoveNextAsync().AsTask().GetAwaiter().GetResult())
+        {
+            if (!enumerator.Current.IsSuccessful)
+                throw new Exception($"GetAllAsync operation for {entityType} entities has failed with {enumerator.Current.ErrorMessage} ({enumerator.Current.StatusCode})");
+            entities.Add(enumerator.Current.Data.ToObjectWithPolymorphism<EntityModel<T>>().NotNull());
+        }
 
         lock (_entitiesLock)
         {
@@ -120,7 +122,7 @@ public class EntitiesCacheBase<T> where T : EntityFieldsModel, new()
             _entities[entityId] = newEntityState.NotNull();
         }
     }
-    private readonly Lock _entitiesLock = new();
+    private readonly object _entitiesLock = new();
 
     private readonly Dictionary<int, EntityModel<T>> _entities = new();
 }

@@ -38,7 +38,7 @@ public static class EntityLockController
         int id,
         CancellationToken cancellationToken)
     {
-        return await MemoryScopeMutex.CreateScopeAsync(
+        return await MemoryScopeMutex.CreateEntityScopeAsync(
             RfConfiguration.RepositoryService.MemoryServiceInstance,
             new MemoryScopeLambda($"{MutexLockMemoryScopePrefix}:{entityType}"),
             $"{id}",
@@ -144,7 +144,7 @@ public static class EntityLockController
 
         var setKeyResult = await RfConfiguration.RepositoryService.MemoryServiceInstance.SetKeyValuesAsync(
             memoryScope,
-            new Dictionary<string, PrimitiveType>
+            new Dictionary<string, Primitive>
             {
                 {
                     StateKey,

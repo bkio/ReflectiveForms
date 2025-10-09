@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
@@ -11,10 +11,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="CrossCloudKit.Database.Basic" Version="2025.10.3.39" />
-    <PackageReference Include="CrossCloudKit.File.Basic" Version="2025.10.3.39" />
-    <PackageReference Include="CrossCloudKit.Memory.Basic" Version="2025.10.3.39" />
-    <PackageReference Include="CrossCloudKit.PubSub.Basic" Version="2025.10.3.39" />
+    <PackageReference Include="CrossCloudKit.Database.Basic" Version="2025.10.8.50" />
+    <PackageReference Include="CrossCloudKit.File.Basic" Version="2025.10.8.50" />
+    <PackageReference Include="CrossCloudKit.Memory.Basic" Version="2025.10.8.50" />
+    <PackageReference Include="CrossCloudKit.PubSub.Basic" Version="2025.10.8.50" />
   </ItemGroup>
 
 </Project>

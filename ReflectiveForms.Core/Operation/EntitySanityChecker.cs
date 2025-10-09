@@ -10,6 +10,7 @@ using Newtonsoft.Json.Linq;
 using ReflectiveForms.Core.Attributes;
 using ReflectiveForms.Core.Attributes.Fields;
 using ReflectiveForms.Core.Models;
+using ReflectiveForms.Core.Repositories;
 using ReflectiveForms.Core.Utilities;
 
 namespace ReflectiveForms.Core.Operation;
@@ -156,32 +157,22 @@ internal static class EntitySanityChecker
         var id = (int)obj[EntityModelAttributes.Id].NotNull();
 
         if (!obj.TryGetTypedValue(EntityModelAttributes.Title, out JObject? titleJObject)
-                || !titleJObject.NotNull().TryGetTypedValue(EntityModelAttributes.TitleRendered, out string? titleRendered))
+                || !titleJObject.NotNull().TryGetTypedValue(EntityModelAttributes.TitleRendered, out string? titleRenderedNullable))
         {
             return OperationResult<bool>.Failure($"-{EntityModelAttributes.Title}- cannot be empty.", HttpStatusCode.BadRequest);
         }
-        var titleRenderedLowered = titleRendered?.ToLower();
+        var titleRendered = titleRenderedNullable.NotNull();
 
-        var getAllResult = await RfConfiguration.RepositoryService.GetAllAsync(entityName, cancellationToken);
-        if (!getAllResult.IsSuccessful)
+        await foreach (var itemResult in RfConfiguration.RepositoryService.GetByFilterAsync(
+            entityName,
+            ConditionBuilder.AttributeEquals($"{EntityModelAttributes.Title}.{EntityModelAttributes.TitleRendered}", titleRendered)
+                .And(ConditionBuilder.AttributeNotEquals(EntityModelAttributes.Id, id)),
+            1,
+            cancellationToken))
         {
-            return OperationResult<bool>.Failure($"GetAllAsync operation for entities has failed with {getAllResult.ErrorMessage}", getAllResult.StatusCode);
-        }
-        foreach (var choiceJToken in getAllResult.Data)
-        {
-            var choiceJObject = (JObject)choiceJToken;
-
-            if (!choiceJObject.TryGetTypedValue(EntityModelAttributes.Id, out int choiceId)) continue;
-            if (choiceId == id) continue;
-
-            if (!choiceJObject.TryGetTypedValue(EntityModelAttributes.Title, out titleJObject)
-                    || !titleJObject.NotNull().TryGetTypedValue(EntityModelAttributes.TitleRendered, out titleRendered))
-                continue;
-
-            if (titleRendered.NotNull().ToLower() == titleRenderedLowered)
-            {
-                return OperationResult<bool>.Failure($"-{EntityModelAttributes.Title}- of the entity must be globally unique.", HttpStatusCode.BadRequest);
-            }
+            return !itemResult.IsSuccessful
+                ? OperationResult<bool>.Failure($"GetByFilterAsync operation for entities has failed with {itemResult.ErrorMessage}", itemResult.StatusCode)
+                : OperationResult<bool>.Failure($"-{EntityModelAttributes.Title}- of the entity must be globally unique.", HttpStatusCode.BadRequest);
         }
         return OperationResult<bool>.Success(true);
     }

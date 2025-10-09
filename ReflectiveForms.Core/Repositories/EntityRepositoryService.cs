@@ -4,6 +4,7 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using CrossCloudKit.Interfaces;
 using CrossCloudKit.Interfaces.Classes;
 using CrossCloudKit.Interfaces.Enums;
@@ -16,6 +17,22 @@ using ReflectiveForms.Core.Utilities;
 
 namespace ReflectiveForms.Core.Repositories;
 
+public static class ConditionBuilder
+{
+    internal static IDatabaseService? DatabaseService { set; private get; }
+
+    public static Func<string, Condition> AttributeExists => DatabaseService.NotNull().AttributeExists;
+    public static Func<string, Condition> AttributeNotExists => DatabaseService.NotNull().AttributeNotExists;
+    public static Func<string, Primitive, Condition> AttributeEquals => DatabaseService.NotNull().AttributeEquals;
+    public static Func<string, Primitive, Condition> AttributeNotEquals => DatabaseService.NotNull().AttributeNotEquals;
+    public static Func<string, Primitive, Condition> AttributeIsGreaterThan => DatabaseService.NotNull().AttributeIsGreaterThan;
+    public static Func<string, Primitive, Condition> AttributeIsGreaterOrEqual => DatabaseService.NotNull().AttributeIsGreaterOrEqual;
+    public static Func<string, Primitive, Condition> AttributeIsLessThan => DatabaseService.NotNull().AttributeIsLessThan;
+    public static Func<string, Primitive, Condition> AttributeIsLessOrEqual => DatabaseService.NotNull().AttributeIsLessOrEqual;
+    public static Func<string, Primitive, Condition> ArrayElementExists => DatabaseService.NotNull().ArrayElementExists;
+    public static Func<string, Primitive, Condition> ArrayElementNotExists => DatabaseService.NotNull().ArrayElementNotExists;
+}
+
 public class EntityRepositoryService
 {
     internal EntityRepositoryService(EntityRepositoryServiceConfiguration configuration)
@@ -24,23 +41,25 @@ public class EntityRepositoryService
         if (!configuration.DatabaseService.IsInitialized)
             throw new InvalidOperationException("DatabaseService is not initialized.");
 
+        ConditionBuilder.DatabaseService = configuration.DatabaseService;
+
         ArgumentNullException.ThrowIfNull(configuration.MemoryService);
         if (!configuration.MemoryService.IsInitialized)
             throw new InvalidOperationException("MemoryService is not initialized.");
 
-        _databaseService = configuration.DatabaseService;
+        _db = configuration.DatabaseService;
         _pubSubService = configuration.PubSubService;
         MemoryServiceInstance = configuration.MemoryService;
         FileServiceConfiguration = configuration.FileServiceConfiguration;
 
         // ReSharper disable once SuspiciousTypeConversion.Global
-        (_databaseService as DatabaseServiceBase)?.SetOptions(new DbOptions
+        (_db as DatabaseServiceBase)?.SetOptions(new DbOptions
         {
             AutoSortArrays = DbAutoSortArrays.No,
             AutoConvertRoundableFloatToInt = DbAutoConvertRoundableFloatToInt.Yes
         });
     }
-    private readonly IDatabaseService _databaseService;
+    private readonly IDatabaseService _db;
     private readonly IPubSubService _pubSubService;
     internal IMemoryService MemoryServiceInstance { get; }
     internal FileServiceConfiguration FileServiceConfiguration { get; }
@@ -126,73 +145,109 @@ public class EntityRepositoryService
     private const string HistoryTableOldRevisionInContainerModifiedByIdAttributeName = "modified_by_id";
     private const string HistoryTableOldRevisionInContainerModifiedByEmailAttributeName = "modified_by_email";
 
-    public async Task<OperationResult<JArray>> GetAllAsync(string entityName, CancellationToken cancellationToken)
+    private const int DefaultPageSize = 50;
+
+    private async IAsyncEnumerable<OperationResult<JObject>> InternalGetAllPaginatedAsync(
+        string entityName,
+        int maxItems = int.MaxValue,
+        ConditionCoupling? filter = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var result = await _databaseService.ScanTableAsync(
-            GetEntityTableName(entityName),
-            cancellationToken);
-        return !result.IsSuccessful
-            ? OperationResult<JArray>.Failure($"GetAllAsync has failed with: {result.ErrorMessage}", result.StatusCode)
-            : OperationResult<JArray>.Success(ListOfJObjectToJArray(result.Data.Items));
+        var generatedNo = 0;
+        string? nextToken = null;
+        do
+        {
+            var pageSize = Math.Min(DefaultPageSize, maxItems - generatedNo);
+
+            var result = filter != null
+                ? await _db.ScanTableWithFilterPaginatedAsync(
+                    GetEntityTableName(entityName),
+                    filter,
+                    pageSize,
+                    nextToken,
+                    cancellationToken)
+                : await _db.ScanTablePaginatedAsync(
+                    GetEntityTableName(entityName),
+                    pageSize,
+                    nextToken,
+                    cancellationToken);
+
+            if (!result.IsSuccessful)
+            {
+                yield return OperationResult<JObject>.Failure(
+                    $"GetAllAsync has failed with: {result.ErrorMessage}",
+                    result.StatusCode);
+                yield break;
+            }
+            nextToken = result.Data.NextPageToken;
+
+            foreach (var item in result.Data.Items)
+            {
+                yield return OperationResult<JObject>.Success(item);
+            }
+
+            generatedNo += result.Data.Items.Count;
+        } while (nextToken != null && generatedNo < maxItems);
     }
 
-    public async Task<OperationResult<JArray>> GetAllByAuthorIdAsync(string entityName, int authorId, CancellationToken cancellationToken)
+    public IAsyncEnumerable<OperationResult<JObject>> GetAllAsync(
+        string entityName,
+        int? maxItems = null,
+        CancellationToken cancellationToken = default)
     {
-        var result = await _databaseService.ScanTableWithFilterAsync(
-            GetEntityTableName(entityName),
-            _databaseService.AttributeEquals(EntityModelAttributes.Author, authorId),
-            cancellationToken);
-        return !result.IsSuccessful
-            ? OperationResult<JArray>.Failure($"GetAllByAuthorIdAsync has failed with: {result.ErrorMessage}", result.StatusCode)
-            : OperationResult<JArray>.Success(ListOfJObjectToJArray(result.Data.Items));
+        return InternalGetAllPaginatedAsync(entityName, maxItems ?? int.MaxValue, null, cancellationToken);
     }
 
-    public async Task<OperationResult<JArray>> GetAllByFilterAsync(string entityName, Func<JToken, bool> filter, CancellationToken cancellationToken)
+    public IAsyncEnumerable<OperationResult<JObject>> GetByAuthorIdAsync(
+        string entityName,
+        int authorId,
+        int? maxItems = null,
+        CancellationToken cancellationToken = default)
     {
-        var result = await _databaseService.ScanTableAsync(
-            GetEntityTableName(entityName),
-            cancellationToken);
-        return !result.IsSuccessful
-            ? OperationResult<JArray>.Failure($"GetAllByFilterAsync has failed with: {result.ErrorMessage}", result.StatusCode)
-            : OperationResult<JArray>.Success(ListOfJObjectToJArray(result.Data.Items, filter));
+        return InternalGetAllPaginatedAsync(entityName, maxItems ?? int.MaxValue, _db.AttributeEquals(EntityModelAttributes.Author, authorId), cancellationToken);
     }
 
-    public async Task<OperationResult<JArray>> GetAllByFilterByAuthorIdAsync(string entityName, int authorId, Func<JToken, bool> filter, CancellationToken cancellationToken)
+    public IAsyncEnumerable<OperationResult<JObject>> GetByFilterAsync(
+        string entityName,
+        ConditionCoupling filter,
+        int? maxItems = null,
+        CancellationToken cancellationToken = default)
     {
-        var result = await _databaseService.ScanTableWithFilterAsync(
-            GetEntityTableName(entityName),
-            _databaseService.AttributeEquals(EntityModelAttributes.Author, authorId),
-            cancellationToken);
-        return !result.IsSuccessful
-            ? OperationResult<JArray>.Failure($"GetAllByFilterByAuthorIdAsync has failed with: {result.ErrorMessage}", result.StatusCode)
-            : OperationResult<JArray>.Success(ListOfJObjectToJArray(result.Data.Items, filter));
+        return InternalGetAllPaginatedAsync(entityName, maxItems ?? int.MaxValue, filter, cancellationToken);
     }
 
-    public async Task<OperationResult<JArray>> GetAllByFilterByTagIdAsync(string entityName, int tagId, Func<JToken, bool> filter, CancellationToken cancellationToken)
+    public IAsyncEnumerable<OperationResult<JObject>> GetByFilterByAuthorIdAsync(
+        string entityName,
+        int authorId,
+        ConditionCoupling filter,
+        int? maxItems = null,
+        CancellationToken cancellationToken = default)
     {
-        var result = await _databaseService.ScanTableWithFilterAsync(
-            GetEntityTableName(entityName),
-            _databaseService.ArrayElementExists(EntityModelAttributes.Tags, tagId),
-            cancellationToken);
-        return !result.IsSuccessful
-            ? OperationResult<JArray>.Failure($"GetAllByFilterByTagIdAsync has failed with: {result.ErrorMessage}", result.StatusCode)
-            : OperationResult<JArray>.Success(ListOfJObjectToJArray(result.Data.Items, filter));
+        return InternalGetAllPaginatedAsync(entityName, maxItems ?? int.MaxValue, _db.AttributeEquals(EntityModelAttributes.Author, authorId).And(filter), cancellationToken);
     }
 
-    public async Task<OperationResult<JArray>> GetAllByTagIdAsync(string entityName, int tagId, CancellationToken cancellationToken)
+    public IAsyncEnumerable<OperationResult<JObject>> GetByFilterByTagIdAsync(
+        string entityName,
+        int tagId,
+        ConditionCoupling filter,
+        int? maxItems = null,
+        CancellationToken cancellationToken = default)
     {
-        var result = await _databaseService.ScanTableWithFilterAsync(
-            GetEntityTableName(entityName),
-            _databaseService.ArrayElementExists(EntityModelAttributes.Tags, tagId),
-            cancellationToken);
-        return !result.IsSuccessful
-            ? OperationResult<JArray>.Failure($"GetAllByTagIdAsync has failed with: {result.ErrorMessage}", result.StatusCode)
-            : OperationResult<JArray>.Success(ListOfJObjectToJArray(result.Data.Items));
+        return InternalGetAllPaginatedAsync(entityName, maxItems ?? int.MaxValue, _db.ArrayElementExists(EntityModelAttributes.Tags, tagId).And(filter), cancellationToken);
+    }
+
+    public IAsyncEnumerable<OperationResult<JObject>> GetByTagIdAsync(
+        string entityName,
+        int tagId,
+        int? maxItems = null,
+        CancellationToken cancellationToken = default)
+    {
+        return InternalGetAllPaginatedAsync(entityName, maxItems ?? int.MaxValue, _db.ArrayElementExists(EntityModelAttributes.Tags, tagId), cancellationToken);
     }
 
     public async Task<OperationResult<JObject>> GetOneAsync(string entityName, int id, CancellationToken cancellationToken)
     {
-        var result = await _databaseService.GetItemAsync(
+        var result = await _db.GetItemAsync(
             GetEntityTableName(entityName),
             new DbKey(EntityModelAttributes.Id, id),
             null,
@@ -204,9 +259,10 @@ public class EntityRepositoryService
                 ? OperationResult<JObject>.Failure("Not found.", HttpStatusCode.NotFound)
                 : OperationResult<JObject>.Success(result.Data);
     }
+
     public async Task<OperationResult<bool>> DoesExistAsync(string entityName, int id, CancellationToken cancellationToken)
     {
-        var result = await _databaseService.ItemExistsAsync(
+        var result = await _db.ItemExistsAsync(
             GetEntityPeekOverviewTableName(entityName),
             new DbKey(EntityModelAttributes.Id, id),
             null,
@@ -215,53 +271,6 @@ public class EntityRepositoryService
             ? OperationResult<bool>.Failure($"DoesExistAsync has failed with: {result.ErrorMessage}", result.StatusCode)
             : result;
     }
-    public async Task<OperationResult<JObject>> GetOneFromAllByAuthorIdByFilter(string entityName, int authorId, Func<JToken, bool> filter, CancellationToken cancellationToken)
-    {
-        var result = await _databaseService.ScanTableWithFilterAsync(
-            GetEntityTableName(entityName),
-            _databaseService.AttributeEquals(EntityModelAttributes.Author, authorId),
-            cancellationToken);
-
-        if (!result.IsSuccessful)
-            return OperationResult<JObject>.Failure($"GetOneFromAllByAuthorIdByFilter has failed with: {result.ErrorMessage}", result.StatusCode);
-
-        var filtered = InternalGetOneFromAll(result.Data.Items, filter);
-        return filtered == null
-            ? OperationResult<JObject>.Failure($"Not found.", HttpStatusCode.NotFound)
-            : OperationResult<JObject>.Success(filtered);
-    }
-
-    public async Task<OperationResult<JObject>> GetOneFromAllByFilter(string entityName, Func<JToken, bool> filter, CancellationToken cancellationToken)
-    {
-        var result = await _databaseService.ScanTableAsync(
-            GetEntityTableName(entityName),
-            cancellationToken);
-
-        if (!result.IsSuccessful)
-            return OperationResult<JObject>.Failure($"GetOneFromAllByFilter has failed with: {result.ErrorMessage}", result.StatusCode);
-
-        var filtered = InternalGetOneFromAll(result.Data.Items, filter);
-        return filtered == null
-            ? OperationResult<JObject>.Failure("Not found.", HttpStatusCode.NotFound)
-            : OperationResult<JObject>.Success(filtered);
-    }
-
-    public async Task<OperationResult<JObject>> GetOneFromAllByTagIdByFilter(string entityName, int tagId, Func<JToken, bool> filter, CancellationToken cancellationToken)
-    {
-        var result = await _databaseService.ScanTableWithFilterAsync(
-            GetEntityTableName(entityName),
-            _databaseService.ArrayElementExists(EntityModelAttributes.Tags, tagId),
-            cancellationToken);
-
-        if (!result.IsSuccessful)
-            return OperationResult<JObject>.Failure($"GetOneFromAllByTagIdByFilter has failed with: {result.ErrorMessage}", result.StatusCode);
-
-        var filtered = InternalGetOneFromAll(result.Data.Items, filter);
-        return filtered == null
-            ? OperationResult<JObject>.Failure("Not found.", HttpStatusCode.NotFound)
-            : OperationResult<JObject>.Success(filtered);
-    }
-
     private const string PutOneAsyncMethodName = "PutOneAsync";
     public async Task<OperationResult<JObject>> PutOneAsync<T>(
         string entityName,
@@ -280,7 +289,7 @@ public class EntityRepositoryService
         var trialCount = 1;
         while (++trialCount <= 5)
         {
-            var incrementResult = await _databaseService.IncrementAttributeAsync(GlobalIndexesTableName,
+            var incrementResult = await _db.IncrementAttributeAsync(GlobalIndexesTableName,
                 new DbKey(EntityModelAttributes.Id, GlobalIndexesKeyName),
                 GlobalIndexesLastValueAttributeName,
                 1.0,
@@ -291,7 +300,7 @@ public class EntityRepositoryService
 
             newId = (int)incrementResult.Data;
 
-            await using var mutex = await MemoryScopeMutex.CreateScopeAsync(
+            await using var mutex = await MemoryScopeMutex.CreateEntityScopeAsync(
                 MemoryServiceInstance,
                 _mutexScope,
                 $"{EntityModelAttributes.Id}:{newId}",
@@ -315,7 +324,7 @@ public class EntityRepositoryService
             if (!sanityCheck.IsSuccessful)
                 return OperationResult<JObject>.Failure($"Sanity check for {entityName}, entity {EntityModelAttributes.Id}: {newId} has failed with {sanityCheck.ErrorMessage}", HttpStatusCode.BadRequest);
 
-            var putItemResult = await _databaseService.PutItemAsync(
+            var putItemResult = await _db.PutItemAsync(
                 GetEntityTableName(entityName),
                 idKey,
                 newBody,
@@ -334,7 +343,7 @@ public class EntityRepositoryService
             {
                 var peekOverview = extractionResult.Data;
 
-                var updateResult = await _databaseService.UpdateItemAsync(
+                var updateResult = await _db.UpdateItemAsync(
                     GetEntityPeekOverviewTableName(entityName),
                     idKey,
                     peekOverview,
@@ -344,7 +353,7 @@ public class EntityRepositoryService
                 if (!updateResult.IsSuccessful)
                 {
                     var error = $"Error: EntityRepository->PutOneAsync: PutItemAsync has succeeded, but UpdateItemAsync has failed. Id: {idKey.Value.AsInteger} Peek Overview: {peekOverview} ({updateResult.StatusCode})";
-                    var deleteResult = await _databaseService.DeleteItemAsync(
+                    var deleteResult = await _db.DeleteItemAsync(
                         GetEntityTableName(entityName),
                         idKey,
                         DbReturnItemBehavior.DoNotReturn,
@@ -397,7 +406,7 @@ public class EntityRepositoryService
 
         FixBodyForMustHaveFields(entityName, body);
         {
-            await using var mutex = await MemoryScopeMutex.CreateScopeAsync(
+            await using var mutex = await MemoryScopeMutex.CreateEntityScopeAsync(
                 MemoryServiceInstance,
                 _mutexScope,
                 $"{EntityModelAttributes.Id}:{id}",
@@ -406,7 +415,7 @@ public class EntityRepositoryService
 
             var key = new DbKey(EntityModelAttributes.Id, id);
 
-            var getItemResult = await _databaseService.GetItemAsync(
+            var getItemResult = await _db.GetItemAsync(
                 GetEntityTableName(entityName),
                 key,
                 null,
@@ -422,7 +431,7 @@ public class EntityRepositoryService
             }
             async Task<OperationResult<JObject>> RevertBackUpdate(string error)
             {
-                var revertBackUpdateResult = await _databaseService.UpdateItemAsync(
+                var revertBackUpdateResult = await _db.UpdateItemAsync(
                     GetEntityTableName(entityName),
                     key,
                     oldObject,
@@ -451,12 +460,12 @@ public class EntityRepositoryService
                 return OperationResult<JObject>.Failure($"Sanity check for {entityName}, entity {EntityModelAttributes.Id}: {id} has failed with {sanityCheckResult.ErrorMessage}", HttpStatusCode.BadRequest);
             }
 
-            var updateResult = await _databaseService.UpdateItemAsync(
+            var updateResult = await _db.UpdateItemAsync(
                 GetEntityTableName(entityName),
                 key,
                 newBody,
                 DbReturnItemBehavior.ReturnNewValues,
-                _databaseService.AttributeEquals(EntityModelAttributes.Id, key.Value.AsInteger),
+                _db.AttributeEquals(EntityModelAttributes.Id, key.Value.AsInteger),
                 cancellationToken);
             if (!updateResult.IsSuccessful)
             {
@@ -468,7 +477,7 @@ public class EntityRepositoryService
             JObject? previousOldRevisionsState = null;
             if (!entityUpdaterIdentity.IsDuringHookUpdate)
             {
-                var historyGetItemResult = await _databaseService.GetItemAsync(
+                var historyGetItemResult = await _db.GetItemAsync(
                     GetEntityHistoryTableName(entityName),
                     key,
                     null,
@@ -500,7 +509,7 @@ public class EntityRepositoryService
                         [$"{HistoryTableOldRevisionContainerAttributeNamePrefix}1"] = oldRevisionsNewObject
                     };
 
-                    var historyPutItemResult = await _databaseService.PutItemAsync(
+                    var historyPutItemResult = await _db.PutItemAsync(
                         GetEntityHistoryTableName(entityName),
                         key,
                         oldRevisions,
@@ -520,7 +529,7 @@ public class EntityRepositoryService
                     oldRevisions[HistoryTableOldRevisionsCountAttributeName] = oldRevisionsCount;
                     oldRevisions.Add($"{HistoryTableOldRevisionContainerAttributeNamePrefix}{oldRevisionsCount}", oldRevisionsNewObject);
 
-                    var updateHistoryResult = await _databaseService.UpdateItemAsync(
+                    var updateHistoryResult = await _db.UpdateItemAsync(
                         GetEntityHistoryTableName(entityName),
                         key,
                         oldRevisions,
@@ -541,7 +550,7 @@ public class EntityRepositoryService
 
                 if (previousOldRevisionsState != null)
                 {
-                    var revertBackRevisionsUpdateResult = await _databaseService.UpdateItemAsync(
+                    var revertBackRevisionsUpdateResult = await _db.UpdateItemAsync(
                         GetEntityHistoryTableName(entityName),
                         key,
                         previousOldRevisionsState,
@@ -558,7 +567,7 @@ public class EntityRepositoryService
                 }
                 else
                 {
-                    var revertBackRevisionsDeleteResult = await _databaseService.DeleteItemAsync(
+                    var revertBackRevisionsDeleteResult = await _db.DeleteItemAsync(
                         GetEntityHistoryTableName(entityName),
                         key,
                         DbReturnItemBehavior.DoNotReturn,
@@ -582,7 +591,7 @@ public class EntityRepositoryService
             {
                 var peekOverview = extractionResult.Data;
 
-                var updatePeekOverviewResult = await _databaseService.UpdateItemAsync(
+                var updatePeekOverviewResult = await _db.UpdateItemAsync(
                     GetEntityPeekOverviewTableName(entityName),
                     key,
                     peekOverview,
@@ -605,7 +614,7 @@ public class EntityRepositoryService
             {
                 if (oldPeekOverview != null)
                 {
-                    var revertBackPeekOverviewUpdateResult = await _databaseService.UpdateItemAsync(
+                    var revertBackPeekOverviewUpdateResult = await _db.UpdateItemAsync(
                         GetEntityPeekOverviewTableName(entityName),
                         key,
                         oldPeekOverview,
@@ -622,7 +631,7 @@ public class EntityRepositoryService
                 }
                 else if (oldPeekOverviewExtractSucceeded)
                 {
-                    var revertBackPeekOverviewDeleteResult = await _databaseService.DeleteItemAsync(
+                    var revertBackPeekOverviewDeleteResult = await _db.DeleteItemAsync(
                         GetEntityPeekOverviewTableName(entityName),
                         key,
                         DbReturnItemBehavior.DoNotReturn,
@@ -669,7 +678,7 @@ public class EntityRepositoryService
         int id,
         CancellationToken cancellationToken)
     {
-        var getItemResult = await _databaseService.GetItemAsync(
+        var getItemResult = await _db.GetItemAsync(
             GetEntityHistoryTableName(entityName),
             new DbKey(EntityModelAttributes.Id, id),
             null,
@@ -777,11 +786,11 @@ public class EntityRepositoryService
 
             if (hasFailed.Value) return;
 
-            var scanResult = await _databaseService.ScanTableWithFilterAsync(
+            var scanResult = await _db.ScanTableWithFilterAsync(
                 tableName,
                 conditionIsArray
-                    ? _databaseService.ArrayElementExists(conditionIdAttribute, conditionIdValue)
-                    : _databaseService.AttributeEquals(conditionIdAttribute, conditionIdValue),
+                    ? _db.ArrayElementExists(conditionIdAttribute, conditionIdValue)
+                    : _db.AttributeEquals(conditionIdAttribute, conditionIdValue),
                 cancellationTokenForEach);
             if (!scanResult.IsSuccessful)
             {
@@ -816,7 +825,7 @@ public class EntityRepositoryService
                     relevantPost[typeNameAttribute] = typeNameValue;
                 }
 
-                var updateResult = await _databaseService.UpdateItemAsync(
+                var updateResult = await _db.UpdateItemAsync(
                     tableName,
                     new DbKey(EntityModelAttributes.Id, (long)relevantPost[EntityModelAttributes.Id].NotNull()),
                     relevantPost,
@@ -854,11 +863,11 @@ public class EntityRepositoryService
 
             if (failure.Value) return;
 
-            var scanTableResult = await _databaseService.ScanTableWithFilterAsync(
+            var scanTableResult = await _db.ScanTableWithFilterAsync(
                 actualTableName,
                 conditionIsArray
-                    ? _databaseService.ArrayElementExists(conditionIdAttributeActualTable, oldConditionIdValue)
-                    : _databaseService.AttributeEquals(conditionIdAttributeActualTable, oldConditionIdValue),
+                    ? _db.ArrayElementExists(conditionIdAttributeActualTable, oldConditionIdValue)
+                    : _db.AttributeEquals(conditionIdAttributeActualTable, oldConditionIdValue),
                 cancellationTokenForEach);
             if (!scanTableResult.IsSuccessful)
             {
@@ -893,7 +902,7 @@ public class EntityRepositoryService
                     actualRelevantPost[conditionIdAttributeActualTable] = -1;
                 }
 
-                var updateResult = await _databaseService.UpdateItemAsync(
+                var updateResult = await _db.UpdateItemAsync(
                     actualTableName,
                     new DbKey(EntityModelAttributes.Id, (long)actualRelevantPost[EntityModelAttributes.Id].NotNull()),
                     actualRelevantPost,
@@ -915,11 +924,11 @@ public class EntityRepositoryService
 
             if (failure.Value) return;
 
-            scanTableResult = await _databaseService.ScanTableWithFilterAsync(
+            scanTableResult = await _db.ScanTableWithFilterAsync(
                 peekAllTableName,
                 conditionIsArray
-                    ? _databaseService.ArrayElementExists(conditionIdAttributePeekAllTable, oldConditionIdValue)
-                    : _databaseService.AttributeEquals(conditionIdAttributePeekAllTable, oldConditionIdValue),
+                    ? _db.ArrayElementExists(conditionIdAttributePeekAllTable, oldConditionIdValue)
+                    : _db.AttributeEquals(conditionIdAttributePeekAllTable, oldConditionIdValue),
                 cancellationTokenForEach);
             if (!scanTableResult.IsSuccessful)
             {
@@ -955,7 +964,7 @@ public class EntityRepositoryService
                     peekAllRelevantPost[typeNameAttributePeekAllTable] = "";
                 }
 
-                var updateResult = await _databaseService.UpdateItemAsync(
+                var updateResult = await _db.UpdateItemAsync(
                     peekAllTableName,
                     new DbKey(EntityModelAttributes.Id, (long)peekAllRelevantPost[EntityModelAttributes.Id].NotNull()),
                     peekAllRelevantPost,
@@ -1055,14 +1064,14 @@ public class EntityRepositoryService
 
         JObject? lastBody;
         {
-            await using var mutex = await MemoryScopeMutex.CreateScopeAsync(
+            await using var mutex = await MemoryScopeMutex.CreateEntityScopeAsync(
                 MemoryServiceInstance,
                 _mutexScope,
                 $"{EntityModelAttributes.Id}:{id}",
                 TimeSpan.FromMinutes(1),
                 cancellationToken);
 
-            var deleteResult = await _databaseService.DeleteItemAsync(
+            var deleteResult = await _db.DeleteItemAsync(
                 GetEntityTableName(entityName),
                 key,
                 DbReturnItemBehavior.ReturnOldValues,
@@ -1070,7 +1079,7 @@ public class EntityRepositoryService
                 cancellationToken);
             if (!deleteResult.IsSuccessful)
             {
-                var existsResult = await _databaseService.ItemExistsAsync(
+                var existsResult = await _db.ItemExistsAsync(
                     GetEntityTableName(entityName),
                     key,
                     null,
@@ -1082,7 +1091,7 @@ public class EntityRepositoryService
             }
             lastBody = deleteResult.Data;
 
-            var deletePeekOverviewResult = await _databaseService.DeleteItemAsync(
+            var deletePeekOverviewResult = await _db.DeleteItemAsync(
                 GetEntityPeekOverviewTableName(entityName),
                 key,
                 DbReturnItemBehavior.DoNotReturn,
@@ -1090,7 +1099,7 @@ public class EntityRepositoryService
                 cancellationToken);
             if (!deletePeekOverviewResult.IsSuccessful)
             {
-                var existsResult = await _databaseService.ItemExistsAsync(
+                var existsResult = await _db.ItemExistsAsync(
                     GetEntityPeekOverviewTableName(entityName),
                     key,
                     null,
@@ -1123,7 +1132,7 @@ public class EntityRepositoryService
 
     public async Task<OperationResult<JArray>> PeekAllAsync(string entityName, CancellationToken cancellationToken)
     {
-        var scanResult = await _databaseService.ScanTableAsync(
+        var scanResult = await _db.ScanTableAsync(
             GetEntityPeekOverviewTableName(entityName),
             cancellationToken);
         return !scanResult.IsSuccessful
@@ -1263,37 +1272,12 @@ public class EntityRepositoryService
         return await GetOneAsync(entityName, id, cancellationToken);
     }
 
-    private static JObject? InternalGetOneFromAll(IReadOnlyList<JObject> scanResult, Func<JToken, bool>? filter)
-    {
-        JObject? result = null;
-
-        if (filter != null)
-        {
-            foreach (var item in scanResult.Where(item => filter(item)))
-            {
-                result = item;
-                break;
-            }
-        }
-        else if (scanResult.Count > 0)
-        {
-            result = scanResult[0];
-        }
-        return result;
-    }
-
-    private static JArray ListOfJObjectToJArray(IReadOnlyList<JObject> input, Func<JToken, bool>? filter = null)
+    private static JArray ListOfJObjectToJArray(IReadOnlyList<JObject> input)
     {
         var output = new JArray();
         foreach (var item in input)
         {
-            if (filter != null)
-            {
-                if (filter(item))
-                    output.Add(item);
-            }
-            else
-                output.Add(item);
+            output.Add(item);
         }
         return output;
     }

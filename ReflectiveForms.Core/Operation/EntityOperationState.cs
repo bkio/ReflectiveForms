@@ -126,13 +126,14 @@ public class EntityOperationState
             return OperationResult<JArray>.Success(level2.AsJArrayIfScanCalled.NotNull());
         }
 
-        var getAllResult = await RfConfiguration.RepositoryService.GetAllAsync(entityName, cancellationToken);
-        if (!getAllResult.IsSuccessful)
+        var result = new JArray();
+        await foreach (var itemResult in RfConfiguration.RepositoryService.GetAllAsync(entityName, null, cancellationToken))
         {
-            return getAllResult;
-        }
+            if (!itemResult.IsSuccessful)
+                return OperationResult<JArray>.Failure(itemResult.ErrorMessage, itemResult.StatusCode);
 
-        var result = getAllResult.Data;
+            result.Add(itemResult.Data);
+        }
 
         if (level2 == null
             && !_operationEntityObjectCache.TryGetValue(entityName, out level2))

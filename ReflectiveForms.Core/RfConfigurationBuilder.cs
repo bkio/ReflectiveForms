@@ -36,18 +36,19 @@ public record RootUserCredentials(string Email, string Password);
 
 public class RfConfigurationBuilder
 {
-    private readonly EntityRepositoryServiceConfiguration? _repositoryServiceConfiguration;
-
     public required EntityRepositoryServiceConfiguration RepositoryServiceConfiguration
     {
+        // Ensures internal access never sees null
         // ReSharper disable once UnusedMember.Local
         private get => _repositoryServiceConfiguration.NotNull();
+
         init
         {
-            _repositoryService = new EntityRepositoryService(value);
+            _repositoryService = new EntityRepositoryService(value.NotNull());
             _repositoryServiceConfiguration = value;
         }
     }
+    private readonly EntityRepositoryServiceConfiguration? _repositoryServiceConfiguration;
 
     public required RootUserCredentials RootUserCredentials { get; init; }
 
@@ -58,7 +59,6 @@ public class RfConfigurationBuilder
 
     public required EndpointConfiguration EndpointConfiguration { get; init; }
 
-    private readonly IReadOnlyList<EntityConfigurationBuilderBase>? _entityTypes;
     public required IReadOnlyList<EntityConfigurationBuilderBase> EntityTypes
     {
         get => _entityTypes.NotNull();
@@ -79,6 +79,7 @@ public class RfConfigurationBuilder
             _entityTypes = configList;
         }
     }
+    private readonly IReadOnlyList<EntityConfigurationBuilderBase>? _entityTypes;
 
     // ReSharper disable once MemberCanBePrivate.Global
     internal readonly IReadOnlyList<EntityFinalConfigurationBase>? EntityConfigurations;

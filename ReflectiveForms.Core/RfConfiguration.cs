@@ -40,7 +40,7 @@ public static class RfConfiguration
 
     private static bool _initialized;
 
-    private static readonly Lock InitializerLock = new();
+    private static readonly object InitializerLock = new();
 
     private static RfConfigurationBuilder? _configuration;
 

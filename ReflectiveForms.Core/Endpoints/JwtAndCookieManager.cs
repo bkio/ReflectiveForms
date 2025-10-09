@@ -25,7 +25,6 @@ internal static class JwtAndCookieManager
         [
             new Claim(JwtRegisteredClaimNames.Sub, $"{user.Id}"),
             new Claim(JwtRegisteredClaimNames.Email, $"{userFields.EmailAddress}"),
-            new Claim(JwtRegisteredClaimNames.EmailVerified, "false"),
             new Claim(JwtRegisteredClaimNames.Name, $"{user.Title.Text}"),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         ];
