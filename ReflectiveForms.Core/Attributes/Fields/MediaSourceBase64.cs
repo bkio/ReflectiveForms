@@ -200,7 +200,7 @@ public sealed class MediaSourceBase64 : Field
             var imageElement = createElement.Invoke<IHtmlImageElement>();
             elementWrapper.AppendChild(imageElement);
             imageElement.Source = defaultValue.StartsWith($"/{RfEndpointMapper.MediaEndpoint}")
-                ? $"{RfConfiguration.EndpointConfiguration.FinalPublicUrlBaseForApi}{RfEndpointMapper.MediaEndpoint}"
+                ? $"{RfConfiguration.EndpointConfiguration.PublicUrlRootForApi}{RfEndpointMapper.MediaEndpoint}"
                 : defaultValue;
 
             if (!parentObjectOfCurrentValueJToken.ContainsKey(jFieldName))
@@ -229,7 +229,7 @@ public sealed class MediaSourceBase64 : Field
                 var imageElement = createElement.Invoke<IHtmlImageElement>();
                 elementWrapper.AppendChild(imageElement);
                 imageElement.Source = imageSource.StartsWith($"/{RfEndpointMapper.MediaEndpoint}")
-                    ? $"{RfConfiguration.EndpointConfiguration.FinalPublicUrlBaseForApi}{RfEndpointMapper.MediaEndpoint}"
+                    ? $"{RfConfiguration.EndpointConfiguration.PublicUrlRootForApi}{RfEndpointMapper.MediaEndpoint}"
                     : imageSource;
                 return Task.CompletedTask;
             }

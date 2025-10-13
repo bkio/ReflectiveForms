@@ -34,8 +34,16 @@ internal class EntitiesAdmin : BaseEndpoint
         if (request.Query.ContainsKey("id"))
         {
             if (!request.TryGetEntityIdParameter(out var idVal, out failedResult, false))
-                return failedResult.NotNull();
-            id = idVal;
+            {
+                if (!request.Query["id"].ToString().Equals("new", StringComparison.CurrentCultureIgnoreCase))
+                {
+                    return failedResult.NotNull();
+                }
+            }
+            else
+            {
+                id = idVal;
+            }
         }
 
         var userFields = RequesterUser.NotNull().Fields;

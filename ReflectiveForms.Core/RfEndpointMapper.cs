@@ -35,11 +35,11 @@ public static class RfEndpointMapper
     internal const string LogoutEndpoint = "logout";
     internal const string CaptchaChallengeEndpoint = "captcha-challenge";
 
-    public static string PublicCrudEndpoint => RfConfiguration.EndpointConfiguration.FinalPublicUrlBaseForApi + CrudEndpoint;
-    public static string PublicSanityCheckEndpoint => RfConfiguration.EndpointConfiguration.FinalPublicUrlBaseForApi + SanityCheckEndpoint;
-    public static string PublicEntityLockControlEndpoint => RfConfiguration.EndpointConfiguration.FinalPublicUrlBaseForApi + EntityLockControlEndpoint;
-    public static string PublicLoginEndpoint => RfConfiguration.EndpointConfiguration.FinalPublicUrlBaseForApi + LoginEndpoint;
-    public static string PublicLogoutEndpoint => RfConfiguration.EndpointConfiguration.FinalPublicUrlBaseForApi + LogoutEndpoint;
+    public static string PublicCrudEndpoint => RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + CrudEndpoint;
+    public static string PublicSanityCheckEndpoint => RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + SanityCheckEndpoint;
+    public static string PublicEntityLockControlEndpoint => RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + EntityLockControlEndpoint;
+    public static string PublicLoginEndpoint => RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + LoginEndpoint;
+    public static string PublicLogoutEndpoint => RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + LogoutEndpoint;
 
     //Frontend
     internal const string EntitiesEndpoint = "entities";
@@ -47,7 +47,7 @@ public static class RfEndpointMapper
 
     private static WebApplication MapEndpoints(WebApplication app)
     {
-        var group = app.MapGroup(RfConfiguration.EndpointConfiguration.ReflectiveFormsEndpointPathPrefix);
+        var group = app.MapGroup(RfConfiguration.EndpointConfiguration.RootPath);
 
         MapEndpoint(group, RequestConsumerType.Api, LoginEndpoint, new Login());
         MapEndpoint(group, RequestConsumerType.Api, LogoutEndpoint, new Logout());

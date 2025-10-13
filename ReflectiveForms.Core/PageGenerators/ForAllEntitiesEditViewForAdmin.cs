@@ -213,7 +213,7 @@ namespace ReflectiveForms.Core.PageGenerators
             jsFunction.InnerHtml = $$"""
 
                                      window.process_show_only_or_sort_by = function(key, value) {
-                                         let built_url = '{{RfConfiguration.EndpointConfiguration.FinalEntitiesAdminBaseRoute}}?type={{entityName}}';
+                                         let built_url = '?type={{entityName}}';
                                          const params = new URLSearchParams(window.location.search);
                                          let found_exact = false;
                                          for (const [k, v] of params.entries()) {

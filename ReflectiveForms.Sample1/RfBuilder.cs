@@ -31,10 +31,9 @@ public static class RfBuilder
             EndpointConfiguration = new EndpointConfiguration
             {
                 JwtSecret = "my-awesome-secret-key-1234567890",
-                PublicBaseUrl = "http://localhost:9000",
-                ReflectiveFormsEndpointPathPrefix = "/rf",
-                PublicPathForApiProxy = "/rf-api/",
-                PublicPathForFrontendProxy = "/"
+                RootPath = "/rf",
+                PublicUrlRootForApi = "http://localhost:9000/rf/api/",
+                PublicUrlRootForFrontend = "http://localhost:9000/rf/frontend/"
             },
             EntityTypes =
             [

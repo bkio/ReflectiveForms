@@ -165,7 +165,7 @@ namespace ReflectiveForms.Core.PageGenerators
                                                      window.location.href = '{{RfConfiguration.EndpointConfiguration.FinalEntitiesAdminBaseRoute}}?type={{_entityName}}';
                                                      return;
                                                  }
-                                                 window.location.href = '{{{RfConfiguration.EndpointConfiguration.FinalEntitiesAdminBaseRoute}}?type={{_entityName}}&{{EntityModelAttributes.Id}}=' + parsed.{{EntityModelAttributes.Id}};
+                                                 window.location.href = '{{RfConfiguration.EndpointConfiguration.FinalEntitiesAdminBaseRoute}}?type={{_entityName}}&{{EntityModelAttributes.Id}}=' + parsed.{{EntityModelAttributes.Id}};
                                              }
                                              else {
                                                  if (!('message' in parsed)) parsed.message = 'Create request has failed.';
