@@ -121,7 +121,7 @@ public sealed class Text : Field
         else
             parentObjectOfCurrentValueJToken[jFieldName] = element.DefaultValue;
 
-        element.SetAttribute("onchange", $"window.current_fields_state{jsObjectPathIncludingThis} = this.value;");
+        element.SetAttribute("onchange", $"RF.FormState.setFieldValue('{jsObjectPathIncludingThis}', this.value);");
         element.SetAttribute("oninput", "window.global_oninput(this);");
         return Task.CompletedTask;
     }

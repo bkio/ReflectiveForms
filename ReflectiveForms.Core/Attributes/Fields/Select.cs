@@ -145,7 +145,7 @@ public sealed class Select : Field
             element.SetAttribute("dynamic-options-input-path", jsObjectPathIncludingThis.TrimEnd($"{jFieldName}").Trim('.'));
         }
 
-        element.SetAttribute("onchange", $"window.current_fields_state{jsObjectPathIncludingThis} = this.value;");
+        element.SetAttribute("onchange", $"RF.FormState.setFieldValue('{jsObjectPathIncludingThis}', this.value);");
         //No need for oninput, it is a select element
 
         return Task.CompletedTask;

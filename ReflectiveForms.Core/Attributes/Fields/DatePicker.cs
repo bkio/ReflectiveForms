@@ -161,31 +161,7 @@ public sealed class DatePicker : Field
                 optionElement.SetAttribute("selected", "");
         }
 
-        var onChangeScript = $$"""
-
-                               let day_and_year = [];
-                               let day_element = null;
-                               let month_no = null;
-                               for (let i = 0; i < this.parentElement.childNodes.length; i++) {
-                                   let child = this.parentElement.childNodes[i];
-                                   if (child instanceof HTMLInputElement) {
-                                       day_and_year.push(Number(child.value));
-                                       if (day_and_year.length === 1) {
-                                           day_element = child;
-                                       }
-                                   }
-                                   else if (child instanceof HTMLSelectElement) {
-                                       month_no = Number(child.value);
-                                   }
-                               }
-                               let m_res = moment([day_and_year[1], month_no - 1, day_and_year[0]]).format('{{_dateFormat.ToUpper()}}');
-                               if ('Invalid date' === m_res) {
-                                   let new_m_obj = moment([day_and_year[1], month_no - 1, 15]).endOf('month');
-                                   day_element.value = new_m_obj.format('DD');
-                                   m_res = new_m_obj.format('{{_dateFormat.ToUpper()}}');
-                               }
-                               window.current_fields_state{{jsObjectPathIncludingThis}} = m_res;
-                               """;
+        var onChangeScript = $"RF.FormState.setDateValue('{jsObjectPathIncludingThis}', this.parentElement, '{_dateFormat.ToUpper()}');";
         elementDay.SetAttribute("onchange", onChangeScript);
         elementMonth.SetAttribute("onchange", onChangeScript);
         elementYear.SetAttribute("onchange", onChangeScript);

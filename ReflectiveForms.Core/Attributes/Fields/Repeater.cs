@@ -221,143 +221,14 @@ public sealed class Repeater : Field
         tableWrapper.AppendChild(setupTableRowWithButtonsScriptElement);
         setupTableRowWithButtonsScriptElement.InnerHtml = $$"""
 
+            // Setup function using external RF.Repeater module
             window.setup_table_row_with_buttons_{{randomStringForScript}} = function(_table_element, _initial_row_index) {
-            let initial_card_header_row = _table_element.rows[_initial_row_index].cells[0].querySelector('.content-and-header-col').querySelector('.card-header-row');
-            let initial_delete_button = initial_card_header_row.querySelector('.row_delete_button');
-            let initial_move_up_button = initial_card_header_row.querySelector('.row_move_up_button');
-            let initial_move_down_button = initial_card_header_row.querySelector('.row_move_down_button');
-
-            let removed_element = null;
-
-            initial_delete_button.addEventListener('click', function() {
-            if (_table_element) {
-                let parent = this.parentElement;
-                while (parent && parent.tagName !== 'TR') parent = parent.parentElement;
-                if (parent) {
-                    let row_index = Array.from(_table_element.rows).indexOf(parent);
-                    let cell_content_and_header = _table_element.rows[row_index].cells[0].querySelector('div').querySelector('.content-and-header-col');
-            {{(_useAccordion == RepeatUseAccordion.Yes ? $"""
-
-                         let cell_expand_button_parent = cell_content_and_header.querySelector('.card-header-row').querySelector('.card-header-col').querySelector('h2');
-
-             """ : "")}}
-                    let cell_content = cell_content_and_header.querySelector('.card-content');
-                    let cell_move_up_button = cell_content_and_header.querySelector('.row_move_up_button');
-                    let cell_move_down_button = cell_content_and_header.querySelector('.row_move_down_button');
-
-                    if (this.hasAttribute('data-undo')) {
-                        cell_content.remove_bs_class('d-none');
-                        cell_move_up_button.remove_bs_class('d-none');
-                        cell_move_down_button.remove_bs_class('d-none');
-            {{(_useAccordion == RepeatUseAccordion.Yes ? $"""
-
-                             cell_expand_button_parent.remove_bs_class('d-none');
-
-             """ : "")}}
-                        this.querySelector('.icon').innerHTML = '<i class="fa-solid fa-trash"></i>';
-                        this.removeAttribute('data-undo');
-
-                        window.current_fields_state{{jsObjectPathIncludingThis}}[row_index] = removed_element;
-                        removed_element = null;
-                    }
-                    else {
-                        cell_content.add_bs_class('d-none');
-                        cell_move_up_button.add_bs_class('d-none');
-                        cell_move_down_button.add_bs_class('d-none');
-            {{(_useAccordion == RepeatUseAccordion.Yes ? $"""
-
-                             cell_expand_button_parent.add_bs_class('d-none');
-
-             """ : "")}}
-
-                        this.querySelector('.icon').innerHTML = '<i class="fa-solid fa-arrow-rotate-left"></i>';
-                        this.setAttribute('data-undo', '');
-
-                        removed_element = window.current_fields_state{{jsObjectPathIncludingThis}}[row_index];
-                        window.current_fields_state{{jsObjectPathIncludingThis}}[row_index] = window.deleted;
-                    }
-                }
-            }
-            });
-            const shift_row_element_divs = function(old_row_index, new_row_index) {
-            let old_cell_div = _table_element.rows[old_row_index].cells[0].querySelector('div');
-            let new_cell_div = _table_element.rows[new_row_index].cells[0].querySelector('div');
-            window.switch_elements(old_cell_div, new_cell_div);
-
-            tmp = window.current_fields_state{{jsObjectPathIncludingThis}}[old_row_index];
-            window.current_fields_state{{jsObjectPathIncludingThis}}[old_row_index] = window.current_fields_state{{jsObjectPathIncludingThis}}[new_row_index];
-            window.current_fields_state{{jsObjectPathIncludingThis}}[new_row_index] = tmp;
-
-            let old_card_header_and_content = old_cell_div.querySelector('.content-and-header-col');
-            let new_card_header_and_content = new_cell_div.querySelector('.content-and-header-col');
-
-            let old_card_header_row = old_card_header_and_content.querySelector('.card-header-row');
-            let new_card_header_row = new_card_header_and_content.querySelector('.card-header-row');
-
-            let old_header_header_col = old_card_header_row.querySelector('.card-header-col');
-            let new_header_header_col = new_card_header_row.querySelector('.card-header-col');
-
-            {{(_useAccordion == RepeatUseAccordion.Yes ? $"""
-
-                 window.switch_elements(old_header_header_col, new_header_header_col);
-
-                 let old_header_expand_button_parent = old_header_header_col.querySelector('h2');
-                 let new_header_expand_button_parent = new_header_header_col.querySelector('h2');
-                 window.switch_dnone_status_of_elements(old_header_expand_button_parent, new_header_expand_button_parent);
-
-                 let old_card_content = old_card_header_and_content.querySelector('.card-content');
-                 let new_card_content = new_card_header_and_content.querySelector('.card-content');
-
-                 let old_card_content_id = old_card_content.id;
-                 let new_card_content_id = new_card_content.id;
-                 old_card_content.id = '';
-                 new_card_content.id = old_card_content_id;
-                 old_card_content.id = new_card_content_id;
-
-                 let old_card_content_labelled_by = old_card_content.getAttribute('aria-labelledby');
-                 let new_card_content_labelled_by = new_card_content.getAttribute('aria-labelledby');
-                 old_card_content.setAttribute('aria-labelledby', '');
-                 new_card_content.setAttribute('aria-labelledby', old_card_content_labelled_by);
-                 old_card_content.setAttribute('aria-labelledby', new_card_content_labelled_by);
-
-             """ : $"""
-
-                        window.switch_inner_html_of_elements(old_header_header_col, new_header_header_col);
-
-                    """)}}
-            old_card_header_row.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
-            };
-            initial_move_up_button.addEventListener('click', function() {
-            if (_table_element) {
-                let parent = this.parentElement;
-                while (parent && parent.tagName !== 'TR') parent = parent.parentElement;
-                if (parent) {
-                    let old_row_index = Array.from(_table_element.rows).indexOf(parent);
-                    if (old_row_index === 0) return;
-                    shift_row_element_divs(old_row_index, old_row_index - 1);
-                }
-            }
-            });
-            initial_move_down_button.addEventListener('click', function() {
-            if (_table_element) {
-                let parent = this.parentElement;
-                while (parent && parent.tagName !== 'TR') parent = parent.parentElement;
-                if (parent) {
-                    let old_row_index = Array.from(_table_element.rows).indexOf(parent);
-                    if (old_row_index === (_table_element.rows.length - 1)) return;
-                    shift_row_element_divs(old_row_index, old_row_index + 1);
-                }
-            }
-            });
-
-            {{(_useAccordion == RepeatUseAccordion.Yes ? $$"""
-
-              $(_table_element).on('shown.bs.collapse', function (e) {
-              document.getElementById($(e.target).attr('id')).parentElement.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
-              });
-
-              """ : "")}}
-
+                RF.Repeater.setupRowButtons(
+                    _table_element,
+                    _initial_row_index,
+                    '{{jsObjectPathIncludingThis}}',
+                    {{(_useAccordion == RepeatUseAccordion.Yes ? "true" : "false")}}
+                );
             };
             """;
         for (var i = 0; i < arrayObject.Count; i++)
@@ -476,85 +347,18 @@ public sealed class Repeater : Field
         {
             var addButtonElement = tableWrapper.CreateButtonOnElement(createElement, _addButtonLabel, "fa-solid fa-plus").AddClasses("fields_repeater_add_button");
 
+            // Use external RF.Repeater.addItem function
+            var defaultItemJson = defaultItemJObject.ToString(Newtonsoft.Json.Formatting.None).Replace("'", "\\'");
             addButtonElement.SetAttribute("onclick", $$"""
-
-                                                       let deep_cloned_new_jobject = {{defaultItemJObject.ToString(Newtonsoft.Json.Formatting.None)}};
-
-                                                       let table_element = null;
-                                                       let reserve_element = null;
-                                                       for (let i = 0; i < this.parentElement.childNodes.length; i++) {
-                                                       let child = this.parentElement.childNodes[i];
-                                                       if (child instanceof HTMLTableElement) {
-                                                           table_element = child;
-                                                       }
-                                                       else if (typeof child.classList !== 'undefined' && child.classList.contains('fields_reserve_element')) {
-                                                           reserve_element = child;
-                                                       }
-                                                       }
-
-                                                       let new_element_cell = table_element.insertRow(-1).insertCell(-1);
-                                                       let latest_row_index = table_element.rows.length - 1;
-
-                                                       let new_element_card_obj = create_card_on_col(new_element_cell, '', '', true);
-
-                                                       new_element_card_obj.wrapper.remove_bs_class('border-left-primary').add_bs_class('mx-0', 'mx-xl-4');
-
-                                                       let new_element_cloned = reserve_element.cloneNode(true);
-                                                       new_element_cloned.remove_bs_class('fields_reserve_element', 'd-none');
-                                                       new_element_card_obj.content.innerHTML = new_element_cloned.innerHTML;
-
-                                                       const card_header_col = new_element_card_obj.header_row.querySelector('.card-header-col');
-                                                       card_header_col.remove_bs_class('col').add_bs_class('mx-2', 'd-xl-flex', 'justify-content-xl-start');
-
-                                                       {{(_useAccordion == RepeatUseAccordion.Yes ? $$"""
-
-                                                                 const expand_button_area_id = make_id(32);
-                                                                 const content_id = make_id(32);
-
-                                                                 new_element_card_obj.content.id = content_id;
-                                                                 {
-                                                                 const expand_button_area = card_header_col.appendChild(document.createElement('div'));
-                                                                 expand_button_area.id = expand_button_area_id;
-                                                                 {
-                                                                     const h2 = expand_button_area.appendChild(document.createElement('h2'));
-                                                                     {
-                                                                         const expand_button = create_button_on_element(h2, `{{this.Label}}: ${latest_row_index + 1}`, 'fa-solid fa-arrows-up-down', 'btn-primary');
-                                                                         expand_button.setAttribute('data-toggle', 'collapse');
-                                                                         expand_button.setAttribute('data-target', `#${content_id}`);
-                                                                         expand_button.setAttribute('aria-expanded', 'false');
-                                                                         expand_button.setAttribute('aria-controls', content_id);
-                                                                     }
-                                                                 }
-                                                                 }
-                                                                 new_element_card_obj.content.add_bs_class('collapse');
-                                                                 new_element_card_obj.content.setAttribute('aria-labelledby', expand_button_area_id);
-                                                                 new_element_card_obj.content.setAttribute('data-parent', `#${table_element.id}`);
-
-                                                                 """ : $$"""
-
-                                                                         card_header_col.innerHTML = `{{this.Label}}: ${latest_row_index + 1}`;
-
-                                                                         """)}}
-
-                                                       window.change_object_and_element_recursively_with_proper_unique_field_ids(new_element_card_obj.content, deep_cloned_new_jobject);
-
-                                                       const delete_move_buttons_col = create_col_fit_content_left_aligned_on_row(new_element_card_obj.header_row).add_bs_class('align-items-center');
-                                                       create_button_on_element(delete_move_buttons_col, '', 'fa-solid fa-circle-chevron-up', 'btn-primary').add_bs_class('mx-1', 'row_move_up_button');
-                                                       create_button_on_element(delete_move_buttons_col, '', 'fa-solid fa-circle-chevron-down', 'btn-primary').add_bs_class('mx-1', 'row_move_down_button');
-                                                       create_button_on_element(delete_move_buttons_col, '', 'fa-solid fa-trash', 'btn-primary').add_bs_class('mx-1', 'row_delete_button');
-
-                                                       window.setup_table_row_with_buttons_{{randomStringForScript}}(table_element, latest_row_index);
-
-                                                       window.current_fields_state{{jsObjectPathIncludingThis}}[latest_row_index] = deep_cloned_new_jobject;
-
-                                                       {{(_useAccordion == RepeatUseAccordion.Yes ? $"""
-
-                                                            window.collapse_show(new_element_card_obj.content);
-
-                                                            """ : "")}}
-
-
-                                                       """);
+                RF.Repeater.addItem(
+                    this,
+                    JSON.parse('{{defaultItemJson}}'),
+                    '{{jsObjectPathIncludingThis}}',
+                    '{{this.Label}}',
+                    {{(_useAccordion == RepeatUseAccordion.Yes ? "true" : "false")}},
+                    'setup_table_row_with_buttons_{{randomStringForScript}}'
+                );
+                """);
         }
 
         var jsFunctionOnPageSetup = createElement.Invoke<IHtmlScriptElement>();

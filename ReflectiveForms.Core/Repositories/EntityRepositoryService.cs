@@ -310,7 +310,7 @@ public class EntityRepositoryService
             var idKey = new DbKey(EntityModelAttributes.Id, newId);
 
             body[EntityModelAttributes.Id] = newId;
-            body[EntityModelAttributes.Link] = $"{RfConfiguration.EndpointConfiguration.FinalEntitiesBaseRoute}?type={entityName}&id={newId}";
+            body[EntityModelAttributes.Link] = RfConfiguration.EndpointConfiguration.GetEntityUrl(entityName, newId);
 
             var configuration = RfConfiguration.EntityNameToConfiguration[entityName];
 
@@ -1007,7 +1007,7 @@ public class EntityRepositoryService
         }
         else
         {
-            body[EntityModelAttributes.Link] = $"{RfConfiguration.EndpointConfiguration.FinalEntitiesBaseRoute}?type={entityName}&id={bodyId}";
+            body[EntityModelAttributes.Link] = RfConfiguration.EndpointConfiguration.GetEntityUrl(entityName, bodyId);
         }
 
         var gmtNowTimeString = DateUtility.DateTimeToDesiredString(DateTime.UtcNow);

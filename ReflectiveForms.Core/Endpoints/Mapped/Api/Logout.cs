@@ -29,7 +29,11 @@ internal class Logout : BaseEndpoint
         await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
 
         // Clear any authentication cookies
-        context.Response.Cookies.Delete(RfConfiguration.EndpointConfiguration.AuthCookieName);
+        var cookieName = RfConfiguration.EndpointConfiguration.AuthCookieName;
+        if (!string.IsNullOrEmpty(cookieName))
+        {
+            context.Response.Cookies.Delete(cookieName);
+        }
 
         return Results.Ok(new { message = "Logged out successfully" });
     }

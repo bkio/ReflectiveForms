@@ -16,14 +16,12 @@ using Microsoft.IdentityModel.Tokens;
 using ReflectiveForms.Core.Endpoints;
 using ReflectiveForms.Core.Endpoints.Enums;
 using ReflectiveForms.Core.Endpoints.Mapped.Api;
-using ReflectiveForms.Core.Endpoints.Mapped.Frontend;
 // ReSharper disable MemberCanBePrivate.Global
 
 namespace ReflectiveForms.Core;
 
 public static class RfEndpointMapper
 {
-    private const string FrontendRouteSegment = "/frontend/";
     private const string ApiRouteSegment = "/api/";
 
     //Api
@@ -34,31 +32,27 @@ public static class RfEndpointMapper
     internal const string LoginEndpoint = "login";
     internal const string LogoutEndpoint = "logout";
     internal const string CaptchaChallengeEndpoint = "captcha-challenge";
+    internal const string SchemaEndpoint = "schema";
 
     public static string PublicCrudEndpoint => RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + CrudEndpoint;
     public static string PublicSanityCheckEndpoint => RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + SanityCheckEndpoint;
     public static string PublicEntityLockControlEndpoint => RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + EntityLockControlEndpoint;
     public static string PublicLoginEndpoint => RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + LoginEndpoint;
     public static string PublicLogoutEndpoint => RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + LogoutEndpoint;
-
-    //Frontend
-    internal const string EntitiesEndpoint = "entities";
-    internal const string EntitiesAdminEndpoint = "entities-admin";
+    public static string PublicSchemaEndpoint => RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + SchemaEndpoint;
 
     private static WebApplication MapEndpoints(WebApplication app)
     {
         var group = app.MapGroup(RfConfiguration.EndpointConfiguration.RootPath);
 
-        MapEndpoint(group, RequestConsumerType.Api, LoginEndpoint, new Login());
-        MapEndpoint(group, RequestConsumerType.Api, LogoutEndpoint, new Logout());
-        MapEndpoint(group, RequestConsumerType.Api, CaptchaChallengeEndpoint, new CaptchaChallenge());
-        MapEndpoint(group, RequestConsumerType.Api, CrudEndpoint, new Crud());
-        MapEndpoint(group, RequestConsumerType.Api, SanityCheckEndpoint, new SanityCheck());
-        MapEndpoint(group, RequestConsumerType.Api, EntityLockControlEndpoint, new EntityLockControl());
-        MapEndpoint(group, RequestConsumerType.Api, MediaEndpoint, new Media());
-
-        MapEndpoint(group, RequestConsumerType.Frontend, EntitiesEndpoint, new Entities());
-        MapEndpoint(group, RequestConsumerType.Frontend, EntitiesAdminEndpoint, new EntitiesAdmin());
+        MapEndpoint(group, CrudEndpoint, new Crud());
+        MapEndpoint(group, SanityCheckEndpoint, new SanityCheck());
+        MapEndpoint(group, EntityLockControlEndpoint, new EntityLockControl());
+        MapEndpoint(group, MediaEndpoint, new Media());
+        MapEndpoint(group, SchemaEndpoint, new SchemaEndpoint());
+        MapEndpoint(group, LoginEndpoint, new Login());
+        MapEndpoint(group, LogoutEndpoint, new Logout());
+        MapEndpoint(group, CaptchaChallengeEndpoint, new CaptchaChallenge());
 
         return app;
     }
@@ -151,14 +145,10 @@ public static class RfEndpointMapper
 
     private static void MapEndpoint(
         RouteGroupBuilder builder,
-        RequestConsumerType consumerType,
         string endpoint,
         BaseEndpoint handler)
     {
-        var pattern = consumerType == RequestConsumerType.Api
-            ? ApiRouteSegment
-            : FrontendRouteSegment;
-        pattern += endpoint;
+        var pattern = ApiRouteSegment + endpoint;
 
         var mapped = builder.MapMethods(
             pattern,

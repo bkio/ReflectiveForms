@@ -122,23 +122,7 @@ public sealed class MediaSourceBase64 : Field
 
                 this.style.borderColor = '#ccc';
                 """);
-            dropAreaElement.SetAttribute("ondrop", $$"""
-
-                 event.preventDefault();
-                 this.style.borderColor = '#ccc';
-                 const file = event.dataTransfer.files[0];
-                 if (file) {
-                     for (let i = 0; i < this.childNodes.length; i++) {
-                         let child = this.childNodes[i];
-                         if (child instanceof HTMLImageElement) {
-                             window.media_source_base64_handle_file(file, child, (img_encoded) => {
-                                 window.current_fields_state{{jsObjectPathIncludingThis}} = img_encoded;
-                             });
-                             break;
-                         }
-                     }
-                 }
-                 """);
+            dropAreaElement.SetAttribute("ondrop", $"event.preventDefault(); this.style.borderColor = '#ccc'; RF.FormState.handleMediaDrop('{jsObjectPathIncludingThis}', event, this);");
             elementWrapper.AppendChild(dropAreaElement);
 
             //
@@ -149,16 +133,7 @@ public sealed class MediaSourceBase64 : Field
             pElement.AppendChild(spanOfPElement);
 
             var buttonOfPElement = pElement.CreateButtonOnElement(createElement, "Select Image", "fa-solid fa-file-arrow-up").AddClasses("media_source_base64_select_button");
-            buttonOfPElement.SetAttribute("onclick", """
-
-                 for (let i = 0; i < this.parentElement.parentElement.childNodes.length; i++) {
-                     let child = this.parentElement.parentElement.childNodes[i];
-                     if (child instanceof HTMLInputElement) {
-                         child.click();
-                         break;
-                     }
-                 }
-                 """);
+            buttonOfPElement.SetAttribute("onclick", "RF.FormState.triggerFileSelect(this);");
 
             dropAreaElement.AppendChild(pElement);
             //
@@ -167,21 +142,7 @@ public sealed class MediaSourceBase64 : Field
             inputElement.Type = "file";
             inputElement.ClassList.Add("media_source_base64_file_input");
             inputElement.Accept = "image/*";
-            inputElement.SetAttribute("onchange", $$"""
-
-                const file = event.target.files[0];
-                if (file) {
-                    for (let i = 0; i < this.parentElement.childNodes.length; i++) {
-                        let child = this.parentElement.childNodes[i];
-                        if (child instanceof HTMLImageElement) {
-                            window.media_source_base64_handle_file(file, child, (img_encoded) => {
-                                window.current_fields_state{{jsObjectPathIncludingThis}} = img_encoded;
-                            });
-                            break;
-                        }
-                    }
-                }
-                """);
+            inputElement.SetAttribute("onchange", $"RF.FormState.handleMediaFile('{jsObjectPathIncludingThis}', this);");
             dropAreaElement.AppendChild(inputElement);
 
             var previewElement = createElement.Invoke<IHtmlImageElement>();

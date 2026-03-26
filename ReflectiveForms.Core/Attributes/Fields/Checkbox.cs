@@ -87,7 +87,7 @@ public sealed class Checkbox : Field
                 parentObjectOfCurrentValueJToken[jFieldName] = _defaultValue;
         }
 
-        element.SetAttribute("onchange", $"window.current_fields_state{jsObjectPathIncludingThis} = this.checked;");
+        element.SetAttribute("onchange", $"RF.FormState.setCheckboxValue('{jsObjectPathIncludingThis}', this);");
         return Task.CompletedTask;
     }
 

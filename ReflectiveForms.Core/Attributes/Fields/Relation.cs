@@ -222,7 +222,7 @@ public sealed class Relation : Field
             }
         }
 
-        element.SetAttribute("onchange", $"window.current_fields_state{jsObjectPathIncludingThis} = Number(this.value);");
+        element.SetAttribute("onchange", $"RF.FormState.setNumberValue('{jsObjectPathIncludingThis}', this);");
         //No need for oninput, it is a select element
     }
 
@@ -265,7 +265,7 @@ public sealed class Relation : Field
                     }
 
                     element.InnerHtml =
-                        $"<a href='{RfConfiguration.EndpointConfiguration.FinalEntitiesBaseRoute}?type={_relationEntityName}&id={entityId}'>{titleRendered}</a>";
+                        $"<a href='{RfConfiguration.EndpointConfiguration.GetEntityUrl(_relationEntityName, entityId)}'>{titleRendered}</a>";
                     return;
                 }
             }

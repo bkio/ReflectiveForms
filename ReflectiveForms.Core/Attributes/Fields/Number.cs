@@ -214,7 +214,7 @@ public sealed class Number : Field
             element.DefaultValue = "";
         }
 
-        element.SetAttribute("onchange", $"window.current_fields_state{jsObjectPathIncludingThis} = Number(this.value);");
+        element.SetAttribute("onchange", $"RF.FormState.setNumberValue('{jsObjectPathIncludingThis}', this);");
         element.SetAttribute("oninput", "window.global_oninput(this);");
         return Task.CompletedTask;
     }
