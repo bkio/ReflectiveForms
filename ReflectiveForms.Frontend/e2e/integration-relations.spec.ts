@@ -42,7 +42,7 @@ test.describe('Relations: Product Manager workflow', () => {
         hire_date: '20210115', salary: 140000,
         emergency_contacts: [{ contact_name: 'EC1', relationship: 'friend', phone: '+1 555-0001', email: 'ec@test.com' }], social_links: [],
         avatar: '', bio: '',
-        office_address: { street: '', city: '', state: '', postal_code: '', country: 'US' },
+        office_address: { street: '100 Test Ave', city: 'Portland', state: 'OR', postal_code: '97201', country: 'US' },
         favorite_blog_post: -1,
       },
     });
@@ -292,7 +292,7 @@ test.describe('Multi-Entity Bulk Operations', () => {
           hire_date: '20240101', salary: 80000,
           emergency_contacts: [{ contact_name: 'EC1', relationship: 'friend', phone: '+1 555-0001', email: 'ec@test.com' }], social_links: [],
           avatar: '', bio: '',
-          office_address: { street: '', city: '', state: '', postal_code: '', country: 'US' },
+          office_address: { street: '50 Bulk St', city: 'Seattle', state: 'WA', postal_code: '98101', country: 'US' },
           favorite_blog_post: -1,
         },
       });

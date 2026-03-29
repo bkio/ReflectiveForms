@@ -51,14 +51,4 @@ public class EnumTests
         values.Should().Contain(RepeatUseAccordion.No);
         values.Should().Contain(RepeatUseAccordion.Yes);
     }
-
-    [Fact]
-    public void SupportsFrontendEdit_HasThreeValues()
-    {
-        var values = Enum.GetValues<SupportsFrontendEdit>();
-        values.Should().HaveCount(3);
-        values.Should().Contain(SupportsFrontendEdit.No);
-        values.Should().Contain(SupportsFrontendEdit.ForAllAuthorized);
-        values.Should().Contain(SupportsFrontendEdit.ForSuperAdminOnly);
-    }
 }

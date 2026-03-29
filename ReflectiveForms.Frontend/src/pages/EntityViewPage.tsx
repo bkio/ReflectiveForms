@@ -1,9 +1,34 @@
+import { useMemo } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
-import { useSchema, useEntity } from '../hooks/useEntity';
-import { FieldSchema, EntitySchema } from '../types/schema';
+import { useSchema, useEntity, useEntityList } from '../hooks/useEntity';
+import { FieldSchema, EntitySchema, PeekEntity, GroupRenderStyle } from '../types/schema';
 import { sanitizeHtml } from '../lib/sanitize';
 import { evaluateCompoundCondition } from '../lib/conditionParser';
-import { ArrowLeft, Edit } from 'lucide-react';
+import { ArrowLeft, Edit, Tag, FolderTree, User, GitBranch } from 'lucide-react';
+
+/** Recursively collect all unique relation entity names from the field schema tree. */
+function collectRelationEntityNames(fields: FieldSchema[]): string[] {
+  const names = new Set<string>();
+  function walk(fieldList: FieldSchema[]) {
+    for (const f of fieldList) {
+      if (f.type === 'Relation' && f.relation_options?.relation_entity_name) {
+        names.add(f.relation_options.relation_entity_name);
+      }
+      if (f.group_options?.child_schema) walk(f.group_options.child_schema);
+      if (f.repeater_options?.item_schema) walk(f.repeater_options.item_schema);
+    }
+  }
+  walk(fields);
+  return Array.from(names);
+}
+
+const gridClassMap: Record<GroupRenderStyle, string> = {
+  Full: 'grid grid-cols-1 gap-4',
+  Grid2: 'grid grid-cols-1 md:grid-cols-2 gap-4',
+  Grid3: 'grid grid-cols-1 md:grid-cols-3 gap-4',
+  Grid4: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4',
+  Grid6: 'grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4',
+};
 
 export function EntityViewPage() {
   const { entityName } = useParams<{ entityName: string }>();
@@ -13,6 +38,41 @@ export function EntityViewPage() {
 
   const { data: schema, isLoading: schemaLoading, error: schemaError } = useSchema(entityName ?? '');
   const { data: entityData, isLoading: entityLoading, error: entityError } = useEntity(entityName ?? '', entityId);
+
+  // Collect all unique relation entity names from the schema
+  const relationEntityNames = useMemo(
+    () => (schema ? collectRelationEntityNames(schema.fields) : []),
+    [schema],
+  );
+
+  // Fetch relation entity lists — hooks must always be called in the same order,
+  // so we use a fixed-size array padded to a stable length.
+  const MAX_RELATION_ENTITIES = 10;
+  const relationQueries = Array.from({ length: MAX_RELATION_ENTITIES }, (_, i) =>
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    useEntityList(relationEntityNames[i] ?? ''),
+  );
+
+  const relationLookup = useMemo(() => {
+    const lookup: Record<string, Record<number, string>> = {};
+    for (let i = 0; i < relationEntityNames.length && i < MAX_RELATION_ENTITIES; i++) {
+      const name = relationEntityNames[i];
+      const data = relationQueries[i].data;
+      if (data) {
+        lookup[name] = {};
+        for (const e of data) {
+          lookup[name][e.id] = e.title ?? e.name ?? `#${e.id}`;
+        }
+      }
+    }
+    return lookup;
+  }, [relationEntityNames, ...relationQueries.map(q => q.data)]);
+
+  // Fetch related entity lists for metadata display (conditional on features)
+  const { data: usersList } = useEntityList(schema?.features.has_author ? 'users' : '');
+  const { data: tagsList } = useEntityList(schema?.features.has_tags ? 'tags' : '');
+  const { data: categoriesList } = useEntityList(schema?.features.has_categories ? 'categories' : '');
+  const { data: parentList } = useEntityList(schema?.features.has_parent_child ? (entityName ?? '') : '');
 
   if (schemaLoading || entityLoading) {
     return (
@@ -66,15 +126,28 @@ export function EntityViewPage() {
               {schema.readable_name.singular} — ID: {entityId}
             </p>
           </div>
-          <Link
-            to={`/entities-admin/${entityName}?id=${entityId}`}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-            title="Edit"
-          >
-            <Edit className="w-4 h-4" />
-            Edit
-          </Link>
+          {schema.features.supports_frontend_edit && (
+            <Link
+              to={`/entities-admin/${entityName}?id=${entityId}`}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              title="Edit"
+            >
+              <Edit className="w-4 h-4" />
+              Edit
+            </Link>
+          )}
         </div>
+
+        {/* Metadata section */}
+        <MetadataSection
+          schema={schema}
+          entityData={entityData}
+          usersList={usersList}
+          tagsList={tagsList}
+          categoriesList={categoriesList}
+          parentList={parentList}
+          entityName={entityName!}
+        />
 
         {/* Fields */}
         <div className="space-y-4">
@@ -85,6 +158,7 @@ export function EntityViewPage() {
               value={fields[fieldSchema.name]}
               allFields={fields}
               schema={schema}
+              relationLookup={relationLookup}
             />
           ))}
         </div>
@@ -99,9 +173,10 @@ interface ReadOnlyFieldProps {
   allFields: Record<string, unknown>;
   schema: EntitySchema;
   depth?: number;
+  relationLookup?: Record<string, Record<number, string>>;
 }
 
-function ReadOnlyField({ fieldSchema, value, allFields, schema, depth = 0 }: ReadOnlyFieldProps) {
+function ReadOnlyField({ fieldSchema, value, allFields, schema, depth = 0, relationLookup = {} }: ReadOnlyFieldProps) {
   // Evaluate display condition
   if (fieldSchema.display_condition) {
     if (!evaluateCompoundCondition(fieldSchema.display_condition, allFields)) {
@@ -109,16 +184,29 @@ function ReadOnlyField({ fieldSchema, value, allFields, schema, depth = 0 }: Rea
     }
   }
 
+  const isTopLevel = depth === 0;
+
   return (
-    <div className={`field-view field-type-${fieldSchema.type.toLowerCase()} ${depth > 0 ? 'ml-4' : ''}`}>
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-        <div className="mb-1">
-          <span className="text-sm font-medium text-gray-500">
-            {fieldSchema.label}
-          </span>
+    <div className={`field-view field-type-${fieldSchema.type.toLowerCase()}`}>
+      {isTopLevel ? (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <div className="mb-1">
+            <span className="text-sm font-medium text-gray-500">
+              {fieldSchema.label}
+            </span>
+          </div>
+          <ReadOnlyValue fieldSchema={fieldSchema} value={value} allFields={allFields} schema={schema} depth={depth} relationLookup={relationLookup} />
         </div>
-        <ReadOnlyValue fieldSchema={fieldSchema} value={value} allFields={allFields} schema={schema} depth={depth} />
-      </div>
+      ) : (
+        <div className="mb-2">
+          <div className="mb-0.5">
+            <span className="text-xs font-medium text-gray-500">
+              {fieldSchema.label}
+            </span>
+          </div>
+          <ReadOnlyValue fieldSchema={fieldSchema} value={value} allFields={allFields} schema={schema} depth={depth} relationLookup={relationLookup} />
+        </div>
+      )}
     </div>
   );
 }
@@ -129,9 +217,10 @@ interface ReadOnlyValueProps {
   allFields: Record<string, unknown>;
   schema: EntitySchema;
   depth?: number;
+  relationLookup?: Record<string, Record<number, string>>;
 }
 
-function ReadOnlyValue({ fieldSchema, value, schema, depth = 0 }: ReadOnlyValueProps) {
+function ReadOnlyValue({ fieldSchema, value, schema, depth = 0, relationLookup = {} }: ReadOnlyValueProps) {
   const type = fieldSchema.type;
 
   // Empty/null value
@@ -203,6 +292,18 @@ function ReadOnlyValue({ fieldSchema, value, schema, depth = 0 }: ReadOnlyValueP
     case 'Relation': {
       const relVal = Number(value);
       if (relVal <= 0) return <span className="text-gray-400 italic text-sm">None</span>;
+      const relEntityName = fieldSchema.relation_options?.relation_entity_name ?? '';
+      const resolvedName = relationLookup[relEntityName]?.[relVal];
+      if (resolvedName) {
+        return (
+          <Link
+            to={`/entities-view/${relEntityName}?id=${relVal}`}
+            className="text-blue-600 hover:underline"
+          >
+            {resolvedName}
+          </Link>
+        );
+      }
       return <span className="text-gray-900">ID: {relVal}</span>;
     }
 
@@ -224,8 +325,10 @@ function ReadOnlyValue({ fieldSchema, value, schema, depth = 0 }: ReadOnlyValueP
       const groupVal = (value && typeof value === 'object') ? value as Record<string, unknown> : {};
       const childFields = fieldSchema.group_options?.child_schema ?? [];
       if (childFields.length === 0) return <span className="text-gray-400 italic text-sm">Empty</span>;
+      const renderStyle = fieldSchema.group_options?.render_style ?? 'Full';
+      const gridClass = gridClassMap[renderStyle] ?? gridClassMap.Full;
       return (
-        <div className="space-y-3 mt-2">
+        <div className={`${gridClass} mt-2`}>
           {childFields.map(child => (
             <ReadOnlyField
               key={child.name}
@@ -234,6 +337,7 @@ function ReadOnlyValue({ fieldSchema, value, schema, depth = 0 }: ReadOnlyValueP
               allFields={groupVal}
               schema={schema}
               depth={depth + 1}
+              relationLookup={relationLookup}
             />
           ))}
         </div>
@@ -244,14 +348,20 @@ function ReadOnlyValue({ fieldSchema, value, schema, depth = 0 }: ReadOnlyValueP
       const items = Array.isArray(value) ? value : [];
       const itemFields = fieldSchema.repeater_options?.item_schema ?? [];
       if (items.length === 0) return <span className="text-gray-400 italic text-sm">No items</span>;
+      const renderStyle = fieldSchema.repeater_options?.render_style ?? 'Full';
+      const itemGridClass = gridClassMap[renderStyle] ?? gridClassMap.Full;
       return (
         <div className="space-y-3 mt-2">
           {items.map((item, idx) => {
             const itemObj = (item && typeof item === 'object') ? item as Record<string, unknown> : {};
             return (
-              <div key={idx} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
-                <div className="text-xs font-medium text-gray-500 mb-2">Item {idx + 1}</div>
-                <div className="space-y-2">
+              <div key={idx} className="border border-gray-200 rounded-lg overflow-hidden">
+                <div className="bg-gray-100 px-3 py-2 border-b border-gray-200">
+                  <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    {fieldSchema.label} #{idx + 1}
+                  </span>
+                </div>
+                <div className={`p-3 ${itemGridClass}`}>
                   {itemFields.map(child => (
                     <ReadOnlyField
                       key={child.name}
@@ -260,6 +370,7 @@ function ReadOnlyValue({ fieldSchema, value, schema, depth = 0 }: ReadOnlyValueP
                       allFields={itemObj}
                       schema={schema}
                       depth={depth + 1}
+                      relationLookup={relationLookup}
                     />
                   ))}
                 </div>
@@ -273,4 +384,105 @@ function ReadOnlyValue({ fieldSchema, value, schema, depth = 0 }: ReadOnlyValueP
     default:
       return <span className="text-gray-900">{JSON.stringify(value)}</span>;
   }
+}
+
+function resolveEntityName(list: PeekEntity[] | undefined, id: number): string {
+  if (!list) return `#${id}`;
+  const entity = list.find(e => e.id === id);
+  return entity?.title ?? entity?.name ?? `#${id}`;
+}
+
+interface MetadataSectionProps {
+  schema: EntitySchema;
+  entityData: { author?: number; tags?: number[]; categories?: number[]; parent?: number };
+  usersList?: PeekEntity[];
+  tagsList?: PeekEntity[];
+  categoriesList?: PeekEntity[];
+  parentList?: PeekEntity[];
+  entityName: string;
+}
+
+function MetadataSection({ schema, entityData, usersList, tagsList, categoriesList, parentList, entityName }: MetadataSectionProps) {
+  const { has_author, has_tags, has_categories, has_parent_child } = schema.features;
+
+  // Don't render section if no metadata features are enabled
+  if (!has_author && !has_tags && !has_categories && !has_parent_child) return null;
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4" data-testid="metadata-section">
+      <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Metadata</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {has_author && (
+          <div data-testid="metadata-author">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1">
+              <User className="w-3.5 h-3.5" />
+              Author
+            </div>
+            <span className="text-gray-900 text-sm">
+              {entityData.author != null && entityData.author > 0
+                ? resolveEntityName(usersList, entityData.author)
+                : <span className="text-gray-400 italic">Not set</span>}
+            </span>
+          </div>
+        )}
+
+        {has_parent_child && (
+          <div data-testid="metadata-parent">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1">
+              <GitBranch className="w-3.5 h-3.5" />
+              Parent
+            </div>
+            <span className="text-gray-900 text-sm">
+              {entityData.parent != null && entityData.parent > 0
+                ? (
+                  <Link
+                    to={`/entities-view/${entityName}?id=${entityData.parent}`}
+                    className="text-blue-600 hover:underline"
+                  >
+                    {resolveEntityName(parentList, entityData.parent)}
+                  </Link>
+                )
+                : <span className="text-gray-400 italic">None</span>}
+            </span>
+          </div>
+        )}
+
+        {has_tags && (
+          <div data-testid="metadata-tags">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1">
+              <Tag className="w-3.5 h-3.5" />
+              Tags
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {entityData.tags && entityData.tags.length > 0
+                ? entityData.tags.map(tagId => (
+                    <span key={tagId} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      {resolveEntityName(tagsList, tagId)}
+                    </span>
+                  ))
+                : <span className="text-gray-400 italic text-sm">No tags</span>}
+            </div>
+          </div>
+        )}
+
+        {has_categories && (
+          <div data-testid="metadata-categories">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1">
+              <FolderTree className="w-3.5 h-3.5" />
+              Categories
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {entityData.categories && entityData.categories.length > 0
+                ? entityData.categories.map(catId => (
+                    <span key={catId} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      {resolveEntityName(categoriesList, catId)}
+                    </span>
+                  ))
+                : <span className="text-gray-400 italic text-sm">No categories</span>}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }

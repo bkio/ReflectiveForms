@@ -21,7 +21,7 @@ export interface EntityFeatures {
   has_categories: boolean;
   has_parent_child: boolean;
   require_title_uniqueness: boolean;
-  supports_frontend_edit: 'No' | 'ForAllAuthorized' | 'ForSuperAdminOnly';
+  supports_frontend_edit: boolean;
 }
 
 export interface ApiEndpoints {
@@ -147,6 +147,13 @@ export interface PeekEntity {
   id: number;
   title?: string;
   name?: string;
+  author?: string;
+  modified?: string;
+  modified_gmt?: string;
+  date?: string;
+  date_gmt?: string;
+  categories?: string[];
+  tags?: string[];
 }
 
 export interface PaginatedPeekResponse {

@@ -58,8 +58,7 @@ public class EntityFeatures
     public bool RequireTitleUniqueness { get; init; }
 
     [JsonProperty("supports_frontend_edit")]
-    [JsonConverter(typeof(StringEnumConverter))]
-    public SupportsFrontendEdit SupportsFrontendEdit { get; init; }
+    public bool SupportsFrontendEdit { get; init; }
 }
 
 public class ApiEndpoints

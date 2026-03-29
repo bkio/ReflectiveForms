@@ -133,6 +133,15 @@ export class UiHelper {
   async gotoEditEntity(entityName: string, id: number) {
     await this.page.goto(`${APP_PREFIX}/entities-admin/${entityName}?id=${id}`);
     await this.page.waitForSelector('form', { timeout: 15000 });
+    // Wait for entity data to populate the title field (avoids race with async data loading)
+    await this.page.waitForFunction(
+      () => {
+        const input = document.querySelector('input[name="title.rendered"]') as HTMLInputElement | null;
+        return input && input.value.length > 0;
+      },
+      undefined,
+      { timeout: 15000 },
+    );
   }
 
   // --- title ---
@@ -178,9 +187,15 @@ export class UiHelper {
   async selectOption(label: string, value: string) {
     const field = this.fieldWrapperByLabel(label);
     const trigger = field.locator('button[aria-haspopup="listbox"]');
-    await trigger.click();
+    // Click the chevron area (right side) to avoid hitting the clear (X) button
+    await trigger.click({ position: { x: 10, y: 10 } });
 
     const listbox = field.locator('[role="listbox"]');
+    // If the dropdown didn't open (e.g. click hit the clear button), retry
+    const isVisible = await listbox.isVisible({ timeout: 1500 }).catch(() => false);
+    if (!isVisible) {
+      await trigger.click({ position: { x: 10, y: 10 } });
+    }
     await expect(listbox).toBeVisible({ timeout: 10000 });
 
     const option = field.locator(`[role="option"][data-value="${value}"]`);
@@ -196,9 +211,13 @@ export class UiHelper {
   async selectSearchableOption(label: string, optionPattern?: string | RegExp, nth: number = 0) {
     const field = this.fieldWrapperByLabel(label, nth);
     const trigger = field.locator('button[aria-haspopup="listbox"]');
-    await trigger.click();
+    await trigger.click({ position: { x: 10, y: 10 } });
 
     const listbox = field.locator('[role="listbox"]');
+    const isVisible = await listbox.isVisible().catch(() => false);
+    if (!isVisible) {
+      await trigger.click({ position: { x: 10, y: 10 } });
+    }
     await expect(listbox).toBeVisible({ timeout: 10000 });
 
     // Wait for at least one option to appear (API might still be loading)

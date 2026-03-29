@@ -14,7 +14,7 @@ public class EntityConfigurationBuilderTests
             EntityName = "test-entity",
             EntityReadableNameSingular = "Test Entity",
             EntityReadableNamePlural = "Test Entities",
-            ShallSupportFrontendEdit = SupportsFrontendEdit.ForAllAuthorized,
+            SupportsFrontendEdit = true,
             HasParentChildRelationship = true,
             HasAuthor = true,
             HasTags = true,
@@ -26,7 +26,7 @@ public class EntityConfigurationBuilderTests
         builder.EntityName.Should().Be("test-entity");
         builder.EntityReadableNameSingular.Should().Be("Test Entity");
         builder.EntityReadableNamePlural.Should().Be("Test Entities");
-        builder.ShallSupportFrontendEdit.Should().Be(SupportsFrontendEdit.ForAllAuthorized);
+        builder.SupportsFrontendEdit.Should().BeTrue();
         builder.HasParentChildRelationship.Should().BeTrue();
         builder.HasAuthor.Should().BeTrue();
         builder.HasTags.Should().BeTrue();
@@ -44,7 +44,7 @@ public class EntityConfigurationBuilderTests
             EntityName = "hooked-entity",
             EntityReadableNameSingular = "Hook",
             EntityReadableNamePlural = "Hooks",
-            ShallSupportFrontendEdit = SupportsFrontendEdit.No,
+            SupportsFrontendEdit = false,
             HasParentChildRelationship = false,
             HasAuthor = false,
             HasTags = false,
@@ -71,7 +71,7 @@ public class EntityConfigurationBuilderTests
             EntityName = "checked-entity",
             EntityReadableNameSingular = "Checked",
             EntityReadableNamePlural = "Checked",
-            ShallSupportFrontendEdit = SupportsFrontendEdit.No,
+            SupportsFrontendEdit = false,
             HasParentChildRelationship = false,
             HasAuthor = false,
             HasTags = false,

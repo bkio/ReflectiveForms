@@ -170,6 +170,9 @@ test.describe('Auto-Save Round-Trip', () => {
     let entity = await api.readEntity('blog-post', blogId);
     expect(entity.fields.is_featured).toBe(true);
 
+    // Reload the page to clear stale toasts so the next waitForSave is not fooled
+    await ui.gotoEditEntity('blog-post', blogId);
+
     // Toggle back
     await ui.setCheckbox('Featured Post', false);
     await ui.clickSaveNow();

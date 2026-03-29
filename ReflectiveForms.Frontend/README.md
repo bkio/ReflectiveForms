@@ -15,9 +15,13 @@ A modern React-based frontend for ReflectiveForms that renders dynamic forms fro
 - **Entity locking**: Pessimistic locking for concurrent editing
 - **Auto-save**: Debounced auto-save with visual feedback
 - **Dynamic default values**: Fields pre-filled with runtime-computed defaults from the backend
-- **Read-only entity view**: Public view page for entities at `/entities-view/:entityName`
-- **Searchable select**: Filterable dropdowns for Relation and Select fields
-- **Paginated lists**: Server-side pagination with page tokens
+- **Read-only entity view**: Public view page for entities at `/entities-view/:entityName` with metadata display (author, tags, categories, parent), grid layouts for groups, structured repeater headers, and relation fields resolved to clickable entity names
+- **Searchable select**: Filterable dropdowns for Relation and Select fields; multi-select mode for tags/categories
+- **Tags & Categories selectors**: Multi-select entity pickers on the form when `has_tags` or `has_categories` is enabled
+- **Parent-child selector**: Single-select parent picker with self-exclusion when `has_parent_child` is enabled
+- **View-only mode**: Entities with `supports_frontend_edit: false` show in sidebar/dashboard but editing is blocked
+- **Search, sort & filter**: Client-side search by title/author, sortable column headers, formatted dates, and pagination over the full dataset
+- **Depth-aware nesting**: Nested fields inside repeaters and groups render without redundant card wrappers
 - **Responsive**: Mobile-friendly admin layout
 
 ## Getting Started
@@ -72,9 +76,9 @@ src/
 ├── pages/
 │   ├── LoginPage.tsx          # Login page
 │   ├── DashboardPage.tsx      # Admin dashboard
-│   ├── EntityListPage.tsx     # Entity listing with pagination and delete
+│   ├── EntityListPage.tsx     # Entity listing with search, sort, filter & pagination
 │   ├── EntityEditPage.tsx     # Create/edit/clone entity
-│   └── EntityViewPage.tsx     # Read-only entity view
+│   └── EntityViewPage.tsx     # Read-only entity view with relation resolution
 ├── types/
 │   └── schema.ts              # TypeScript types matching backend
 ├── index.css                  # Tailwind + custom styles
@@ -227,7 +231,7 @@ Unit tests cover:
 - **Hooks**: `useEntity`, `useEntityLock`, `useSchema`, `useAutoSave`
 - **Components**: `DynamicForm`, `TextField`, `SelectField`, `CheckboxField`, `NumberField`, `RepeaterField`, `WysiwygField`, `SearchableSelect`, `ErrorBoundary`, `AdminLayout`
 - **Libraries**: `conditionParser`, `schemaToZod` (including dynamic defaults)
-- **Pages**: `EntityViewPage` (read-only rendering)
+- **Pages**: `EntityViewPage` (read-only rendering, metadata section)
 
 ### E2E Tests (Playwright)
 

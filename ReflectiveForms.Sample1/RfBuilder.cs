@@ -52,7 +52,7 @@ public static class RfBuilder
                     EntityName = "objective",
                     EntityReadableNamePlural = "Objectives",
                     EntityReadableNameSingular = "Objective",
-                    ShallSupportFrontendEdit = SupportsFrontendEdit.ForAllAuthorized,
+                    SupportsFrontendEdit = true,
                     HasAuthor = true,
                     HasTags = true,
                     HasCategories = true,
@@ -95,7 +95,7 @@ public static class RfBuilder
                     EntityName = "blog-post",
                     EntityReadableNamePlural = "Blog Posts",
                     EntityReadableNameSingular = "Blog Post",
-                    ShallSupportFrontendEdit = SupportsFrontendEdit.ForAllAuthorized,
+                    SupportsFrontendEdit = true,
                     HasAuthor = true,
                     HasTags = true,
                     HasCategories = true,
@@ -133,14 +133,14 @@ public static class RfBuilder
                 //              Relation to blog-post, Checkbox, DatePicker,
                 //              WysiwygEditor (bio), Text (default value),
                 //              Select (many options)
-                //    Config: SuperAdmin only, no tags/categories/parent
+                //    Config: No tags/categories/parent
                 // ──────────────────────────────────────────────────────────────
                 new EntityConfigurationBuilder<TeamMemberModel>
                 {
                     EntityName = "team-member",
                     EntityReadableNamePlural = "Team Members",
                     EntityReadableNameSingular = "Team Member",
-                    ShallSupportFrontendEdit = SupportsFrontendEdit.ForSuperAdminOnly,
+                    SupportsFrontendEdit = true,
                     HasAuthor = false,
                     HasTags = false,
                     HasCategories = false,
@@ -168,7 +168,7 @@ public static class RfBuilder
                     EntityName = "product",
                     EntityReadableNamePlural = "Products",
                     EntityReadableNameSingular = "Product",
-                    ShallSupportFrontendEdit = SupportsFrontendEdit.ForAllAuthorized,
+                    SupportsFrontendEdit = true,
                     HasAuthor = true,
                     HasTags = true,
                     HasCategories = true,
@@ -204,7 +204,7 @@ public static class RfBuilder
                     EntityName = "event",
                     EntityReadableNamePlural = "Events",
                     EntityReadableNameSingular = "Event",
-                    ShallSupportFrontendEdit = SupportsFrontendEdit.ForAllAuthorized,
+                    SupportsFrontendEdit = true,
                     HasAuthor = true,
                     HasTags = false,
                     HasCategories = true,
@@ -227,7 +227,7 @@ public static class RfBuilder
                     EntityName = "survey",
                     EntityReadableNamePlural = "Surveys",
                     EntityReadableNameSingular = "Survey",
-                    ShallSupportFrontendEdit = SupportsFrontendEdit.ForAllAuthorized,
+                    SupportsFrontendEdit = true,
                     HasAuthor = true,
                     HasTags = false,
                     HasCategories = false,

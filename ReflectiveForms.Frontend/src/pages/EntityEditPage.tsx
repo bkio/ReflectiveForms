@@ -1,4 +1,4 @@
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams, Navigate } from 'react-router-dom';
 import { useSchema, useEntity } from '../hooks/useEntity';
 import { DynamicForm } from '../components/form/DynamicForm';
 
@@ -62,6 +62,14 @@ export function EntityEditPage() {
         <div className="text-gray-500">Schema not found</div>
       </div>
     );
+  }
+
+  // Redirect to view page when editing is not supported for this entity type
+  if (!schema.features.supports_frontend_edit) {
+    const viewPath = idParam && idParam !== 'new'
+      ? `/entities-view/${entityName}?id=${entityId ?? idParam}`
+      : `/entities/${entityName}`;
+    return <Navigate to={viewPath} replace />;
   }
 
   // Prepare initial data

@@ -35,7 +35,7 @@ describe('AdminLayout', () => {
       entity_name: 'Article',
       readable_name: { singular: 'Article', plural: 'Articles' },
       features: {
-        supports_frontend_edit: 'ForAllAuthorized',
+        supports_frontend_edit: true,
         has_author: false,
         has_tags: false,
         has_categories: false,
@@ -48,7 +48,7 @@ describe('AdminLayout', () => {
       entity_name: 'Page',
       readable_name: { singular: 'Page', plural: 'Pages' },
       features: {
-        supports_frontend_edit: 'ForAllAuthorized',
+        supports_frontend_edit: true,
         has_author: false,
         has_tags: false,
         has_categories: false,
@@ -134,14 +134,14 @@ describe('AdminLayout', () => {
     expect(screen.getByText('Home')).toBeInTheDocument();
   });
 
-  it('should hide entities with supports_frontend_edit = No', async () => {
-    const schemasWithHidden = {
+  it('should show view-only entities (supports_frontend_edit = false) in sidebar', async () => {
+    const schemasWithViewOnly = {
       ...mockSchemas,
-      HiddenEntity: {
-        entity_name: 'HiddenEntity',
-        readable_name: { singular: 'Hidden', plural: 'Hidden Entities' },
+      ViewOnlyEntity: {
+        entity_name: 'ViewOnlyEntity',
+        readable_name: { singular: 'ViewOnly', plural: 'View Only Entities' },
         features: {
-          supports_frontend_edit: 'No',
+          supports_frontend_edit: false,
           has_author: false,
           has_tags: false,
           has_categories: false,
@@ -153,7 +153,7 @@ describe('AdminLayout', () => {
     };
 
     vi.mocked(useEntityModule.useAllSchemas).mockReturnValue({
-      data: schemasWithHidden,
+      data: schemasWithViewOnly,
       isLoading: false,
       error: null,
     } as any);
@@ -162,7 +162,7 @@ describe('AdminLayout', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Articles')).toBeInTheDocument();
-      expect(screen.queryByText('Hidden Entities')).not.toBeInTheDocument();
+      expect(screen.getByText('View Only Entities')).toBeInTheDocument();
     });
   });
 

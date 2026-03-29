@@ -51,7 +51,7 @@ public static class EntitySchemaGenerator
                 HasCategories = config.HasCategories,
                 HasParentChild = config.HasParentChildRelationship,
                 RequireTitleUniqueness = config.RequireGlobalTitleUniqueness,
-                SupportsFrontendEdit = config.ShallSupportFrontendEdit
+                SupportsFrontendEdit = config.SupportsFrontendEdit
             },
             Fields = fields,
             ApiEndpoints = new ApiEndpoints

@@ -57,8 +57,9 @@ A comprehensive sample application demonstrating every feature of the **Reflecti
 │  - TanStack Query for data fetching                          │
 │  - Pessimistic entity locking (auto-save with 5s debounce)   │
 │  - Dynamic default values from backend schema                │
-│  - Read-only entity view page                                │
-│  - Searchable selects and paginated entity lists             │
+│  - Read-only entity view with relation resolution            │
+│  - Searchable selects and entity list search/sort/filter     │
+│  - Depth-aware nested field rendering (no cards-in-cards)    │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -327,12 +328,13 @@ The backend uses JWT + Cookie authentication:
 
 The frontend is a React single-page application that dynamically renders forms based on the JSON schema provided by the backend. It includes:
 
-- **Entity CRUD pages** — Dashboard, entity listing (with pagination), create/edit/clone forms
-- **Read-only entity view** — Public view page at `/entities-view/:entityName`
+- **Entity CRUD pages** — Dashboard, entity listing (with search, sort, filter & pagination), create/edit/clone forms
+- **Read-only entity view** — Public view page at `/entities-view/:entityName` with grid layouts for groups, structured repeater headers, and relation fields resolved to clickable entity names
 - **Dynamic default values** — Fields pre-filled with runtime-computed defaults from the backend
 - **Searchable selects** — Filterable dropdowns for Relation and Select fields with large option sets
 - **Entity locking** — Pessimistic locking with auto-refresh heartbeat
 - **Auto-save** — Debounced auto-save with visual feedback and toast notifications
+- **Depth-aware nesting** — Nested fields inside repeaters and groups render cleanly without redundant card wrappers
 
 ### Running the Frontend
 

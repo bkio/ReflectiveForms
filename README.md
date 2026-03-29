@@ -11,10 +11,14 @@ A C# library that generates dynamic, schema-driven forms from entity configurati
 - **Entity Locking** — Concurrent edit protection with lock/unlock lifecycle
 - **Dynamic Choices** — Select fields populated at compile-time or runtime from async C# methods
 - **Dynamic Default Values** — Field defaults computed at runtime via async C# methods (e.g. today's date)
-- **Read-Only Entity View** — Public/read-only view page for entities at `/entities-view/:entityName`
-- **Searchable Select** — Filterable dropdown for Relation and Select fields with large option sets
-- **Paginated Entity Lists** — Server-side pagination with page tokens for entity listing
-- **Role-Based Access** — SuperAdmin-only or all-authorized visibility per entity type
+- **Read-Only Entity View** — Public/read-only view page for entities at `/entities-view/:entityName` with metadata display (author, tags, categories, parent), grid layouts for groups, structured repeater headers, and relation fields resolved to clickable names
+- **Searchable Select** — Filterable dropdown for Relation and Select fields with large option sets; supports multi-select mode for tags/categories
+- **Tags & Categories** — Multi-select entity pickers on the form when `HasTags` or `HasCategories` is enabled
+- **Parent-Child Hierarchy** — Single-select parent picker with self-exclusion when `HasParentChildRelationship` is enabled
+- **Entity List with Search, Sort & Filter** — Client-side search by title/author, sortable columns (title, author, last modified), formatted dates, and client-side pagination over full dataset
+- **View-Only Mode** — Entities with `SupportsFrontendEdit = false` show in sidebar/dashboard but block editing (redirect to view page)
+- **Depth-Aware Form Nesting** — Nested fields inside repeaters and groups render without redundant card wrappers, eliminating cards-in-cards visual noise
+- **Role-Based Access** — IAM role system with per-entity-type CRUD capabilities
 - **CRUD API** — Create, Read, Update, Delete, Peek All (with pagination) operations via a single endpoint
 - **Sanity Checks** — Server-side validation with custom async logic (e.g. uniqueness checks)
 
@@ -175,16 +179,17 @@ npm run test:e2e:ui      # Interactive UI mode
 npm run test:e2e:headed  # See browser
 ```
 
-The E2E suite includes 266 tests (Chromium) across 27 spec files covering:
+The E2E suite includes 276+ tests (Chromium) across 28 spec files covering:
 - Per-entity CRUD flows (Objective, Blog Post, Team Member, Product, Event, Survey)
 - Display condition visibility at all nesting levels
 - Repeater add/remove with min/max enforcement (3 levels deep)
 - Auto-save with round-trip verification
 - Entity relations and cross-entity workflows
 - Entity locking with concurrent edit protection
-- Read-only entity view page
+- Read-only entity view page with depth-aware styling
 - Dynamic default values
 - Searchable select and relation fields
+- List page search, sort, and filter
 - Pagination and data persistence
 - Schema API contract validation
 - Form validation and sanity check errors

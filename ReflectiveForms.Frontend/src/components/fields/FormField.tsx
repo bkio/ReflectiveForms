@@ -77,9 +77,14 @@ export function FormField({ fieldSchema, basePath = 'fields', depth = 0 }: FormF
 
   const fieldPath = basePath ? `${basePath}.${fieldSchema.name}` : fieldSchema.name;
 
+  const isTopLevel = depth === 0;
+  const cardClass = isTopLevel
+    ? 'bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4'
+    : 'mb-3';
+
   return (
-    <div className={`field-wrapper field-type-${fieldSchema.type.toLowerCase()} ${depth > 0 ? 'ml-4' : ''}`}>
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4">
+    <div className={`field-wrapper field-type-${fieldSchema.type.toLowerCase()} ${depth > 0 ? '' : ''}`}>
+      <div className={cardClass}>
         {/* Field header */}
         <div className="mb-2">
           <label className="block text-sm font-medium text-gray-700">

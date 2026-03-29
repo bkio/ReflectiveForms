@@ -16,8 +16,9 @@ export default defineConfig({
   // Retry on CI only
   retries: process.env.CI ? 2 : 0,
 
-  // Limit workers on CI
-  workers: process.env.CI ? 1 : undefined,
+  // Tests share a single backend database so they must run serially to avoid
+  // cross-file deleteAll interference.
+  workers: 1,
 
   // Reporter to use
   reporter: [

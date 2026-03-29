@@ -29,7 +29,7 @@ const createMockSchema = (fields: EntitySchema['fields'] = []): EntitySchema => 
     has_categories: false,
     has_parent_child: false,
     require_title_uniqueness: false,
-    supports_frontend_edit: 'ForAllAuthorized',
+    supports_frontend_edit: true,
   },
   fields,
   api_endpoints: {
@@ -282,5 +282,74 @@ describe('DynamicForm', () => {
 
     // Initially hidden
     expect(screen.queryByText('Extra Field')).not.toBeInTheDocument();
+  });
+
+  it('should render tags selector when has_tags is true', () => {
+    const schema = createMockSchema();
+    schema.features.has_tags = true;
+
+    renderWithProviders(<DynamicForm schema={schema} />);
+
+    expect(screen.getByTestId('tags-select')).toBeInTheDocument();
+    expect(screen.getByText('Tags')).toBeInTheDocument();
+  });
+
+  it('should not render tags selector when has_tags is false', () => {
+    const schema = createMockSchema();
+
+    renderWithProviders(<DynamicForm schema={schema} />);
+
+    expect(screen.queryByTestId('tags-select')).not.toBeInTheDocument();
+  });
+
+  it('should render categories selector when has_categories is true', () => {
+    const schema = createMockSchema();
+    schema.features.has_categories = true;
+
+    renderWithProviders(<DynamicForm schema={schema} />);
+
+    expect(screen.getByTestId('categories-select')).toBeInTheDocument();
+    expect(screen.getByText('Categories')).toBeInTheDocument();
+  });
+
+  it('should not render categories selector when has_categories is false', () => {
+    const schema = createMockSchema();
+
+    renderWithProviders(<DynamicForm schema={schema} />);
+
+    expect(screen.queryByTestId('categories-select')).not.toBeInTheDocument();
+  });
+
+  it('should render parent selector when has_parent_child is true', () => {
+    const schema = createMockSchema();
+    schema.features.has_parent_child = true;
+
+    renderWithProviders(<DynamicForm schema={schema} />);
+
+    expect(screen.getByTestId('parent-select')).toBeInTheDocument();
+    expect(screen.getByText('Parent')).toBeInTheDocument();
+  });
+
+  it('should not render parent selector when has_parent_child is false', () => {
+    const schema = createMockSchema();
+
+    renderWithProviders(<DynamicForm schema={schema} />);
+
+    expect(screen.queryByTestId('parent-select')).not.toBeInTheDocument();
+  });
+
+  it('should render all metadata selectors when all features enabled', () => {
+    const schema = createMockSchema();
+    schema.features.has_author = true;
+    schema.features.has_tags = true;
+    schema.features.has_categories = true;
+    schema.features.has_parent_child = true;
+
+    renderWithProviders(<DynamicForm schema={schema} />);
+
+    expect(screen.getByTestId('author-select')).toBeInTheDocument();
+    expect(screen.getByTestId('tags-select')).toBeInTheDocument();
+    expect(screen.getByTestId('categories-select')).toBeInTheDocument();
+    expect(screen.getByTestId('parent-select')).toBeInTheDocument();
   });
 });

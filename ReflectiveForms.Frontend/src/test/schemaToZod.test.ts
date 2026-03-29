@@ -14,7 +14,7 @@ const createMockSchema = (fields: FieldSchema[]): EntitySchema => ({
     has_categories: false,
     has_parent_child: false,
     require_title_uniqueness: false,
-    supports_frontend_edit: 'ForAllAuthorized' as const,
+    supports_frontend_edit: true,
   },
   fields,
   api_endpoints: {

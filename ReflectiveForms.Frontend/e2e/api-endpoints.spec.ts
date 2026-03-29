@@ -58,6 +58,7 @@ test.describe('API Endpoint Verification', () => {
   });
 
   test.describe('CRUD API', () => {
+    test.describe.configure({ mode: 'serial' });
     let createdId: number;
 
     test('PEEK_ALL should return list of entities', async ({ api }) => {

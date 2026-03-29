@@ -16,13 +16,6 @@ using ReflectiveForms.Core.Utilities;
 
 namespace ReflectiveForms.Core;
 
-public enum SupportsFrontendEdit
-{
-    No,
-    ForAllAuthorized,
-    ForSuperAdminOnly
-}
-
 public record EntityRepositoryServiceConfiguration(
     IDatabaseService DatabaseService,
     IMemoryService MemoryService,

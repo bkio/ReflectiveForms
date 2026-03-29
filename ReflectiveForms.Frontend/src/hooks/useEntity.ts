@@ -59,6 +59,7 @@ export function useEntityList(entityName: string) {
       if (result.error) throw new Error(result.error);
       return result.data;
     },
+    enabled: !!entityName,
   });
 }
 

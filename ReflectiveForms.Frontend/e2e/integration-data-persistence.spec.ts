@@ -342,10 +342,19 @@ test.describe('Data Persistence: Product round-trip', () => {
     await page.waitForTimeout(2000);
 
     // The subcategory should now show clothing options
-    const subField = page.locator('.field-wrapper, .bg-white.rounded-lg.shadow-sm')
-      .filter({ has: page.locator('label', { hasText: 'Subcategory' }) });
+    const subField = page.locator('label', { hasText: /^\s*Subcategory\s*\*?\s*$/ }).first()
+      .locator('xpath=ancestor::div[contains(@class,"field-wrapper")][1]');
     const subTrigger = subField.locator('button[aria-haspopup="listbox"]');
-    await subTrigger.click();
+    await subTrigger.click({ position: { x: 10, y: 10 } });
+
+    const listbox = subField.locator('[role="listbox"]');
+    const isVisible = await listbox.isVisible().catch(() => false);
+    if (!isVisible) {
+      await subTrigger.click({ position: { x: 10, y: 10 } });
+    }
+    await expect(listbox).toBeVisible({ timeout: 10000 });
+    await expect(subField.locator('[role="option"]').first()).toBeVisible({ timeout: 5000 });
+
     const options = await subField.locator('[role="option"]').allTextContents();
     await page.keyboard.press('Escape');
     const hasClothingOption = options.some(o => /men|women|shoe|kid/i.test(o));

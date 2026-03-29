@@ -190,7 +190,7 @@ public class EntityConfigurationExtensionsTests
             EntityName = "test",
             EntityReadableNameSingular = "Test",
             EntityReadableNamePlural = "Tests",
-            ShallSupportFrontendEdit = SupportsFrontendEdit.No,
+            SupportsFrontendEdit = false,
             HasParentChildRelationship = hasParent,
             HasAuthor = hasAuthor,
             HasTags = hasTags,

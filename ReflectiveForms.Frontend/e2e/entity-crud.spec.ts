@@ -5,6 +5,7 @@ import { test, expect } from './helpers';
  * Uses authenticated UI helper with proper routes.
  */
 test.describe('Entity CRUD Operations', () => {
+  test.describe.configure({ mode: 'serial' });
   const ENTITY = 'team-member';
   let createdId: number;
 

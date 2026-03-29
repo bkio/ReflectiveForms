@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Plus, FileText, ArrowRight } from 'lucide-react';
+import { Plus, FileText, ArrowRight, Eye } from 'lucide-react';
 import { useAllSchemas } from '../hooks/useEntity';
 
 export function DashboardPage() {
@@ -22,9 +22,8 @@ export function DashboardPage() {
     );
   }
 
-  const entityTypes = Object.values(schemas ?? {}).filter(
-    (schema) => schema.features.supports_frontend_edit !== 'No'
-  );
+  const entityTypes = Object.values(schemas ?? {});
+  const editableTypes = entityTypes.filter((s) => s.features.supports_frontend_edit);
 
   return (
     <div className="space-y-8">
@@ -65,11 +64,18 @@ export function DashboardPage() {
                   {schema.readable_name.plural}
                 </h3>
                 <p className="mt-1 text-sm text-gray-500">
-                  Manage {schema.readable_name.plural.toLowerCase()}
+                  {schema.features.supports_frontend_edit
+                    ? `Manage ${schema.readable_name.plural.toLowerCase()}`
+                    : `Browse ${schema.readable_name.plural.toLowerCase()}`}
                 </p>
 
                 {/* Feature badges */}
                 <div className="mt-3 flex flex-wrap gap-2">
+                  {!schema.features.supports_frontend_edit && (
+                    <span className="px-2 py-1 text-xs bg-gray-200 text-gray-600 rounded">
+                      View Only
+                    </span>
+                  )}
                   {schema.features.has_author && (
                     <span className="px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded">
                       Has Author
@@ -98,16 +104,20 @@ export function DashboardPage() {
                   to={`/entities/${schema.entity_name}`}
                   className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                 >
-                  <ArrowRight className="w-4 h-4" />
-                  View All
+                  {schema.features.supports_frontend_edit
+                    ? <><ArrowRight className="w-4 h-4" /> View All</>
+                    : <><Eye className="w-4 h-4" /> Browse</>
+                  }
                 </Link>
-                <Link
-                  to={`/entities-admin/${schema.entity_name}?id=new`}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                  Create New
-                </Link>
+                {schema.features.supports_frontend_edit && (
+                  <Link
+                    to={`/entities-admin/${schema.entity_name}?id=new`}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Create New
+                  </Link>
+                )}
               </div>
             </div>
           ))}
@@ -126,7 +136,7 @@ export function DashboardPage() {
       <div>
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Links</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {entityTypes.slice(0, 4).map((schema) => (
+          {editableTypes.slice(0, 4).map((schema) => (
             <Link
               key={schema.entity_name}
               to={`/entities-admin/${schema.entity_name}?id=new`}

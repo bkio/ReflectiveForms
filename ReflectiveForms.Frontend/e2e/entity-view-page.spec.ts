@@ -29,7 +29,7 @@ test.describe('Entity View Page', () => {
 
   test('setup — create test entity', async ({ api }) => {
     const entity = await api.createEntity(ENTITY, {
-      title: { rendered: 'View Test - Jane Smith' },
+      title: { rendered: `View Test - Jane Smith ${Date.now()}` },
       fields: validFields,
     });
     entityId = entity.id;
@@ -148,6 +148,53 @@ test.describe('Entity View Page', () => {
 
     // Clean up
     await api.deleteEntity(ENTITY, sparse.id);
+  });
+
+  test('nested group fields do NOT have double card wrappers', async ({ api, ui }) => {
+    // Create a non-remote entity so office_address group is visible
+    const onSite = await api.createEntity(ENTITY, {
+      title: { rendered: `OnSite View Test ${Date.now()}` },
+      fields: { ...validFields, is_remote: false },
+    });
+
+    await ui.page.goto(`/rf/app/entities-view/${ENTITY}?id=${onSite.id}`);
+    await ui.page.waitForSelector('h1', { timeout: 15000 });
+
+    // office_address is a Group field — its children (street, city, postal_code)
+    // should NOT have bg-white rounded-lg shadow-sm (no card-in-card)
+    const streetField = ui.page.locator('.field-view.field-type-text')
+      .filter({ hasText: '456 Tech Ave' });
+    // The field-view itself should NOT contain a card wrapper
+    const hasCard = await streetField.locator('.bg-white.rounded-lg.shadow-sm').count();
+    expect(hasCard).toBe(0);
+
+    await api.deleteEntity(ENTITY, onSite.id);
+  });
+
+  test('repeater items show structured headers', async ({ ui }) => {
+    await ui.page.goto(`/rf/app/entities-view/${ENTITY}?id=${entityId}`);
+    await ui.page.waitForSelector('h1', { timeout: 15000 });
+
+    // emergency_contacts is a Repeater — items should have "Emergency Contacts #1"
+    await expect(ui.page.locator('text=Emergency Contacts #1')).toBeVisible();
+  });
+
+  test('group fields use grid layout', async ({ api, ui }) => {
+    // Create a non-remote entity so office_address group is visible (display condition: is_remote == false)
+    const onSite = await api.createEntity(ENTITY, {
+      title: { rendered: `Grid View Test ${Date.now()}` },
+      fields: { ...validFields, is_remote: false },
+    });
+
+    await ui.page.goto(`/rf/app/entities-view/${ENTITY}?id=${onSite.id}`);
+    await ui.page.waitForSelector('h1', { timeout: 15000 });
+
+    // office_address group (render_style=Grid3) should have a grid container
+    const gridContainer = ui.page.locator('.grid').filter({ hasText: '456 Tech Ave' });
+    const count = await gridContainer.count();
+    expect(count).toBeGreaterThan(0);
+
+    await api.deleteEntity(ENTITY, onSite.id);
   });
 
   test('cleanup — delete test entity', async ({ api }) => {

@@ -21,7 +21,7 @@ public class SchemaModelTests
                 HasCategories = false,
                 HasParentChild = false,
                 RequireTitleUniqueness = true,
-                SupportsFrontendEdit = SupportsFrontendEdit.ForAllAuthorized
+                SupportsFrontendEdit = true
             },
             Fields = [],
             ApiEndpoints = new ApiEndpoints

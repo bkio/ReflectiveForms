@@ -38,11 +38,11 @@ test.describe('Schema API Contract', () => {
     expect(blogSchema.features.has_parent_child).toBe(false);
   });
 
-  test('team-member schema is super-admin only', async ({ api }) => {
+  test('team-member schema features', async ({ api }) => {
     const schemas = await api.getAllSchemas() as Record<string, any>;
     const tmSchema = schemas['team-member'];
 
-    expect(tmSchema.features.supports_frontend_edit).toBe('ForSuperAdminOnly');
+    expect(tmSchema.features.supports_frontend_edit).toBe(true);
     expect(tmSchema.features.has_author).toBe(false);
     expect(tmSchema.features.has_tags).toBe(false);
   });
@@ -121,6 +121,7 @@ test.describe('Schema API Contract', () => {
 });
 
 test.describe('CRUD API Contract: all entity types', () => {
+  test.describe.configure({ mode: 'serial' });
   const entities = ['blog-post', 'team-member', 'product', 'event', 'objective'];
 
   test.afterAll(async ({ request }) => {
@@ -169,7 +170,7 @@ test.describe('CRUD API Contract: all entity types', () => {
         years_of_experience: 3, performance_score: 5, is_remote: true,
         bio: '', hire_date: '20240101', salary: 80000,
         emergency_contacts: [{ contact_name: 'EC1', relationship: 'friend', phone: '+1 555-0001', email: 'ec@test.com' }], social_links: [],
-        avatar: '', office_address: { street: '', city: '', state: '', postal_code: '', country: 'US' },
+        avatar: '', office_address: { street: '1 Main St', city: 'Anytown', state: 'CA', postal_code: '90210', country: 'US' },
         favorite_blog_post: -1,
       },
     });
@@ -311,12 +312,10 @@ test.describe('Dashboard renders all entity types from backend', () => {
     await ui.gotoDashboard();
 
     const schemas = await api.getAllSchemas() as Record<string, any>;
-    const editableCount = Object.values(schemas).filter(
-      (s: any) => s.features?.supports_frontend_edit !== 'No'
-    ).length;
+    const totalCount = Object.keys(schemas).length;
 
-    // The dashboard shows a count in the "Content Types" stat card
-    const countText = page.locator('.text-2xl.font-bold', { hasText: String(editableCount) });
+    // The dashboard shows a count in the "Content Types" stat card (all entity types, including view-only)
+    const countText = page.locator('.text-2xl.font-bold', { hasText: String(totalCount) });
     await expect(countText.first()).toBeVisible({ timeout: 10000 });
   });
 });

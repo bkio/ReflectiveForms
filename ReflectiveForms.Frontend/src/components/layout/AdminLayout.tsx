@@ -32,9 +32,7 @@ export function AdminLayout() {
     }
   }, [location.pathname, isMobile]);
 
-  const entityTypes = Object.values(schemas ?? {}).filter(
-    (schema) => schema.features.supports_frontend_edit !== 'No'
-  );
+  const entityTypes = Object.values(schemas ?? {});
 
   return (
     <div className="min-h-screen bg-gray-100">

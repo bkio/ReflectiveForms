@@ -79,6 +79,11 @@ export function DynamicForm({ schema, initialData, entityId, onSuccess }: Dynami
 
     const values = normalizeDates(form.getValues()) as Record<string, unknown>;
 
+    // Include entity ID for update operations (backend requires it in the body)
+    if (!isCreateMode && entityId !== undefined) {
+      values.id = entityId;
+    }
+
     try {
 
       // Save directly — the CRUD endpoint performs its own sanity check
@@ -184,6 +189,21 @@ export function DynamicForm({ schema, initialData, entityId, onSuccess }: Dynami
           <AuthorSelect form={form} disabled={isFormDisabled} />
         )}
 
+        {/* Tags field (when entity has tags feature) */}
+        {schema.features.has_tags && (
+          <TagsSelect form={form} disabled={isFormDisabled} />
+        )}
+
+        {/* Categories field (when entity has categories feature) */}
+        {schema.features.has_categories && (
+          <CategoriesSelect form={form} disabled={isFormDisabled} />
+        )}
+
+        {/* Parent field (when entity has parent-child feature) */}
+        {schema.features.has_parent_child && (
+          <ParentSelect form={form} disabled={isFormDisabled} entityName={schema.entity_name} entityId={entityId} />
+        )}
+
         {/* Entity fields */}
         <fieldset disabled={isFormDisabled} className={isFormDisabled ? 'opacity-60' : ''}>
           {schema.fields.map((fieldSchema) => (
@@ -224,6 +244,66 @@ function AuthorSelect({ form, disabled }: { form: UseFormReturn; disabled: boole
         onChange={(val) => form.setValue('author', val, { shouldDirty: true })}
         disabled={disabled}
         placeholder="-- Select Author --"
+      />
+    </div>
+  );
+}
+
+function TagsSelect({ form, disabled }: { form: UseFormReturn; disabled: boolean }) {
+  const values = form.watch('tags') ?? [];
+
+  return (
+    <div className="field-wrapper bg-white rounded-lg shadow-sm border border-gray-200 p-4" data-testid="tags-select">
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        Tags
+      </label>
+      <SearchableSelect
+        entityName="tags"
+        multiSelect
+        multiValue={values}
+        onMultiChange={(vals) => form.setValue('tags', vals, { shouldDirty: true })}
+        disabled={disabled}
+        placeholder="-- Select Tags --"
+      />
+    </div>
+  );
+}
+
+function CategoriesSelect({ form, disabled }: { form: UseFormReturn; disabled: boolean }) {
+  const values = form.watch('categories') ?? [];
+
+  return (
+    <div className="field-wrapper bg-white rounded-lg shadow-sm border border-gray-200 p-4" data-testid="categories-select">
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        Categories
+      </label>
+      <SearchableSelect
+        entityName="categories"
+        multiSelect
+        multiValue={values}
+        onMultiChange={(vals) => form.setValue('categories', vals, { shouldDirty: true })}
+        disabled={disabled}
+        placeholder="-- Select Categories --"
+      />
+    </div>
+  );
+}
+
+function ParentSelect({ form, disabled, entityName, entityId }: { form: UseFormReturn; disabled: boolean; entityName: string; entityId?: number }) {
+  const value = form.watch('parent') ?? -1;
+
+  return (
+    <div className="field-wrapper bg-white rounded-lg shadow-sm border border-gray-200 p-4" data-testid="parent-select">
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        Parent
+      </label>
+      <SearchableSelect
+        entityName={entityName}
+        value={value}
+        onChange={(val) => form.setValue('parent', val, { shouldDirty: true })}
+        disabled={disabled}
+        excludeId={entityId}
+        placeholder="-- Select Parent --"
       />
     </div>
   );

@@ -5,20 +5,28 @@ import { PeekEntity } from '../../types/schema';
 
 interface SearchableSelectProps {
   entityName: string;
-  value: number;
-  onChange: (value: number) => void;
+  value?: number;
+  onChange?: (value: number) => void;
+  multiSelect?: boolean;
+  multiValue?: number[];
+  onMultiChange?: (values: number[]) => void;
   disabled?: boolean;
   placeholder?: string;
   pageSize?: number;
+  excludeId?: number;
 }
 
 export function SearchableSelect({
   entityName,
-  value,
+  value = -1,
   onChange,
+  multiSelect = false,
+  multiValue = [],
+  onMultiChange,
   disabled = false,
   placeholder = '-- Select --',
   pageSize = 20,
+  excludeId,
 }: SearchableSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -43,22 +51,37 @@ export function SearchableSelect({
 
   const totalCount = data?.pages[0]?.total_count ?? null;
 
-  // Filter entities by search term (client-side)
+  // Filter entities by search term (client-side) and excludeId
   const filteredEntities = useMemo(() => {
-    if (!search.trim()) return allEntities;
+    let result = allEntities;
+    if (excludeId !== undefined) {
+      result = result.filter((e) => e.id !== excludeId);
+    }
+    if (!search.trim()) return result;
     const lower = search.toLowerCase();
-    return allEntities.filter((e) => {
+    return result.filter((e) => {
       const label = e.title ?? e.name ?? `ID: ${e.id}`;
       return label.toLowerCase().includes(lower);
     });
-  }, [allEntities, search]);
+  }, [allEntities, search, excludeId]);
 
-  // Get display label for current value
+  // Get display label for current value (single-select mode)
   const selectedLabel = useMemo(() => {
+    if (multiSelect) return '';
     if (value <= 0) return '';
     const found = allEntities.find((e) => e.id === value);
     return found ? (found.title ?? found.name ?? `ID: ${found.id}`) : `ID: ${value}`;
-  }, [allEntities, value]);
+  }, [allEntities, value, multiSelect]);
+
+  // Get selected entities for multi-select mode
+  const selectedEntities = useMemo(() => {
+    if (!multiSelect) return [];
+    return multiValue
+      .map((id) => {
+        const found = allEntities.find((e) => e.id === id);
+        return found ? { id, label: found.title ?? found.name ?? `ID: ${id}` } : { id, label: `ID: ${id}` };
+      });
+  }, [allEntities, multiValue, multiSelect]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -94,20 +117,42 @@ export function SearchableSelect({
 
   const handleSelect = useCallback(
     (id: number) => {
-      onChange(id);
+      if (multiSelect) {
+        if (id <= 0) return; // no "unselect" in multi mode
+        const current = multiValue;
+        const next = current.includes(id)
+          ? current.filter((v) => v !== id)
+          : [...current, id];
+        onMultiChange?.(next);
+        // keep dropdown open in multi mode
+        return;
+      }
+      onChange?.(id);
       setIsOpen(false);
       setSearch('');
     },
-    [onChange]
+    [onChange, onMultiChange, multiSelect, multiValue]
   );
 
   const handleClear = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      onChange(-1);
+      if (multiSelect) {
+        onMultiChange?.([]);
+      } else {
+        onChange?.(-1);
+      }
       setSearch('');
     },
-    [onChange]
+    [onChange, onMultiChange, multiSelect]
+  );
+
+  const handleRemoveChip = useCallback(
+    (e: React.MouseEvent, id: number) => {
+      e.stopPropagation();
+      onMultiChange?.(multiValue.filter((v) => v !== id));
+    },
+    [onMultiChange, multiValue]
   );
 
   // Keyboard navigation
@@ -170,11 +215,28 @@ export function SearchableSelect({
         aria-haspopup="listbox"
         aria-expanded={isOpen}
       >
-        <span className={selectedLabel ? 'text-gray-900' : 'text-gray-500'}>
-          {selectedLabel || placeholder}
-        </span>
+        {multiSelect ? (
+          <span className="flex flex-wrap gap-1 flex-1 min-h-[1.25rem]">
+            {selectedEntities.length > 0 ? selectedEntities.map((item) => (
+              <span key={item.id} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded" data-chip>
+                {item.label}
+                {!disabled && (
+                  <span role="button" tabIndex={-1} onClick={(e) => handleRemoveChip(e, item.id)} className="hover:bg-blue-200 rounded-full p-0.5">
+                    <X className="w-3 h-3" />
+                  </span>
+                )}
+              </span>
+            )) : (
+              <span className="text-gray-500">{placeholder}</span>
+            )}
+          </span>
+        ) : (
+          <span className={selectedLabel ? 'text-gray-900' : 'text-gray-500'}>
+            {selectedLabel || placeholder}
+          </span>
+        )}
         <div className="flex items-center gap-1 ml-2 flex-shrink-0">
-          {value > 0 && !disabled && (
+          {((multiSelect && multiValue.length > 0) || (!multiSelect && value > 0)) && !disabled && (
             <span
               role="button"
               tabIndex={-1}
@@ -232,23 +294,27 @@ export function SearchableSelect({
               </div>
             ) : (
               <>
-                {/* Unselect option */}
-                <div
-                  data-option
-                  onClick={() => handleSelect(-1)}
-                  className={`
-                    px-3 py-2 text-sm cursor-pointer
-                    ${highlightedIndex === -1 ? 'bg-blue-50' : 'hover:bg-gray-50'}
-                    ${value <= 0 ? 'font-medium text-blue-600' : 'text-gray-500 italic'}
-                  `}
-                  role="option"
-                  aria-selected={value <= 0}
-                >
-                  {placeholder}
-                </div>
+                {/* Unselect option (single-select only) */}
+                {!multiSelect && (
+                  <div
+                    data-option
+                    onClick={() => handleSelect(-1)}
+                    className={`
+                      px-3 py-2 text-sm cursor-pointer
+                      ${highlightedIndex === -1 ? 'bg-blue-50' : 'hover:bg-gray-50'}
+                      ${value <= 0 ? 'font-medium text-blue-600' : 'text-gray-500 italic'}
+                    `}
+                    role="option"
+                    aria-selected={value <= 0}
+                  >
+                    {placeholder}
+                  </div>
+                )}
                 {filteredEntities.map((entity, idx) => {
                   const label = entity.title ?? entity.name ?? `ID: ${entity.id}`;
-                  const isSelected = entity.id === value;
+                  const isSelected = multiSelect
+                    ? multiValue.includes(entity.id)
+                    : entity.id === value;
                   const isHighlighted = idx === highlightedIndex;
                   return (
                     <div
@@ -256,13 +322,18 @@ export function SearchableSelect({
                       data-option
                       onClick={() => handleSelect(entity.id)}
                       className={`
-                        px-3 py-2 text-sm cursor-pointer
+                        px-3 py-2 text-sm cursor-pointer flex items-center gap-2
                         ${isHighlighted ? 'bg-blue-50' : 'hover:bg-gray-50'}
                         ${isSelected ? 'font-medium text-blue-600' : 'text-gray-900'}
                       `}
                       role="option"
                       aria-selected={isSelected}
                     >
+                      {multiSelect && (
+                        <span className={`w-4 h-4 border rounded flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-300'}`}>
+                          {isSelected && <span className="text-xs">✓</span>}
+                        </span>
+                      )}
                       {label}
                     </div>
                   );
