@@ -148,3 +148,9 @@ export interface PeekEntity {
   title?: string;
   name?: string;
 }
+
+export interface PaginatedPeekResponse {
+  items: PeekEntity[];
+  next_page_token: string | null;
+  total_count: number | null;
+}

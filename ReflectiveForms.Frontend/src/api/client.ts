@@ -1,4 +1,4 @@
-import { EntitySchema, EntityData, PeekEntity } from '../types/schema';
+import { EntitySchema, EntityData, PeekEntity, PaginatedPeekResponse } from '../types/schema';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:9000/rf/api';
 
@@ -23,7 +23,8 @@ async function fetchApi<T>(
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: 'Request failed' }));
-      return { error: errorData.message || `HTTP ${response.status}` };
+      const msg = typeof errorData === 'string' ? errorData : (errorData.detail || errorData.message);
+      return { error: msg || `HTTP ${response.status}` };
     }
 
     const data = await response.json();
@@ -57,6 +58,21 @@ export async function peekAllEntities(
   entityName: string
 ): Promise<ApiResponse<PeekEntity[]>> {
   return fetchApi<PeekEntity[]>(`/crud?operation=PEEK_ALL&type=${encodeURIComponent(entityName)}`, {
+    method: 'POST',
+    body: '{}',
+  });
+}
+
+export async function peekAllEntitiesPaginated(
+  entityName: string,
+  pageSize: number = 20,
+  pageToken?: string | null
+): Promise<ApiResponse<PaginatedPeekResponse>> {
+  let url = `/crud?operation=PEEK_ALL_PAGINATED&type=${encodeURIComponent(entityName)}&page_size=${pageSize}`;
+  if (pageToken) {
+    url += `&page_token=${encodeURIComponent(pageToken)}`;
+  }
+  return fetchApi<PaginatedPeekResponse>(url, {
     method: 'POST',
     body: '{}',
   });
@@ -122,4 +138,15 @@ export async function unlockEntity(
     `/entity_lock_control?type=${encodeURIComponent(entityName)}&id=${id}&operation=unlock`,
     { method: 'POST', body: '{}' }
   );
+}
+
+// Auth API
+export async function login(
+  email: string,
+  password: string
+): Promise<ApiResponse<{ token: string }>> {
+  return fetchApi<{ token: string }>('/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
 }

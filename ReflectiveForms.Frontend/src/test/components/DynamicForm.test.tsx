@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DynamicForm } from '../../components/form/DynamicForm';
 import { EntitySchema } from '../../types/schema';
@@ -56,8 +55,6 @@ function renderWithProviders(ui: React.ReactElement) {
 }
 
 describe('DynamicForm', () => {
-  const user = userEvent.setup({ delay: null });
-
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -67,7 +64,7 @@ describe('DynamicForm', () => {
 
     renderWithProviders(<DynamicForm schema={schema} />);
 
-    expect(screen.getByLabelText(/title/i)).toBeInTheDocument();
+    expect(screen.getByText(/title/i)).toBeInTheDocument();
   });
 
   it('should render text field from schema', () => {
@@ -136,7 +133,8 @@ describe('DynamicForm', () => {
     renderWithProviders(<DynamicForm schema={schema} />);
 
     expect(screen.getByText('Status')).toBeInTheDocument();
-    expect(screen.getByRole('combobox')).toBeInTheDocument();
+    // SearchableChoicesSelect renders a button trigger, not a native <select>
+    expect(screen.getByRole('button', { name: /draft/i })).toBeInTheDocument();
   });
 
   it('should render checkbox field', () => {
@@ -154,7 +152,7 @@ describe('DynamicForm', () => {
 
     renderWithProviders(<DynamicForm schema={schema} />);
 
-    expect(screen.getByText('Featured')).toBeInTheDocument();
+    expect(screen.getAllByText('Featured').length).toBeGreaterThan(0);
     expect(screen.getByRole('checkbox')).toBeInTheDocument();
   });
 
@@ -194,7 +192,7 @@ describe('DynamicForm', () => {
         has_dynamic_choices_compile_time: false,
         has_logic_sanity_check: false,
         group_options: {
-          sub_fields: [
+          child_schema: [
             {
               name: 'author',
               type: 'Text',
@@ -205,7 +203,7 @@ describe('DynamicForm', () => {
               has_logic_sanity_check: false,
             },
           ],
-          columns: 1,
+          render_style: 'Full',
         },
       },
     ]);
@@ -216,8 +214,8 @@ describe('DynamicForm', () => {
   });
 
   it('should show lock warning when entity is locked', async () => {
-    vi.mocked(client.acquireLock).mockResolvedValue({
-      data: { success: false, owner: 'other-user@example.com' },
+    vi.mocked(client.tryLockEntity).mockResolvedValue({
+      error: 'Entity is locked by another user',
     });
 
     const schema = createMockSchema();

@@ -14,7 +14,7 @@ import {
 
 // Mock fetch globally
 const mockFetch = vi.fn();
-global.fetch = mockFetch;
+(globalThis as any).fetch = mockFetch;
 
 describe('API Client', () => {
   beforeEach(() => {
@@ -256,7 +256,7 @@ describe('API Client', () => {
 
       const result = await fetchSchema('TestEntity');
 
-      expect(result.error).toBe('HTTP 500');
+      expect(result.error).toBe('Request failed');
     });
 
     it('should handle network errors', async () => {

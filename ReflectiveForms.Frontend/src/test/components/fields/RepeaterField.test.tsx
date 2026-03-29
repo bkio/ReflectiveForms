@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { FormProvider, useForm } from 'react-hook-form';
-import { RepeaterField } from '../../components/fields/RepeaterField';
-import { FieldSchema } from '../../types/schema';
+import { RepeaterField } from '../../../components/fields/RepeaterField';
+import { FieldSchema } from '../../../types/schema';
 import { createElement, ReactNode } from 'react';
 
 // Wrapper component that provides form context
@@ -15,7 +15,7 @@ function FormWrapper({
   defaultValues?: Record<string, unknown>;
 }) {
   const methods = useForm({ defaultValues });
-  return createElement(FormProvider, { ...methods }, children);
+  return createElement(FormProvider, { ...methods, children });
 }
 
 describe('RepeaterField', () => {
@@ -41,6 +41,7 @@ describe('RepeaterField', () => {
       ],
       add_button_label: 'Add Item',
       use_accordion: false,
+      render_style: 'Full',
     },
   };
 
@@ -192,10 +193,14 @@ describe('RepeaterField', () => {
                 },
               ],
               add_button_label: 'Add Tag',
+              use_accordion: false,
+              render_style: 'Full',
             },
           },
         ],
         add_button_label: 'Add Item',
+        use_accordion: false,
+        render_style: 'Full',
       },
     };
 

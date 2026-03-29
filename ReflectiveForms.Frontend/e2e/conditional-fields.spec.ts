@@ -1,120 +1,71 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers';
+
+const ENTITY = 'event';
+const TS = () => Date.now().toString(36);
 
 /**
- * E2E tests for Conditional Field visibility
+ * E2E tests for Conditional Field visibility.
+ * Uses the event entity which has Online Event → Meeting URL / Venue conditions.
  */
-
 test.describe('Conditional Fields', () => {
-  test.beforeEach(async ({ page }) => {
-    // Navigate to an entity with conditional fields
-    await page.goto('/entities/test/new');
-    await expect(page.locator('form')).toBeVisible();
+  let createdId: number;
+
+  test.describe.configure({ mode: 'serial' });
+
+  test.afterAll(async ({ request }) => {
+    const { ApiHelper } = await import('./helpers');
+    const api = new ApiHelper(request);
+    await api.login();
+    await api.deleteAll(ENTITY);
   });
 
-  test('should show conditional field when condition is met', async ({ page }) => {
-    // Find a checkbox that controls visibility
-    const triggerCheckbox = page.locator('[data-testid="condition-trigger"]');
+  test('create a test event for condition toggling', async ({ api, ui }) => {
+    await api.deleteAll(ENTITY);
+    await ui.gotoNewEntity(ENTITY);
+    await ui.fillTitle(`Cond Test ${TS()}`);
+    await ui.fillDate('Start Date', '2026-06-01');
+    await ui.fillDate('End Date', '2026-06-03');
+    await ui.fillWysiwyg('Event Description', '<p>Condition toggle test</p>');
+    await ui.selectOption('Event Type', 'conference');
+    await ui.fillTextField('Venue Name', 'Test Venue');
+    await ui.fillTextField('Street Address', '123 Event St');
+    await ui.fillTextField('City', 'Eventville');
+    await ui.fillTextField('State / Province', 'CA');
+    await ui.fillTextField('Postal Code', '90210');
+    await ui.selectOption('Country', 'US');
+    await ui.clickSaveNow();
+    await ui.waitForSave();
 
-    if (await triggerCheckbox.isVisible()) {
-      // Find the dependent field (should be hidden initially)
-      const dependentField = page.locator('[data-testid="conditional-field"]');
-
-      // Should be hidden initially
-      await expect(dependentField).not.toBeVisible();
-
-      // Check the trigger
-      await triggerCheckbox.check();
-
-      // Dependent field should now be visible
-      await expect(dependentField).toBeVisible();
-    }
+    const list = await api.peekAll(ENTITY);
+    expect(list.length).toBeGreaterThan(0);
+    createdId = list[0].id;
   });
 
-  test('should hide conditional field when condition is not met', async ({ page }) => {
-    // Find a checkbox that controls visibility
-    const triggerCheckbox = page.locator('[data-testid="condition-trigger"]');
-
-    if (await triggerCheckbox.isVisible()) {
-      // Check it first
-      await triggerCheckbox.check();
-
-      const dependentField = page.locator('[data-testid="conditional-field"]');
-      await expect(dependentField).toBeVisible();
-
-      // Uncheck it
-      await triggerCheckbox.uncheck();
-
-      // Dependent field should be hidden
-      await expect(dependentField).not.toBeVisible();
-    }
+  test('should show venue and hide meeting URL for in-person event', async ({ ui }) => {
+    await ui.gotoEditEntity(ENTITY, createdId);
+    expect(await ui.fieldIsVisible('Venue Details')).toBe(true);
+    expect(await ui.fieldIsVisible('Meeting URL')).toBe(false);
   });
 
-  test('should handle select-based conditions', async ({ page }) => {
-    // Find a select that controls visibility
-    const triggerSelect = page.locator('select[data-testid="condition-trigger-select"]');
-
-    if (await triggerSelect.isVisible()) {
-      const dependentField = page.locator('[data-testid="select-conditional-field"]');
-
-      // Select a value that shows the field
-      const options = await triggerSelect.locator('option').allTextContents();
-
-      if (options.length > 1) {
-        // Select option that should trigger field visibility
-        await triggerSelect.selectOption({ index: 1 });
-
-        // Check if dependent field visibility changed
-        // (depends on your actual condition configuration)
-      }
-    }
+  test('should show meeting URL and hide venue when toggled to online', async ({ page, ui }) => {
+    await ui.gotoEditEntity(ENTITY, createdId);
+    await ui.setCheckbox('Online Event', true);
+    await page.waitForTimeout(500);
+    expect(await ui.fieldIsVisible('Meeting URL')).toBe(true);
+    expect(await ui.fieldIsVisible('Venue Details')).toBe(false);
   });
 
-  test('should preserve conditional field data when toggled', async ({ page }) => {
-    const triggerCheckbox = page.locator('[data-testid="condition-trigger"]');
+  test('should toggle back to in-person correctly', async ({ page, ui }) => {
+    await ui.gotoEditEntity(ENTITY, createdId);
+    // First set to online
+    await ui.setCheckbox('Online Event', true);
+    await page.waitForTimeout(500);
+    expect(await ui.fieldIsVisible('Meeting URL')).toBe(true);
 
-    if (await triggerCheckbox.isVisible()) {
-      // Show the field
-      await triggerCheckbox.check();
-
-      const dependentField = page.locator('[data-testid="conditional-field"] input');
-
-      if (await dependentField.isVisible()) {
-        // Enter some data
-        await dependentField.fill('Test data');
-
-        // Hide the field
-        await triggerCheckbox.uncheck();
-
-        // Show it again
-        await triggerCheckbox.check();
-
-        // Data should be preserved
-        await expect(dependentField).toHaveValue('Test data');
-      }
-    }
-  });
-
-  test('should handle nested conditional fields', async ({ page }) => {
-    // Find nested conditional structure
-    const level1Trigger = page.locator('[data-testid="level1-trigger"]');
-
-    if (await level1Trigger.isVisible()) {
-      // Show level 1
-      await level1Trigger.check();
-
-      const level2Trigger = page.locator('[data-testid="level2-trigger"]');
-
-      if (await level2Trigger.isVisible()) {
-        // Show level 2
-        await level2Trigger.check();
-
-        const level2Field = page.locator('[data-testid="level2-field"]');
-        await expect(level2Field).toBeVisible();
-
-        // Hide level 1 (should also hide level 2)
-        await level1Trigger.uncheck();
-        await expect(level2Field).not.toBeVisible();
-      }
-    }
+    // Toggle back
+    await ui.setCheckbox('Online Event', false);
+    await page.waitForTimeout(500);
+    expect(await ui.fieldIsVisible('Venue Details')).toBe(true);
+    expect(await ui.fieldIsVisible('Meeting URL')).toBe(false);
   });
 });

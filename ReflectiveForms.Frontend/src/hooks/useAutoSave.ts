@@ -16,7 +16,7 @@ interface AutoSaveState {
 }
 
 export function useAutoSave({ form, onSave, delay = 5000, enabled = true }: UseAutoSaveOptions) {
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [state, setState] = useState<AutoSaveState>({
     status: 'idle',
     lastSaved: null,

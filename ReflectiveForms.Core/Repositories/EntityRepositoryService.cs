@@ -465,7 +465,7 @@ public class EntityRepositoryService
                 key,
                 newBody,
                 DbReturnItemBehavior.ReturnNewValues,
-                _db.AttributeEquals(EntityModelAttributes.Id, key.Value.AsInteger),
+                null,
                 cancellationToken);
             if (!updateResult.IsSuccessful)
             {
@@ -1138,6 +1138,32 @@ public class EntityRepositoryService
         return !scanResult.IsSuccessful
             ? OperationResult<JArray>.Failure($"Error: EntityRepository->PeekAllAsync: ScanTableAsync has failed with: {scanResult.ErrorMessage}", scanResult.StatusCode)
             : OperationResult<JArray>.Success(ListOfJObjectToJArray(scanResult.Data.Items));
+    }
+
+    public async Task<OperationResult<JObject>> PeekAllPaginatedAsync(
+        string entityName,
+        int pageSize,
+        string? pageToken,
+        CancellationToken cancellationToken)
+    {
+        var scanResult = await _db.ScanTablePaginatedAsync(
+            GetEntityPeekOverviewTableName(entityName),
+            pageSize,
+            pageToken,
+            cancellationToken);
+
+        if (!scanResult.IsSuccessful)
+            return OperationResult<JObject>.Failure(
+                $"Error: EntityRepository->PeekAllPaginatedAsync: ScanTablePaginatedAsync has failed with: {scanResult.ErrorMessage}",
+                scanResult.StatusCode);
+
+        var result = new JObject
+        {
+            ["items"] = ListOfJObjectToJArray(scanResult.Data.Items),
+            ["next_page_token"] = scanResult.Data.NextPageToken,
+            ["total_count"] = scanResult.Data.TotalCount
+        };
+        return OperationResult<JObject>.Success(result);
     }
 
     private async Task<OperationResult<JObject>> TryExtractingPeekOverviewFromBodyAsync(string entityName, JObject? body, CancellationToken cancellationToken)

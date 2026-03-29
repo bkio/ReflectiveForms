@@ -27,8 +27,8 @@ export default defineConfig({
 
   // Shared settings for all projects
   use: {
-    // Base URL for navigation
-    baseURL: 'http://localhost:5173',
+    // Base URL for navigation — must match vite dev server port
+    baseURL: 'http://localhost:3000',
 
     // Collect trace when retrying the failed test
     trace: 'on-first-retry',
@@ -38,7 +38,13 @@ export default defineConfig({
 
     // Video recording
     video: 'retain-on-failure',
+
+    // Increase default timeout for auto-save debounce
+    actionTimeout: 15000,
   },
+
+  // Global timeout per test (generous for auto-save round-trips)
+  timeout: 60000,
 
   // Configure projects for major browsers
   projects: [
@@ -64,18 +70,18 @@ export default defineConfig({
   // Run your local dev server before starting the tests
   webServer: [
     {
-      // Start the React frontend
-      command: 'npm run dev',
-      url: 'http://localhost:5173',
+      // Start the .NET backend (Sample1)
+      command: 'cd ../ReflectiveForms.Sample1 && dotnet run',
+      url: 'http://localhost:9000',
       reuseExistingServer: !process.env.CI,
       timeout: 120 * 1000,
     },
-    // Note: You'll also need to start the backend separately or add it here:
-    // {
-    //   command: 'cd ../ReflectiveForms.Sample1 && dotnet run',
-    //   url: 'http://localhost:9000',
-    //   reuseExistingServer: !process.env.CI,
-    //   timeout: 120 * 1000,
-    // },
+    {
+      // Start the React frontend
+      command: 'npm run dev',
+      url: 'http://localhost:3000',
+      reuseExistingServer: !process.env.CI,
+      timeout: 120 * 1000,
+    },
   ],
 });

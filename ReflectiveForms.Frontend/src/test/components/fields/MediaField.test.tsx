@@ -1,9 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { FormProvider, useForm } from 'react-hook-form';
-import { MediaField } from '../../components/fields/MediaField';
-import { FieldSchema } from '../../types/schema';
+import { MediaField } from '../../../components/fields/MediaField';
+import { FieldSchema } from '../../../types/schema';
 import { createElement, ReactNode } from 'react';
 
 // Wrapper component that provides form context
@@ -15,7 +14,7 @@ function FormWrapper({
   defaultValues?: Record<string, unknown>;
 }) {
   const methods = useForm({ defaultValues });
-  return createElement(FormProvider, { ...methods }, children);
+  return createElement(FormProvider, { ...methods, children });
 }
 
 // Mock FileReader
@@ -24,7 +23,7 @@ class MockFileReader {
   onload: ((e: ProgressEvent<FileReader>) => void) | null = null;
   onerror: (() => void) | null = null;
 
-  readAsDataURL(file: File) {
+  readAsDataURL(_file: File) {
     setTimeout(() => {
       this.result = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
       if (this.onload) {
@@ -52,7 +51,7 @@ describe('MediaField', () => {
 
   beforeEach(() => {
     // Mock FileReader
-    (global as any).FileReader = MockFileReader;
+    (globalThis as any).FileReader = MockFileReader;
   });
 
   it('should render upload area', () => {

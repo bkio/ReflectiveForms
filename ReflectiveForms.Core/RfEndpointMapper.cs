@@ -31,7 +31,6 @@ public static class RfEndpointMapper
     internal const string MediaEndpoint = "media";
     internal const string LoginEndpoint = "login";
     internal const string LogoutEndpoint = "logout";
-    internal const string CaptchaChallengeEndpoint = "captcha-challenge";
     internal const string SchemaEndpoint = "schema";
 
     public static string PublicCrudEndpoint => RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + CrudEndpoint;
@@ -52,7 +51,6 @@ public static class RfEndpointMapper
         MapEndpoint(group, SchemaEndpoint, new SchemaEndpoint());
         MapEndpoint(group, LoginEndpoint, new Login());
         MapEndpoint(group, LogoutEndpoint, new Logout());
-        MapEndpoint(group, CaptchaChallengeEndpoint, new CaptchaChallenge());
 
         return app;
     }

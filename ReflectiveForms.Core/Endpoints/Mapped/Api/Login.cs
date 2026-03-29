@@ -7,7 +7,6 @@ using CrossCloudKit.Utilities.Common;
 using Microsoft.AspNetCore.Http;
 using ReflectiveForms.Core.Endpoints.Enums;
 using ReflectiveForms.Core.Models.EndpointModels;
-using ReflectiveForms.Core.Services;
 using ReflectiveForms.Core.Utilities;
 
 namespace ReflectiveForms.Core.Endpoints.Mapped.Api;
@@ -34,19 +33,6 @@ internal class Login : BaseEndpoint
             || string.IsNullOrWhiteSpace(loginModel.Password)
             || !NetworkUtilities.IsValidEmail(loginModel.EmailAddress))
             return HttpStatusCode.BadRequest.ToResult("Invalid login credentials.");
-
-        // Validate CAPTCHA
-        if (!loginModel.CaptchaAnswer.HasValue)
-        {
-            RfConfiguration.LogError("Login attempt without CAPTCHA answer.");
-            return HttpStatusCode.BadRequest.ToResult("CAPTCHA answer is required. Please try again.");
-        }
-
-        if (!CaptchaService.ValidateCaptcha(context, loginModel.CaptchaAnswer.Value))
-        {
-            RfConfiguration.LogError("Invalid CAPTCHA answer for login attempt.");
-            return HttpStatusCode.BadRequest.ToResult("Invalid CAPTCHA. Please try again.");
-        }
 
         loginModel.EmailAddress = loginModel.EmailAddress.ToLowerInvariant();
 

@@ -81,6 +81,11 @@ public sealed class Select : Field
         var casted = (haystack[jNeedleFieldName]?.Value<string>()).NotNull();
         if (!_choicesDb.Contains(casted))
         {
+            // Skip validation for DynamicChoicesRuntimeAsync fields whose choices
+            // are resolved at runtime via JavaScript — __choicesDb is empty for these.
+            if (_internalRuntimeChoiceJsFunction != null)
+                return Task.FromResult(OperationResult<bool>.Success(true));
+
             return Task.FromResult(OperationResult<bool>.Failure(casted.Length == 0
                 ? $"Field {jNeedleFieldName}: Mandatory to choose an option."
                 : $"Field {jNeedleFieldName}: Unexpected choice {casted}.", HttpStatusCode.BadRequest));

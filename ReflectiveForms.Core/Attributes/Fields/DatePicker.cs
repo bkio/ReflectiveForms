@@ -70,6 +70,9 @@ public sealed class DatePicker : Field
         if (!_mandatory && value.Type == JTokenType.Null)
             return Task.FromResult(OperationResult<bool>.Success(true));
 
+        if (!_mandatory && value.Type == JTokenType.String && string.IsNullOrEmpty(value.Value<string>()))
+            return Task.FromResult(OperationResult<bool>.Success(true));
+
         if (haystack[jNeedleFieldName] is not { Type: JTokenType.String })
         {
             return Task.FromResult(OperationResult<bool>.Failure($"Field {jNeedleFieldName}: Type is incorrect.", HttpStatusCode.BadRequest));

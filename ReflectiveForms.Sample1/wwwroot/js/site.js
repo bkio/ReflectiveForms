@@ -1,4 +1,11 @@
-﻿// Please see documentation at https://learn.microsoft.com/aspnet/core/client-side/bundling-and-minification
-// for details on configuring this project to bundle and minify static web assets.
+﻿// ReflectiveForms - Site utilities
 
-// Write your JavaScript code.
+// Auto-dismiss alerts after 5 seconds
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('.alert-dismissible').forEach(function (alert) {
+    setTimeout(function () {
+      var bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
+      if (bsAlert) bsAlert.close();
+    }, 5000);
+  });
+});

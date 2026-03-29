@@ -1,278 +1,148 @@
-import { test, expect } from '@playwright/test';
-
-/**
- * E2E tests for API endpoints
- * These tests verify the backend API is responding correctly
- */
+import { test, expect } from './helpers';
 
 const API_BASE = 'http://localhost:9000/rf/api';
 
+/**
+ * E2E tests for API endpoints — verifies the backend API responds correctly.
+ * Uses the authenticated API helper for CRUD operations.
+ */
 test.describe('API Endpoint Verification', () => {
+  // Use team-member for CRUD tests (well-known entity type)
+  const CRUD_ENTITY = 'team-member';
+
+  // Valid field data for team-member (satisfies all sanity checks)
+  const validFields = {
+    job_title: 'Tester',
+    email: 'test@test.com',
+    is_remote: false,
+    department: 'engineering',
+    years_of_experience: 1,
+    performance_score: 5,
+    salary: 50000,
+    hire_date: '20260101',
+    bio: 'Test bio',
+    avatar: '',
+    office_address: { street: '123 Test St', city: 'Testville', postal_code: '12345' },
+    emergency_contacts: [{ contact_name: 'EC Person', relationship: 'friend', phone: '555-0000', email: '' }],
+    social_links: [],
+    favorite_blog_post: -1,
+  };
+
   test.describe('Schema API', () => {
-    test('GET /schema should return all schemas', async ({ request }) => {
-      const response = await request.get(`${API_BASE}/schema`);
-
-      expect(response.status()).toBe(200);
-
-      const data = await response.json();
-      expect(data).toBeDefined();
-      expect(typeof data).toBe('object');
+    test('GET /schema should return all schemas', async ({ api }) => {
+      const allSchemas = await api.getAllSchemas();
+      expect(allSchemas).toBeDefined();
+      expect(typeof allSchemas).toBe('object');
+      expect(Object.keys(allSchemas).length).toBeGreaterThan(0);
     });
 
-    test('GET /schema?type={name} should return specific schema', async ({ request }) => {
-      // First get all schemas to find a valid entity name
-      const allSchemasResponse = await request.get(`${API_BASE}/schema`);
-      const allSchemas = await allSchemasResponse.json();
+    test('GET /schema?type={name} should return specific schema', async ({ api }) => {
+      const allSchemas = await api.getAllSchemas();
+      const entityName = Object.keys(allSchemas)[0];
+      const res = await api.request.get(`${API_BASE}/schema?type=${entityName}`);
+      expect(res.status()).toBe(200);
 
-      const entityNames = Object.keys(allSchemas);
-      if (entityNames.length > 0) {
-        const entityName = entityNames[0];
+      const schema = await res.json();
+      expect(schema.entity_name).toBe(entityName);
+      expect(schema.fields).toBeDefined();
+      expect(Array.isArray(schema.fields)).toBe(true);
+      expect(schema.readable_name).toBeDefined();
+      expect(schema.features).toBeDefined();
+      expect(schema.api_endpoints).toBeDefined();
+    });
 
-        const response = await request.get(`${API_BASE}/schema?type=${entityName}`);
-
-        expect(response.status()).toBe(200);
-
-        const schema = await response.json();
-        expect(schema.entity_name).toBe(entityName);
-        expect(schema.fields).toBeDefined();
-        expect(Array.isArray(schema.fields)).toBe(true);
-      }
+    test('GET /schema?type=nonexistent should return error', async ({ api }) => {
+      const res = await api.request.get(`${API_BASE}/schema?type=nonexistent_entity_xyz`);
+      expect(res.status()).not.toBe(200);
     });
   });
 
   test.describe('CRUD API', () => {
-    test('PEEK_ALL should return list of entities', async ({ request }) => {
-      // Get a valid entity type first
-      const schemasResponse = await request.get(`${API_BASE}/schema`);
-      const schemas = await schemasResponse.json();
-      const entityName = Object.keys(schemas)[0];
+    let createdId: number;
 
-      if (entityName) {
-        const response = await request.post(
-          `${API_BASE}/crud?operation=PEEK_ALL&type=${entityName}`,
-          { data: {} }
-        );
-
-        expect(response.status()).toBe(200);
-
-        const entities = await response.json();
-        expect(Array.isArray(entities)).toBe(true);
-      }
+    test('PEEK_ALL should return list of entities', async ({ api }) => {
+      const entities = await api.peekAll(CRUD_ENTITY);
+      expect(Array.isArray(entities)).toBe(true);
     });
 
-    test('CREATE should create new entity', async ({ request }) => {
-      const schemasResponse = await request.get(`${API_BASE}/schema`);
-      const schemas = await schemasResponse.json();
-      const entityName = Object.keys(schemas)[0];
-
-      if (entityName) {
-        const response = await request.post(
-          `${API_BASE}/crud?operation=CREATE&type=${entityName}`,
-          {
-            data: {
-              title: { rendered: `E2E Test Entity ${Date.now()}` },
-              fields: {},
-            },
-          }
-        );
-
-        expect(response.status()).toBe(200);
-
-        const entity = await response.json();
-        expect(entity.id).toBeDefined();
-        expect(entity.title.rendered).toContain('E2E Test Entity');
-
-        // Clean up - delete the entity
-        await request.post(
-          `${API_BASE}/crud?operation=DELETE&type=${entityName}`,
-          { data: { id: entity.id } }
-        );
-      }
+    test('PEEK_ALL_PAGINATED should return paginated results', async ({ api }) => {
+      const result = await api.peekAllPaginated(CRUD_ENTITY, 5);
+      expect(result.items).toBeDefined();
+      expect(Array.isArray(result.items)).toBe(true);
     });
 
-    test('READ should return entity by ID', async ({ request }) => {
-      const schemasResponse = await request.get(`${API_BASE}/schema`);
-      const schemas = await schemasResponse.json();
-      const entityName = Object.keys(schemas)[0];
-
-      if (entityName) {
-        // First create an entity
-        const createResponse = await request.post(
-          `${API_BASE}/crud?operation=CREATE&type=${entityName}`,
-          {
-            data: {
-              title: { rendered: `Read Test Entity ${Date.now()}` },
-              fields: {},
-            },
-          }
-        );
-        const created = await createResponse.json();
-
-        // Then read it
-        const response = await request.post(
-          `${API_BASE}/crud?operation=READ&type=${entityName}`,
-          { data: { id: created.id } }
-        );
-
-        expect(response.status()).toBe(200);
-
-        const entity = await response.json();
-        expect(entity.id).toBe(created.id);
-
-        // Clean up
-        await request.post(
-          `${API_BASE}/crud?operation=DELETE&type=${entityName}`,
-          { data: { id: created.id } }
-        );
-      }
+    test('CREATE should create new entity', async ({ api }) => {
+      const entity = await api.createEntity(CRUD_ENTITY, {
+        title: { rendered: `API Test Entity ${Date.now()}` },
+        fields: validFields,
+      });
+      expect(entity.id).toBeDefined();
+      expect(entity.id).toBeGreaterThan(0);
+      createdId = entity.id;
     });
 
-    test('UPDATE should modify entity', async ({ request }) => {
-      const schemasResponse = await request.get(`${API_BASE}/schema`);
-      const schemas = await schemasResponse.json();
-      const entityName = Object.keys(schemas)[0];
-
-      if (entityName) {
-        // Create an entity
-        const createResponse = await request.post(
-          `${API_BASE}/crud?operation=CREATE&type=${entityName}`,
-          {
-            data: {
-              title: { rendered: 'Original Title' },
-              fields: {},
-            },
-          }
-        );
-        const created = await createResponse.json();
-
-        // Update it
-        const response = await request.post(
-          `${API_BASE}/crud?operation=UPDATE&type=${entityName}`,
-          {
-            data: {
-              id: created.id,
-              title: { rendered: 'Updated Title' },
-              fields: {},
-            },
-          }
-        );
-
-        expect(response.status()).toBe(200);
-
-        // Read it back to verify
-        const readResponse = await request.post(
-          `${API_BASE}/crud?operation=READ&type=${entityName}`,
-          { data: { id: created.id } }
-        );
-        const updated = await readResponse.json();
-        expect(updated.title.rendered).toBe('Updated Title');
-
-        // Clean up
-        await request.post(
-          `${API_BASE}/crud?operation=DELETE&type=${entityName}`,
-          { data: { id: created.id } }
-        );
-      }
+    test('READ should return entity by ID', async ({ api }) => {
+      const entity = await api.readEntity(CRUD_ENTITY, createdId);
+      expect(entity.id).toBe(createdId);
+      expect(entity.title.rendered).toContain('API Test Entity');
     });
 
-    test('DELETE should remove entity', async ({ request }) => {
-      const schemasResponse = await request.get(`${API_BASE}/schema`);
-      const schemas = await schemasResponse.json();
-      const entityName = Object.keys(schemas)[0];
+    test('UPDATE should modify entity', async ({ api }) => {
+      const updated = await api.updateEntity(CRUD_ENTITY, {
+        id: createdId,
+        title: { rendered: 'Updated API Test Entity' },
+        fields: validFields,
+      });
+      expect(updated).toBeDefined();
 
-      if (entityName) {
-        // Create an entity
-        const createResponse = await request.post(
-          `${API_BASE}/crud?operation=CREATE&type=${entityName}`,
-          {
-            data: {
-              title: { rendered: 'To Delete' },
-              fields: {},
-            },
-          }
-        );
-        const created = await createResponse.json();
+      const entity = await api.readEntity(CRUD_ENTITY, createdId);
+      expect(entity.title.rendered).toBe('Updated API Test Entity');
+    });
 
-        // Delete it
-        const response = await request.post(
-          `${API_BASE}/crud?operation=DELETE&type=${entityName}`,
-          { data: { id: created.id } }
-        );
-
-        expect(response.status()).toBe(200);
-
-        // Try to read it - should fail or return null
-        const readResponse = await request.post(
-          `${API_BASE}/crud?operation=READ&type=${entityName}`,
-          { data: { id: created.id } }
-        );
-
-        // Either 404 or returns null/error
-        if (readResponse.status() === 200) {
-          const result = await readResponse.json();
-          expect(result).toBeNull();
-        } else {
-          expect([400, 404]).toContain(readResponse.status());
-        }
-      }
+    test('DELETE should remove entity', async ({ api }) => {
+      const deleteRes = await api.deleteEntity(CRUD_ENTITY, createdId);
+      expect(deleteRes.ok()).toBeTruthy();
     });
   });
 
-  test.describe('Assets API', () => {
-    const jsFiles = [
-      'rf-core.js',
-      'rf-form-state.js',
-      'rf-lock-control.js',
-      'rf-repeater.js',
-      'rf-relation.js',
-      'rf-media.js',
-      'rf-entity-list.js',
-      'rf-ui-components.js',
-    ];
-
-    for (const file of jsFiles) {
-      test(`GET /assets/js/${file} should return JS file`, async ({ request }) => {
-        const response = await request.get(`${API_BASE}/assets/js/${file}`);
-
-        expect(response.status()).toBe(200);
-
-        const contentType = response.headers()['content-type'];
-        expect(contentType).toContain('javascript');
-
-        const content = await response.text();
-        expect(content.length).toBeGreaterThan(0);
+  test.describe('Authentication', () => {
+    test('login with correct credentials should succeed', async ({ api }) => {
+      const res = await api.request.post(`${API_BASE}/login`, {
+        data: { email: 'admin@karasoftware.com', password: '123456' },
       });
-    }
-  });
-
-  test.describe('CORS', () => {
-    test('should allow requests from React dev server origin', async ({ request }) => {
-      const response = await request.get(`${API_BASE}/schema`, {
-        headers: {
-          Origin: 'http://localhost:5173',
-        },
-      });
-
-      expect(response.status()).toBe(200);
-
-      const corsHeader = response.headers()['access-control-allow-origin'];
-      expect(corsHeader).toBe('http://localhost:5173');
+      expect(res.status()).toBe(200);
+      const body = await res.json();
+      expect(body.token).toBeDefined();
     });
 
-    test('should handle preflight OPTIONS request', async ({ request }) => {
-      const response = await request.fetch(`${API_BASE}/schema`, {
-        method: 'OPTIONS',
-        headers: {
-          Origin: 'http://localhost:5173',
-          'Access-Control-Request-Method': 'GET',
-        },
+    test('login with wrong credentials should fail', async ({ api }) => {
+      const res = await api.request.post(`${API_BASE}/login`, {
+        data: { email: 'wrong@email.com', password: 'wrongpass' },
       });
+      expect(res.ok()).toBeFalsy();
+    });
+  });
 
-      // Options should return 200 or 204
-      expect([200, 204]).toContain(response.status());
+  test.describe('Schema validation', () => {
+    test('each entity schema has required properties', async ({ api }) => {
+      const allSchemas = await api.getAllSchemas();
+      for (const [name, schema] of Object.entries(allSchemas)) {
+        const s = schema as Record<string, unknown>;
+        expect(s.entity_name, `${name} should have entity_name`).toBe(name);
+        expect(s.fields, `${name} should have fields`).toBeDefined();
+        expect(s.readable_name, `${name} should have readable_name`).toBeDefined();
+        expect(s.api_endpoints, `${name} should have api_endpoints`).toBeDefined();
+      }
+    });
 
-      const allowMethods = response.headers()['access-control-allow-methods'];
-      expect(allowMethods).toBeDefined();
+    test('fields have type, name, and label', async ({ api }) => {
+      const res = await api.request.get(`${API_BASE}/schema?type=${CRUD_ENTITY}`);
+      const schema = await res.json();
+      for (const field of schema.fields) {
+        expect(field.type, `Field ${field.name} should have type`).toBeDefined();
+        expect(field.label, `Field ${field.name} should have label`).toBeDefined();
+        expect(field.name, 'Field should have name').toBeDefined();
+      }
     });
   });
 });

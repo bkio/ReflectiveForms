@@ -31,7 +31,12 @@ const mockSchema = {
 
 const mockEntityData = {
   id: 1,
+  slug: 'test-entity-1',
   title: { rendered: 'Test Entity 1' },
+  date: '2024-01-01T00:00:00',
+  date_gmt: '2024-01-01T00:00:00',
+  modified: '2024-01-01T00:00:00',
+  modified_gmt: '2024-01-01T00:00:00',
   fields: { description: 'Test description' },
 };
 

@@ -1,15 +1,16 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import {
   fetchSchema,
   fetchAllSchemas,
   readEntity,
   peekAllEntities,
+  peekAllEntitiesPaginated,
   createEntity,
   updateEntity,
   deleteEntity,
   sanityCheck,
 } from '../api/client';
-import { EntityData, EntitySchema } from '../types/schema';
+import { EntityData, EntitySchema, PaginatedPeekResponse } from '../types/schema';
 
 // Schema hooks
 export function useSchema(entityName: string) {
@@ -58,6 +59,23 @@ export function useEntityList(entityName: string) {
       if (result.error) throw new Error(result.error);
       return result.data;
     },
+  });
+}
+
+export function usePaginatedEntityList(entityName: string, pageSize: number = 20) {
+  return useInfiniteQuery<PaginatedPeekResponse, Error>({
+    queryKey: ['entities-paginated', entityName, pageSize],
+    queryFn: async ({ pageParam }) => {
+      const result = await peekAllEntitiesPaginated(
+        entityName,
+        pageSize,
+        pageParam as string | undefined
+      );
+      if (result.error) throw new Error(result.error);
+      return result.data!;
+    },
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.next_page_token ?? undefined,
   });
 }
 

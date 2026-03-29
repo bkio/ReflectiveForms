@@ -3,6 +3,27 @@
 @{
     ViewData["Title"] = "Privacy Policy";
 }
-<h1>@ViewData["Title"]</h1>
 
-<p>Use this page to detail your site's privacy policy.</p>
+<div class="py-4" style="max-width: 720px; margin: 0 auto;">
+    <h1 class="h2 fw-bold mb-4">@ViewData["Title"]</h1>
+
+    <div class="card p-4">
+        <h2 class="h5 fw-semibold mb-3">Data Collection</h2>
+        <p class="text-muted">
+            This application collects only the data necessary to manage your content.
+            All data is stored securely and is not shared with third parties.
+        </p>
+
+        <h2 class="h5 fw-semibold mb-3 mt-4">Authentication</h2>
+        <p class="text-muted">
+            We use secure JWT tokens and HTTP-only cookies to manage your session.
+            Passwords are hashed and never stored in plain text.
+        </p>
+
+        <h2 class="h5 fw-semibold mb-3 mt-4">Your Rights</h2>
+        <p class="text-muted mb-0">
+            You may request access to, correction of, or deletion of your personal data at any time
+            by contacting your system administrator.
+        </p>
+    </div>
+</div>

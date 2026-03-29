@@ -18,7 +18,7 @@ export {
   MediaField,
   WysiwygField,
   FormField,
-  fieldRegistry,
+  getFieldRegistry,
 } from './fields';
 
 // Error handling

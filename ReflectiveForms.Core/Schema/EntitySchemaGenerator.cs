@@ -138,6 +138,65 @@ public static class EntitySchemaGenerator
         var hasDynamicChoicesRuntime = parentType.GetMethod($"{member.Name}___DynamicChoicesRuntimeAsync") != null;
         var hasDynamicChoicesCompileTime = parentType.GetMethod($"{member.Name}___DynamicChoicesCompileTimeAsync") != null;
         var hasLogicSanityCheck = parentType.GetMethod($"{member.Name}___LogicSanityCheckAsync") != null;
+        var hasDynamicDefaultValue = parentType.GetMethod($"{member.Name}___DynamicDefaultValueAsync") != null;
+
+        // If the field has DynamicDefaultValueAsync, invoke it to populate the default value.
+        object? dynamicDefaultValue = null;
+        if (hasDynamicDefaultValue)
+        {
+            var dynamicDefaultMethod = parentType.GetMethod($"{member.Name}___DynamicDefaultValueAsync");
+            if (dynamicDefaultMethod != null)
+            {
+                try
+                {
+                    var instance = Activator.CreateInstance(parentType, nonPublic: true);
+                    var task = (Task<object?>)dynamicDefaultMethod.Invoke(instance, [CancellationToken.None])!;
+                    dynamicDefaultValue = task.GetAwaiter().GetResult();
+                }
+                catch
+                {
+                    // Fallback: leave dynamicDefaultValue null
+                }
+            }
+        }
+
+        // If the field has DynamicChoicesCompileTimeAsync, invoke the static method to populate choices.
+        if (hasDynamicChoicesCompileTime && fieldAttribute is Select compileTimeSelect)
+        {
+            var compileTimeMethod = parentType.GetMethod($"{member.Name}___DynamicChoicesCompileTimeAsync");
+            if (compileTimeMethod != null)
+            {
+                try
+                {
+                    var task = (Task<string[]>)compileTimeMethod.Invoke(null, [CancellationToken.None])!;
+                    compileTimeSelect.Choices = task.GetAwaiter().GetResult();
+                }
+                catch
+                {
+                    // Fallback: leave Choices null
+                }
+            }
+        }
+
+        // If the field has DynamicChoicesRuntimeAsync, invoke the method to get the JS function
+        // and populate it on the Select attribute so GetSelectOptions can read it.
+        if (hasDynamicChoicesRuntime && fieldAttribute is Select selectAttr)
+        {
+            var runtimeMethod = parentType.GetMethod($"{member.Name}___DynamicChoicesRuntimeAsync");
+            if (runtimeMethod != null)
+            {
+                try
+                {
+                    var instance = Activator.CreateInstance(parentType, nonPublic: true);
+                    var task = (Task<string>)runtimeMethod.Invoke(instance, [CancellationToken.None])!;
+                    selectAttr.RuntimeChoiceJsFunction = task.GetAwaiter().GetResult();
+                }
+                catch
+                {
+                    // Fallback: leave DynamicChoicesJsFunction null
+                }
+            }
+        }
 
         var schema = new FieldSchema
         {
@@ -146,7 +205,7 @@ public static class EntitySchemaGenerator
             Label = fieldAttribute.Label ?? fieldName,
             Instructions = fieldAttribute.Instructions,
             Required = IsRequired(fieldAttribute),
-            DefaultValue = GetDefaultValue(fieldAttribute),
+            DefaultValue = dynamicDefaultValue ?? GetDefaultValue(fieldAttribute),
             DisplayCondition = displayCondition,
             HasDynamicChoicesRuntime = hasDynamicChoicesRuntime,
             HasDynamicChoicesCompileTime = hasDynamicChoicesCompileTime,

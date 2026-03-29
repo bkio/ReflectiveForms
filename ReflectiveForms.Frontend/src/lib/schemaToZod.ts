@@ -13,13 +13,16 @@ export function schemaToZod(entitySchema: EntitySchema): z.ZodObject<Record<stri
     rendered: z.string().min(1, 'Title is required').max(256, 'Title must be 256 characters or less'),
   });
 
-  // Build fields schema
-  const fieldsShape = buildFieldsShape(entitySchema.fields);
-  shape.fields = z.object(fieldsShape);
+  // Use permissive field validation — the backend performs full sanity checks.
+  shape.fields = z.record(z.unknown());
 
   // Optional entity features
   if (entitySchema.features.has_parent_child) {
     shape.parent = z.number().optional();
+  }
+
+  if (entitySchema.features.has_author) {
+    shape.author = z.number().optional();
   }
 
   if (entitySchema.features.has_tags) {
@@ -33,18 +36,24 @@ export function schemaToZod(entitySchema: EntitySchema): z.ZodObject<Record<stri
   return z.object(shape);
 }
 
-function buildFieldsShape(fields: FieldSchema[]): Record<string, ZodTypeAny> {
+function buildFieldsShape(fields: FieldSchema[], parentHasCondition = false): Record<string, ZodTypeAny> {
   const shape: Record<string, ZodTypeAny> = {};
 
   for (const field of fields) {
-    shape[field.name] = fieldToZod(field);
+    shape[field.name] = fieldToZod(field, parentHasCondition);
   }
 
   return shape;
 }
 
-function fieldToZod(field: FieldSchema): ZodTypeAny {
+function fieldToZod(field: FieldSchema, parentHasCondition = false): ZodTypeAny {
   let schema: ZodTypeAny;
+
+  // Fields controlled by display conditions (own or inherited from parent group)
+  // may be hidden, so treat them as optional in client-side validation.
+  // The backend enforces mandatory rules with full context.
+  const hasCondition = !!field.display_condition || parentHasCondition;
+  const isRequired = field.required && !hasCondition;
 
   switch (field.type) {
     case 'Text':
@@ -53,14 +62,18 @@ function fieldToZod(field: FieldSchema): ZodTypeAny {
     case 'Email':
     case 'Url':
       schema = z.string();
-      if (field.required) {
+      if (isRequired) {
         schema = (schema as z.ZodString).min(1, `${field.label} is required`);
       }
       if (field.type === 'Email') {
-        schema = (schema as z.ZodString).email('Invalid email address');
+        if (isRequired) {
+          schema = (schema as z.ZodString).email('Invalid email address');
+        }
       }
       if (field.type === 'Url') {
-        schema = (schema as z.ZodString).url('Invalid URL');
+        if (isRequired) {
+          schema = (schema as z.ZodString).url('Invalid URL');
+        }
       }
       if (field.text_options?.max_length) {
         schema = (schema as z.ZodString).max(
@@ -88,7 +101,8 @@ function fieldToZod(field: FieldSchema): ZodTypeAny {
     case 'Select':
       if (field.select_options?.choices?.length) {
         const values = field.select_options.choices.map((c) => c.value);
-        schema = z.enum(values as [string, ...string[]]);
+        // Allow empty string for optional selects (the backend validates choices)
+        schema = z.enum([...values, ''] as unknown as [string, ...string[]]);
       } else {
         schema = z.string();
       }
@@ -96,21 +110,22 @@ function fieldToZod(field: FieldSchema): ZodTypeAny {
 
     case 'DatePicker':
       schema = z.string();
-      if (field.required) {
+      if (isRequired) {
         schema = (schema as z.ZodString).min(1, `${field.label} is required`);
       }
       break;
 
     case 'Relation':
+      // Allow -1 as a valid "no selection" value (backend interprets this as null)
       schema = z.number();
-      if (!field.relation_options?.is_relation_entity_not_exists_ok) {
+      if (isRequired && !field.relation_options?.is_relation_entity_not_exists_ok) {
         schema = (schema as z.ZodNumber).positive('Please select a valid option');
       }
       break;
 
     case 'Group':
       if (field.group_options?.child_schema) {
-        const childShape = buildFieldsShape(field.group_options.child_schema);
+        const childShape = buildFieldsShape(field.group_options.child_schema, hasCondition);
         schema = z.object(childShape);
       } else {
         schema = z.object({});
@@ -119,7 +134,7 @@ function fieldToZod(field: FieldSchema): ZodTypeAny {
 
     case 'Repeater':
       if (field.repeater_options?.item_schema) {
-        const itemShape = buildFieldsShape(field.repeater_options.item_schema);
+        const itemShape = buildFieldsShape(field.repeater_options.item_schema, hasCondition);
         let arraySchema = z.array(z.object(itemShape));
 
         if (field.repeater_options.min_items !== undefined) {
@@ -149,7 +164,7 @@ function fieldToZod(field: FieldSchema): ZodTypeAny {
   }
 
   // Make optional if not required
-  if (!field.required) {
+  if (!isRequired) {
     schema = schema.optional();
   }
 
@@ -175,6 +190,9 @@ export function generateDefaults(entitySchema: EntitySchema): Record<string, unk
   if (entitySchema.features.has_parent_child) {
     defaults.parent = -1;
   }
+  if (entitySchema.features.has_author) {
+    defaults.author = -1;
+  }
 
   return defaults;
 }
@@ -192,6 +210,11 @@ function generateFieldDefaults(fields: FieldSchema[]): Record<string, unknown> {
 function getFieldDefault(field: FieldSchema): unknown {
   // Use provided default if available
   if (field.default_value !== undefined && field.default_value !== null) {
+    // Convert yyyyMMdd to yyyy-MM-dd for DatePicker so HTML date input works
+    if (field.type === 'DatePicker' && typeof field.default_value === 'string' && /^\d{8}$/.test(field.default_value)) {
+      const s = field.default_value;
+      return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
+    }
     return field.default_value;
   }
 

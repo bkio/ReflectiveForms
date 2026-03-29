@@ -80,6 +80,10 @@ internal class RfObjectiveExampleModel : EntityFieldsModel
          mandatory: true,
          dateFormat: "yyyyMMdd")]
     public string DesiredObjectiveWorkStartDate = "";
+    public Task<object?> DesiredObjectiveWorkStartDate___DynamicDefaultValueAsync(CancellationToken cancellationToken)
+    {
+        return Task.FromResult<object?>(DateTime.Now.ToString("yyyyMMdd"));
+    }
 
     /// <summary>
     /// Static Select example

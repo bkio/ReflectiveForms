@@ -25,7 +25,7 @@ function TestWrapper({ children }: { children: React.ReactNode }) {
 describe('useEntityLock', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.useFakeTimers();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
   });
 
   afterEach(() => {

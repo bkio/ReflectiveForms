@@ -17,7 +17,7 @@ export function useEntityLock(
 ) {
   const { enabled = true, onLockFailed } = options;
 
-  const lockIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lockIntervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isLockedRef = useRef(false);
   const [lockStatus, setLockStatus] = useState<'idle' | 'locked' | 'failed' | 'error'>('idle');
   const [lockedBy, setLockedBy] = useState<string | null>(null);
@@ -31,8 +31,8 @@ export function useEntityLock(
       const result = await tryLockEntity(entityName, entityId);
 
       if (result.error) {
-        // Check if it's a "locked by another user" error
-        if (result.error.includes('locked')) {
+        // Check if it's a "locked by another user" error (case-insensitive)
+        if (result.error.toLowerCase().includes('lock')) {
           setLockStatus('failed');
           const lockOwner = 'another user';
           setLockedBy(lockOwner);

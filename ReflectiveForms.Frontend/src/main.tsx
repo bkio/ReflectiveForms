@@ -9,6 +9,8 @@ import { AdminLayout } from './components/layout/AdminLayout';
 import { DashboardPage } from './pages/DashboardPage';
 import { EntityEditPage } from './pages/EntityEditPage';
 import { EntityListPage } from './pages/EntityListPage';
+import { EntityViewPage } from './pages/EntityViewPage';
+import { LoginPage } from './pages/LoginPage';
 
 import './index.css';
 
@@ -27,10 +29,12 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <QueryClientProvider client={queryClient}>
         <BrowserRouter basename="/rf/app">
           <Routes>
+            <Route path="/login" element={<LoginPage />} />
             <Route element={<AdminLayout />}>
               <Route path="/" element={<DashboardPage />} />
               <Route path="/entities/:entityName" element={<EntityListPage />} />
               <Route path="/entities-admin/:entityName" element={<EntityEditPage />} />
+              <Route path="/entities-view/:entityName" element={<EntityViewPage />} />
             </Route>
           </Routes>
         </BrowserRouter>

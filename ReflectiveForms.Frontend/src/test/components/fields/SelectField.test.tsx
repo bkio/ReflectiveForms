@@ -7,8 +7,8 @@ import {
   CheckboxField,
   NumberField,
   DatePickerField,
-} from '../../components/fields/SelectField';
-import { FieldSchema } from '../../types/schema';
+} from '../../../components/fields/SelectField';
+import { FieldSchema } from '../../../types/schema';
 import { createElement, ReactNode } from 'react';
 
 // Wrapper component that provides form context
@@ -20,7 +20,7 @@ function FormWrapper({
   defaultValues?: Record<string, unknown>;
 }) {
   const methods = useForm({ defaultValues });
-  return createElement(FormProvider, { ...methods }, children);
+  return createElement(FormProvider, { ...methods, children });
 }
 
 describe('SelectField', () => {
@@ -42,32 +42,45 @@ describe('SelectField', () => {
     },
   };
 
-  it('should render select element with options', () => {
+  it('should render searchable select trigger with options', async () => {
+    const user = userEvent.setup();
+
     render(
-      <FormWrapper>
+      <FormWrapper defaultValues={{ fields: { status: 'draft' } }}>
         <SelectField schema={baseSchema} path="fields.status" />
       </FormWrapper>
     );
 
-    expect(screen.getByRole('combobox')).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Draft' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Published' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Archived' })).toBeInTheDocument();
+    // Should show the trigger button (not a native select)
+    const trigger = screen.getByRole('button', { name: /draft/i });
+    expect(trigger).toBeInTheDocument();
+    expect(trigger).toHaveAttribute('aria-haspopup', 'listbox');
+
+    // Open the dropdown to see options
+    await user.click(trigger);
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
+    expect(screen.getAllByRole('option').length).toBe(3);
   });
 
   it('should allow selecting an option', async () => {
     const user = userEvent.setup();
 
     render(
-      <FormWrapper>
+      <FormWrapper defaultValues={{ fields: { status: 'draft' } }}>
         <SelectField schema={baseSchema} path="fields.status" />
       </FormWrapper>
     );
 
-    const select = screen.getByRole('combobox');
-    await user.selectOptions(select, 'published');
+    const trigger = screen.getByRole('button', { name: /draft/i });
+    await user.click(trigger);
 
-    expect(select).toHaveValue('published');
+    // Click "Published" option
+    const publishedOption = screen.getByRole('option', { name: 'Published' });
+    await user.click(publishedOption);
+
+    // Dropdown should close and trigger should show new selection
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /published/i })).toHaveAttribute('data-value', 'published');
   });
 });
 

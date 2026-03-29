@@ -87,7 +87,7 @@ internal class EntityLockControl: BaseEndpoint
             cancellationToken);
 
         if (!result.IsSuccessful)
-            return result.ErrorMessage.ToResult();
+            return result.StatusCode.ToResult(result.ErrorMessage);
 
         return new JObject
         {
@@ -100,7 +100,7 @@ internal class EntityLockControl: BaseEndpoint
         var result = await EntityLockController.GetAllLockedAsync(entityName, cancellationToken);
 
         if (!result.IsSuccessful)
-            return result.ErrorMessage.ToResult();
+            return result.StatusCode.ToResult(result.ErrorMessage);
 
         var response = new JArray();
         foreach (var state in result.Data.Values)
@@ -118,7 +118,7 @@ internal class EntityLockControl: BaseEndpoint
         var result = await EntityLockController.GetLockStatusAsync(entityName, id.Value, cancellationToken);
 
         if (!result.IsSuccessful)
-            return result.ErrorMessage.ToResult();
+            return result.StatusCode.ToResult(result.ErrorMessage);
 
         return result.Data == null
             ? HttpStatusCode.NotFound.ToResult("Entity is not locked.")
@@ -129,7 +129,7 @@ internal class EntityLockControl: BaseEndpoint
     {
         var result = await EntityLockController.HeartbeatAsync(entityName, id,  RequesterUser.NotNull().Id, cancellationToken);
         return !result.IsSuccessful
-            ? result.ErrorMessage.ToResult()
+            ? result.StatusCode.ToResult(result.ErrorMessage)
             : HttpStatusCode.OK.ToResult("Heartbeat successful.");
     }
 
@@ -137,7 +137,7 @@ internal class EntityLockControl: BaseEndpoint
     {
         var result = await EntityLockController.TryToUnlockAsync(entityName, id,  RequesterUser.NotNull().Id, cancellationToken);
         return !result.IsSuccessful
-            ? result.ErrorMessage.ToResult()
+            ? result.StatusCode.ToResult(result.ErrorMessage)
             : HttpStatusCode.OK.ToResult("Unlock successful.");
     }
 
@@ -145,7 +145,7 @@ internal class EntityLockControl: BaseEndpoint
     {
         var result = await EntityLockController.TryToLockAsync(entityName, id,  RequesterUser.NotNull().Id, cancellationToken);
         return !result.IsSuccessful
-            ? result.ErrorMessage.ToResult()
+            ? result.StatusCode.ToResult(result.ErrorMessage)
             : HttpStatusCode.OK.ToResult("Lock successful.");
     }
 }

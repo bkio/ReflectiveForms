@@ -14,6 +14,10 @@ A modern React-based frontend for ReflectiveForms that renders dynamic forms fro
   - No `eval()` - safe condition parsing
 - **Entity locking**: Pessimistic locking for concurrent editing
 - **Auto-save**: Debounced auto-save with visual feedback
+- **Dynamic default values**: Fields pre-filled with runtime-computed defaults from the backend
+- **Read-only entity view**: Public view page for entities at `/entities-view/:entityName`
+- **Searchable select**: Filterable dropdowns for Relation and Select fields
+- **Paginated lists**: Server-side pagination with page tokens
 - **Responsive**: Mobile-friendly admin layout
 
 ## Getting Started
@@ -42,30 +46,35 @@ src/
 │   ├── fields/
 │   │   ├── FormField.tsx      # Field wrapper with condition logic
 │   │   ├── TextField.tsx      # Text and TextArea fields
-│   │   ├── SelectField.tsx    # Select, Checkbox, Number, DatePicker
-│   │   ├── RelationField.tsx  # Foreign key relations
+│   │   ├── SelectField.tsx    # Select, Checkbox, Number, DatePicker, Range
+│   │   ├── RelationField.tsx  # Foreign key relations (uses SearchableSelect)
 │   │   ├── GroupField.tsx     # Field groups with grid layout
 │   │   ├── RepeaterField.tsx  # Repeatable field arrays
 │   │   ├── MediaField.tsx     # Base64 image upload with drag-drop
 │   │   ├── WysiwygField.tsx   # Rich text editor
-│   │   ├── types.ts           # Field component props
-│   │   └── index.ts           # Exports
+│   │   └── types.ts           # Field component props
 │   ├── form/
-│   │   └── DynamicForm.tsx    # Main form renderer with auto-save
+│   │   ├── DynamicForm.tsx    # Main form renderer with auto-save and lock
+│   │   ├── SearchableSelect.tsx       # Searchable dropdown for relations
+│   │   └── SearchableChoicesSelect.tsx # Searchable dropdown for selects
 │   └── layout/
 │       └── AdminLayout.tsx    # Admin sidebar and navigation
 ├── hooks/
-│   ├── useEntity.ts           # React Query hooks for CRUD operations
+│   ├── useEntity.ts           # React Query hooks for CRUD + pagination
 │   ├── useSchema.ts           # Schema fetching hooks
 │   ├── useEntityLock.ts       # Pessimistic entity locking
 │   └── useAutoSave.ts         # Debounced auto-save logic
 ├── lib/
-│   ├── schemaToZod.ts         # Converts JSON schema to Zod validators
-│   └── conditionParser.ts     # Parses display conditions without eval()
+│   ├── schemaToZod.ts         # Converts JSON schema to Zod validators + defaults
+│   ├── conditionParser.ts     # Parses display conditions without eval()
+│   ├── formUtils.ts           # Form utility helpers
+│   └── sanitize.ts            # HTML sanitization with DOMPurify
 ├── pages/
+│   ├── LoginPage.tsx          # Login page
 │   ├── DashboardPage.tsx      # Admin dashboard
-│   ├── EntityListPage.tsx     # Entity listing with delete/clone
-│   └── EntityEditPage.tsx     # Create/edit/clone entity
+│   ├── EntityListPage.tsx     # Entity listing with pagination and delete
+│   ├── EntityEditPage.tsx     # Create/edit/clone entity
+│   └── EntityViewPage.tsx     # Read-only entity view
 ├── types/
 │   └── schema.ts              # TypeScript types matching backend
 ├── index.css                  # Tailwind + custom styles
@@ -79,11 +88,11 @@ src/
 | `TextField` | Text, Email, Url | Placeholder, max length |
 | `TextAreaField` | TextArea | Multiline text |
 | `WysiwygField` | WysiwygEditor | Rich text with toolbar |
-| `SelectField` | Select | Single/multiple choice |
+| `SelectField` | Select | Single/multiple choice, searchable for large sets |
 | `CheckboxField` | Checkbox | Boolean toggle |
 | `NumberField` | Number, Range | Min/max/step |
-| `DatePickerField` | DatePicker | Date input |
-| `RelationField` | Relation | Foreign key dropdown |
+| `DatePickerField` | DatePicker | Date input with dynamic defaults |
+| `RelationField` | Relation | Foreign key with searchable dropdown |
 | `GroupField` | Group | Nested fields with grid |
 | `RepeaterField` | Repeater | Add/remove/reorder items |
 | `MediaField` | MediaSourceBase64 | Drag-drop image upload |
@@ -109,9 +118,11 @@ The frontend expects these backend endpoints:
 | `/rf/api/crud?operation=UPDATE&type={name}` | POST | Update entity |
 | `/rf/api/crud?operation=DELETE&type={name}` | POST | Delete entity |
 | `/rf/api/crud?operation=PEEK_ALL&type={name}` | POST | List all entities |
+| `/rf/api/crud?operation=PEEK_ALL_PAGINATED&type={name}&page_size={n}` | POST | Paginated entity list |
 | `/rf/api/sanity_check?type={name}` | POST | Validate entity data |
-| `/rf/api/entity_lock?type={name}&id={id}&action=lock` | POST | Acquire edit lock |
-| `/rf/api/entity_lock?type={name}&id={id}&action=unlock` | POST | Release edit lock |
+| `/rf/api/entity_lock_control?type={name}&id={id}&operation=try_lock` | POST | Acquire edit lock |
+| `/rf/api/entity_lock_control?type={name}&id={id}&operation=try_unlock` | POST | Release edit lock |
+| `/rf/api/entity_lock_control?type={name}&id={id}&operation=heartbeat` | POST | Refresh lock |
 
 ## Deployment
 
@@ -213,9 +224,10 @@ npm run test:coverage
 ```
 
 Unit tests cover:
-- **Hooks**: `useEntity`, `useEntityLock`, `useSchema`
-- **Components**: `DynamicForm`, `TextField`, `SelectField`, `CheckboxField`, `NumberField`
-- **Libraries**: `conditionParser`, `schemaToZod`
+- **Hooks**: `useEntity`, `useEntityLock`, `useSchema`, `useAutoSave`
+- **Components**: `DynamicForm`, `TextField`, `SelectField`, `CheckboxField`, `NumberField`, `RepeaterField`, `WysiwygField`, `SearchableSelect`, `ErrorBoundary`, `AdminLayout`
+- **Libraries**: `conditionParser`, `schemaToZod` (including dynamic defaults)
+- **Pages**: `EntityViewPage` (read-only rendering)
 
 ### E2E Tests (Playwright)
 
@@ -237,12 +249,25 @@ npm run test:e2e:report
 ```
 
 E2E test suites:
-- **entity-crud.spec.ts** - Entity CRUD operations
+- **api-endpoints.spec.ts** - Schema and CRUD API contract tests
+- **entity-crud.spec.ts** - Entity CRUD operations via UI
+- **entity-lock.spec.ts** - Entity locking with concurrent edit protection
+- **entity-view-page.spec.ts** - Read-only entity view page
+- **dynamic-default-value.spec.ts** - Dynamic default values (schema + frontend)
+- **auto-save.spec.ts** - Auto-save and validation
+- **conditional-fields.spec.ts** - Conditional field visibility
 - **form-fields.spec.ts** - All field types
 - **repeater.spec.ts** - Repeater operations
-- **entity-lock.spec.ts** - Entity locking
-- **auto-save.spec.ts** - Auto-save and validation
-- **conditional-fields.spec.ts** - Conditional visibility
+- **searchable-select.spec.ts** - Searchable select and relation fields
+- **sample-objective.spec.ts** - Objective entity full CRUD
+- **sample-blog-post.spec.ts** - Blog post entity full CRUD
+- **sample-team-member.spec.ts** - Team member entity full CRUD
+- **sample-product.spec.ts** - Product entity full CRUD
+- **sample-event.spec.ts** - Event entity full CRUD
+- **sample-survey.spec.ts** - Survey entity with 3-level nested repeaters
+- **sample-cross-entity.spec.ts** - Cross-entity workflows
+- **sample-auth-dashboard.spec.ts** - Auth and dashboard rendering
+- **integration-*.spec.ts** - 9 integration suites (auto-save, data persistence, display conditions, locking, navigation, pagination, relations, schema API, validation)
 
 ### Running All Tests
 

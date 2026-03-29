@@ -17,23 +17,25 @@ import { WysiwygField } from './WysiwygField';
 // Re-export for backwards compatibility
 export type { FieldComponentProps } from './types';
 
-// Field registry - maps field types to components
-const fieldRegistry: Record<string, React.ComponentType<FieldComponentProps>> = {
-  Text: TextField,
-  TextArea: TextAreaField,
-  Email: TextField,
-  Url: TextField,
-  WysiwygEditor: WysiwygField,
-  Number: NumberField,
-  Range: NumberField,
-  Select: SelectField,
-  Checkbox: CheckboxField,
-  DatePicker: DatePickerField,
-  Relation: RelationField,
-  Group: GroupField,
-  Repeater: RepeaterField,
-  MediaSourceBase64: MediaField,
-};
+// Field registry - lazily evaluated to avoid circular import issues (RepeaterField <-> FormField)
+function getFieldRegistry(): Record<string, React.ComponentType<FieldComponentProps>> {
+  return {
+    Text: TextField,
+    TextArea: TextAreaField,
+    Email: TextField,
+    Url: TextField,
+    WysiwygEditor: WysiwygField,
+    Number: NumberField,
+    Range: NumberField,
+    Select: SelectField,
+    Checkbox: CheckboxField,
+    DatePicker: DatePickerField,
+    Relation: RelationField,
+    Group: GroupField,
+    Repeater: RepeaterField,
+    MediaSourceBase64: MediaField,
+  };
+}
 
 interface FormFieldProps {
   fieldSchema: FieldSchema;
@@ -45,14 +47,29 @@ export function FormField({ fieldSchema, basePath = 'fields', depth = 0 }: FormF
   const { control } = useFormContext();
   const formValues = useWatch({ control });
 
-  // Evaluate display condition
+  // Evaluate display condition scoped to the current item path.
+  // For fields inside repeaters, basePath is e.g. "fields.sections.0" so we
+  // evaluate against the item's own values rather than the root fields.
+  let conditionScope: Record<string, unknown> = (formValues as Record<string, unknown>)?.fields as Record<string, unknown> ?? {};
+  if (basePath && basePath !== 'fields') {
+    const parts = basePath.split('.');
+    let current: unknown = formValues;
+    for (const part of parts) {
+      if (current == null || typeof current !== 'object') break;
+      current = (current as Record<string, unknown>)[part];
+    }
+    if (current != null && typeof current === 'object') {
+      conditionScope = current as Record<string, unknown>;
+    }
+  }
+
   const isVisible = fieldSchema.display_condition
-    ? evaluateCompoundCondition(fieldSchema.display_condition, formValues)
+    ? evaluateCompoundCondition(fieldSchema.display_condition, conditionScope)
     : true;
 
   if (!isVisible) return null;
 
-  const FieldComponent = fieldRegistry[fieldSchema.type];
+  const FieldComponent = getFieldRegistry()[fieldSchema.type];
   if (!FieldComponent) {
     console.warn(`Unknown field type: ${fieldSchema.type}`);
     return null;
@@ -85,4 +102,4 @@ export function FormField({ fieldSchema, basePath = 'fields', depth = 0 }: FormF
 }
 
 // Re-export for external use
-export { fieldRegistry };
+export { getFieldRegistry };

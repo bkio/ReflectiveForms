@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { useForm, FormProvider } from 'react-hook-form';
+import { useForm, FormProvider, UseFormReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Lock } from 'lucide-react';
@@ -8,6 +8,7 @@ import { schemaToZod, generateDefaults } from '../../lib/schemaToZod';
 import { FormField } from '../fields/FormField';
 import { useSanityCheck, useCreateEntity, useUpdateEntity } from '../../hooks/useEntity';
 import { useEntityLock } from '../../hooks/useEntityLock';
+import { SearchableSelect } from './SearchableSelect';
 
 interface DynamicFormProps {
   schema: EntitySchema;
@@ -18,7 +19,7 @@ interface DynamicFormProps {
 
 export function DynamicForm({ schema, initialData, entityId, onSuccess }: DynamicFormProps) {
   const isCreateMode = entityId === undefined || entityId < 0;
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Entity locking for edit mode
   const { lockStatus, lockedBy } = useEntityLock(
@@ -37,6 +38,14 @@ export function DynamicForm({ schema, initialData, entityId, onSuccess }: Dynami
     mode: 'onChange',
   });
 
+  // Expose setValue for E2E testing
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      (window as any).__rfFormSetValue = form.setValue;
+      return () => { delete (window as any).__rfFormSetValue; };
+    }
+  }, [form.setValue]);
+
   // Mutations
   const sanityCheck = useSanityCheck(schema.entity_name);
   const createMutation = useCreateEntity(schema.entity_name);
@@ -52,26 +61,41 @@ export function DynamicForm({ schema, initialData, entityId, onSuccess }: Dynami
       return;
     }
 
-    const values = form.getValues();
-
-    // First, run sanity check
-    const sanityResult = await sanityCheck.mutateAsync(values as Partial<EntityData>);
-    if (sanityResult.error) {
-      toast.error(sanityResult.error);
-      return;
-    }
-
-    // Then save
-    const mutation = isCreateMode ? createMutation : updateMutation;
-    const result = await mutation.mutateAsync(values as Partial<EntityData>);
-
-    if (result.error) {
-      toast.error(result.error);
-    } else {
-      toast.success('Changes saved');
-      if (result.data) {
-        onSuccess?.(result.data);
+    // Normalize date strings from yyyy-MM-dd (HTML input) to yyyyMMdd (backend format)
+    // Empty strings are converted to null so the backend skips validation on optional fields
+    const normalizeDates = (obj: unknown): unknown => {
+      if (typeof obj === 'string') {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(obj)) return obj.replace(/-/g, '');
+        return obj;
       }
+      if (Array.isArray(obj)) return obj.map(normalizeDates);
+      if (obj && typeof obj === 'object') {
+        return Object.fromEntries(
+          Object.entries(obj as Record<string, unknown>).map(([k, v]) => [k, normalizeDates(v)])
+        );
+      }
+      return obj;
+    };
+
+    const values = normalizeDates(form.getValues()) as Record<string, unknown>;
+
+    try {
+
+      // Save directly — the CRUD endpoint performs its own sanity check
+      const mutation = isCreateMode ? createMutation : updateMutation;
+      const result = await mutation.mutateAsync(values as Partial<EntityData>);
+
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        toast.success('Changes saved');
+        if (result.data) {
+          onSuccess?.(result.data);
+        }
+      }
+    } catch (err) {
+      console.error('Save error:', err);
+      toast.error(err instanceof Error ? err.message : 'Save failed');
     }
   }, [form, sanityCheck, createMutation, updateMutation, isCreateMode, onSuccess, isFormDisabled]);
 
@@ -101,12 +125,23 @@ export function DynamicForm({ schema, initialData, entityId, onSuccess }: Dynami
   }, [form, handleAutoSave, isFormDisabled]);
 
   // Manual save
-  const handleSubmit = form.handleSubmit(async (data) => {
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
+  const handleSubmit = form.handleSubmit(
+    async (_data) => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      await handleAutoSave();
+    },
+    (errors) => {
+      console.error('Form validation errors:', JSON.stringify(errors, null, 2));
+      const messages = Object.entries(errors)
+        .map(([key, err]) => `${key}: ${(err as { message?: string })?.message || JSON.stringify(err)}`)
+        .join('; ');
+      if (messages) {
+        toast.error(`Validation: ${messages}`);
+      }
     }
-    await handleAutoSave();
-  });
+  );
 
   return (
     <FormProvider {...form}>
@@ -144,6 +179,11 @@ export function DynamicForm({ schema, initialData, entityId, onSuccess }: Dynami
           )}
         </div>
 
+        {/* Author field (when entity has author feature) */}
+        {schema.features.has_author && (
+          <AuthorSelect form={form} disabled={isFormDisabled} />
+        )}
+
         {/* Entity fields */}
         <fieldset disabled={isFormDisabled} className={isFormDisabled ? 'opacity-60' : ''}>
           {schema.fields.map((fieldSchema) => (
@@ -167,5 +207,24 @@ export function DynamicForm({ schema, initialData, entityId, onSuccess }: Dynami
         </div>
       </form>
     </FormProvider>
+  );
+}
+
+function AuthorSelect({ form, disabled }: { form: UseFormReturn; disabled: boolean }) {
+  const value = form.watch('author') ?? -1;
+
+  return (
+    <div className="field-wrapper bg-white rounded-lg shadow-sm border border-gray-200 p-4" data-testid="author-select">
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        Author <span className="text-red-500">*</span>
+      </label>
+      <SearchableSelect
+        entityName="users"
+        value={value}
+        onChange={(val) => form.setValue('author', val, { shouldDirty: true })}
+        disabled={disabled}
+        placeholder="-- Select Author --"
+      />
+    </div>
   );
 }

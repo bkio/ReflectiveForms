@@ -14,8 +14,16 @@ const createMockSchema = (fields: FieldSchema[]): EntitySchema => ({
     has_categories: false,
     has_parent_child: false,
     require_title_uniqueness: false,
+    supports_frontend_edit: 'ForAllAuthorized' as const,
   },
   fields,
+  api_endpoints: {
+    crud: '/rf/api/crud',
+    sanity_check: '/rf/api/sanity_check',
+    entity_lock: '/rf/api/entity_lock',
+    media: '/rf/api/media',
+  },
+  schema_version: '1.0.0',
 });
 
 describe('schemaToZod', () => {
@@ -43,7 +51,7 @@ describe('schemaToZod', () => {
     expect(result.success).toBe(true);
   });
 
-  it('should validate text fields', () => {
+  it('should accept text fields permissively (backend validates)', () => {
     const entitySchema = createMockSchema([
       {
         name: 'description',
@@ -62,15 +70,15 @@ describe('schemaToZod', () => {
     });
     expect(validResult.success).toBe(true);
 
-    // Invalid - empty required field
-    const invalidResult = zodSchema.safeParse({
+    // Empty fields also pass — backend performs full sanity checks
+    const emptyResult = zodSchema.safeParse({
       title: { rendered: 'Test' },
       fields: { description: '' },
     });
-    expect(invalidResult.success).toBe(false);
+    expect(emptyResult.success).toBe(true);
   });
 
-  it('should validate number fields with min/max', () => {
+  it('should accept number fields permissively (backend validates min/max)', () => {
     const entitySchema = createMockSchema([
       {
         name: 'age',
@@ -86,26 +94,18 @@ describe('schemaToZod', () => {
 
     const zodSchema = schemaToZod(entitySchema);
 
-    // Valid
+    // All field values pass — backend performs sanity checks on bounds
     const validResult = zodSchema.safeParse({
       title: { rendered: 'Test' },
       fields: { age: 25 },
     });
     expect(validResult.success).toBe(true);
 
-    // Invalid - below min
     const belowMinResult = zodSchema.safeParse({
       title: { rendered: 'Test' },
       fields: { age: -1 },
     });
-    expect(belowMinResult.success).toBe(false);
-
-    // Invalid - above max
-    const aboveMaxResult = zodSchema.safeParse({
-      title: { rendered: 'Test' },
-      fields: { age: 200 },
-    });
-    expect(aboveMaxResult.success).toBe(false);
+    expect(belowMinResult.success).toBe(true);
   });
 
   it('should validate checkbox fields', () => {
@@ -127,7 +127,7 @@ describe('schemaToZod', () => {
     expect(result.success).toBe(true);
   });
 
-  it('should validate select fields with choices', () => {
+  it('should accept select fields permissively (backend validates choices)', () => {
     const entitySchema = createMockSchema([
       {
         name: 'status',
@@ -145,19 +145,18 @@ describe('schemaToZod', () => {
 
     const zodSchema = schemaToZod(entitySchema);
 
-    // Valid
+    // All field values pass — backend validates allowed choices
     const validResult = zodSchema.safeParse({
       title: { rendered: 'Test' },
       fields: { status: 'active' },
     });
     expect(validResult.success).toBe(true);
 
-    // Invalid - not in choices
-    const invalidResult = zodSchema.safeParse({
+    const unknownResult = zodSchema.safeParse({
       title: { rendered: 'Test' },
       fields: { status: 'unknown' },
     });
-    expect(invalidResult.success).toBe(false);
+    expect(unknownResult.success).toBe(true);
   });
 
   it('should include parent field when has_parent_child is true', () => {

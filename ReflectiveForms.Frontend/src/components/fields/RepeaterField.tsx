@@ -17,8 +17,8 @@ export function RepeaterField({ schema, path, depth = 0 }: FieldComponentProps) 
   const addButtonLabel = schema.repeater_options?.add_button_label ?? 'Add Item';
   const useAccordion = schema.repeater_options?.use_accordion ?? false;
 
-  const canAdd = maxItems === undefined || fields.length < maxItems;
-  const canRemove = minItems === undefined || fields.length > minItems;
+  const canAdd = maxItems == null || fields.length < maxItems;
+  const canRemove = minItems == null || fields.length > minItems;
 
   const handleAdd = () => {
     // Generate default values for new item
@@ -89,7 +89,7 @@ function RepeaterItem({
   path,
   itemSchema,
   depth,
-  useAccordion,
+  useAccordion: _useAccordion,
   canRemove,
   canMoveUp,
   canMoveDown,

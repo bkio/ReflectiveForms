@@ -100,11 +100,11 @@ export function MediaField({ schema, path }: FieldComponentProps) {
         <div className="space-y-2">
           {/* Preview area */}
           {(preview || value) && previewEnabled ? (
-            <div className="relative inline-block group">
+            <div className="relative inline-block group max-w-full">
               <img
                 src={preview || value}
                 alt="Preview"
-                className="max-w-xs max-h-48 rounded-lg border border-gray-200 object-contain"
+                className="w-full max-w-xs max-h-48 rounded-lg border border-gray-200 object-contain"
               />
               <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all rounded-lg flex items-center justify-center">
                 <button
@@ -125,7 +125,7 @@ export function MediaField({ schema, path }: FieldComponentProps) {
               onDrop={(e) => handleDrop(e, onChange)}
               onClick={() => document.getElementById(`file-input-${path}`)?.click()}
               className={`
-                border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all
+                border-2 border-dashed rounded-lg p-4 sm:p-8 text-center cursor-pointer transition-all
                 ${isDragging
                   ? 'border-blue-500 bg-blue-50'
                   : error

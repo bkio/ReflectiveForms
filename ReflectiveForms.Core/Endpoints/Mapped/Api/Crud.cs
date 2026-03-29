@@ -39,9 +39,10 @@ internal class Crud: BaseEndpoint
             return HttpStatusCode.BadRequest.ToResult("Unknown entity type.");
         var crudMethodInfo = config.CrudMethodInfo;
 
-        // Auth check
+        // Auth check — PEEK_ALL_PAGINATED uses same permissions as PEEK_ALL
+        var authOperation = operation == "PEEK_ALL_PAGINATED" ? "PEEK_ALL" : operation;
         var userFields = RequesterUser.NotNull().Fields;
-        if (!userFields.CanUserDo(operation, entityName))
+        if (!userFields.CanUserDo(authOperation, entityName))
         {
             return HttpStatusCode.Forbidden.ToResult("User does not have permission to perform this operation.");
         }
@@ -53,6 +54,7 @@ internal class Crud: BaseEndpoint
         {
             "READ" => await HandleRead(entityName, cancellationToken),
             "PEEK_ALL" => await HandlePeekAll(entityName, cancellationToken),
+            "PEEK_ALL_PAGINATED" => await HandlePeekAllPaginated(context.Request, entityName, cancellationToken),
             "CREATE" => await HandleCreate(entityName, crudMethodInfo, cancellationToken),
             "UPDATE" => await HandleUpdate(entityName, crudMethodInfo, uid, cancellationToken),
             "DELETE" => await HandleDelete(entityName, crudMethodInfo, cancellationToken),
@@ -75,6 +77,31 @@ internal class Crud: BaseEndpoint
         return !result.IsSuccessful ? result.ErrorMessage.ToResult() : result.Data.ToResult();
     }
 
+    private static async Task<IResult> HandlePeekAllPaginated(HttpRequest request, string entityName, CancellationToken cancellationToken)
+    {
+        var pageSize = 20;
+        if (request.Query.TryGetValue("page_size", out var pageSizeValues)
+            && int.TryParse(pageSizeValues.ToString(), out var parsedPageSize)
+            && parsedPageSize is > 0 and <= 100)
+        {
+            pageSize = parsedPageSize;
+        }
+
+        string? pageToken = null;
+        if (request.Query.TryGetValue("page_token", out var pageTokenValues))
+        {
+            var tokenStr = pageTokenValues.ToString();
+            if (!string.IsNullOrWhiteSpace(tokenStr))
+                pageToken = tokenStr;
+        }
+
+        var result = await RfConfiguration.RepositoryService.PeekAllPaginatedAsync(
+            entityName, pageSize, pageToken, cancellationToken);
+        return !result.IsSuccessful
+            ? result.StatusCode.ToResult(result.ErrorMessage)
+            : result.Data.ToResult();
+    }
+
     private async Task<IResult> HandleCreate(string entityName, CrudMethodInfo crudMethodInfo, CancellationToken cancellationToken)
     {
         var t = (Task<OperationResult<JObject>>)crudMethodInfo.PutOneAsyncMethodInfo.Invoke(RfConfiguration.RepositoryService, [
@@ -82,7 +109,7 @@ internal class Crud: BaseEndpoint
             RequestBodyJsonObject.NotNull(),
             cancellationToken]).NotNull();
         var result = await t.NotNull();
-        return !result.IsSuccessful ? result.ErrorMessage.ToResult() : result.Data.ToResult();
+        return !result.IsSuccessful ? result.StatusCode.ToResult(result.ErrorMessage) : result.Data.ToResult();
     }
 
     private async Task<IResult> HandleUpdate(string entityName, CrudMethodInfo crudMethodInfo, EntityUpdaterIdentity uid, CancellationToken cancellationToken)
@@ -97,7 +124,7 @@ internal class Crud: BaseEndpoint
             uid,
             cancellationToken]).NotNull();
         var result = await t.NotNull();
-        return !result.IsSuccessful ? result.ErrorMessage.ToResult() : result.Data.ToResult();
+        return !result.IsSuccessful ? result.StatusCode.ToResult(result.ErrorMessage) : result.Data.ToResult();
     }
 
     private async Task<IResult> HandleDelete(string entityName, CrudMethodInfo crudMethodInfo, CancellationToken cancellationToken)

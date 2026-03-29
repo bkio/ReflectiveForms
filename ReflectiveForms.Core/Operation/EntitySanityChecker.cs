@@ -93,6 +93,12 @@ internal static class EntitySanityChecker
 
                     select.Choices = await dynamicChoicesCTimeTask;
                 }
+
+                var dynamicChoicesFunctionRuntime = groupFor.GetMethod($"{field.Name}___DynamicChoicesRuntimeAsync");
+                if (dynamicChoicesFunctionRuntime != null)
+                {
+                    select.RuntimeChoiceJsFunction = "runtime";
+                }
             }
 
 

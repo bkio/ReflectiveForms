@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { FormProvider, useForm } from 'react-hook-form';
-import { WysiwygField } from '../../components/fields/WysiwygField';
-import { FieldSchema } from '../../types/schema';
+import { WysiwygField } from '../../../components/fields/WysiwygField';
+import { FieldSchema } from '../../../types/schema';
 import { createElement, ReactNode } from 'react';
 
 // Wrapper component that provides form context
@@ -15,12 +15,20 @@ function FormWrapper({
   defaultValues?: Record<string, unknown>;
 }) {
   const methods = useForm({ defaultValues });
-  return createElement(FormProvider, { ...methods }, children);
+  return createElement(FormProvider, { ...methods, children });
 }
 
 // Mock document.execCommand
 beforeEach(() => {
   document.execCommand = vi.fn().mockReturnValue(true);
+  // jsdom doesn't support innerText on contentEditable elements
+  if (!('innerText' in HTMLDivElement.prototype)) {
+    Object.defineProperty(HTMLDivElement.prototype, 'innerText', {
+      get() { return this.textContent || ''; },
+      set(value: string) { this.textContent = value; },
+      configurable: true,
+    });
+  }
 });
 
 describe('WysiwygField', () => {
