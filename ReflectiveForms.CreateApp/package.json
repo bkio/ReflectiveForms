@@ -1,0 +1,14 @@
+{
+  "name": "@reflectiveforms/create-app",
+  "version": "0.1.0",
+  "description": "CLI scaffolder for ReflectiveForms projects",
+  "type": "module",
+  "bin": {
+    "create-reflectiveforms-app": "./src/index.js"
+  },
+  "scripts": {
+    "test": "node --test tests/scaffold.test.js"
+  },
+  "keywords": ["reflectiveforms", "scaffold", "cli", "cms"],
+  "license": "AGPL-3.0"
+}

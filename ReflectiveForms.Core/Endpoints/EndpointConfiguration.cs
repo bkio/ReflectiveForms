@@ -30,9 +30,17 @@ public sealed class EndpointConfiguration
     /// <summary>
     /// The public-facing URL for the React SPA frontend.
     /// Used for generating entity links in API responses.
-    /// Defaults to "http://localhost:5173" for development.
+    /// Must be explicitly set by the consumer.
+    /// Example: "http://localhost:3000" for development, "https://school.edu" for production.
     /// </summary>
-    public string PublicFrontendBaseUrl { get; init; } = "http://localhost:5173";
+    public required string PublicFrontendBaseUrl { get; init; }
+
+    /// <summary>
+    /// Optional SSO configuration. When set, the backend registers OIDC authentication
+    /// and exposes SSO login/callback endpoints alongside the standard login endpoint.
+    /// When null, only username/password authentication is available.
+    /// </summary>
+    public SsoConfiguration? SsoConfiguration { get; init; }
 
     /// <summary>
     /// The secret key used for signing and validating JSON Web Tokens (JWT) within the application.

@@ -310,18 +310,21 @@ export class UiHelper {
     await btn.click();
   }
 
-  /** Wait until a "saved" toast appears or throw on error toast. */
+  /** Wait until the "Saved!" indicator appears or throw on error indicator/toast. */
   async waitForSave(timeoutMs = 30000) {
-    // Wait for either "Changes saved" success toast or an error toast
+    // Wait for autosave-saved indicator or error indicator/toast
     const result = await this.page.waitForFunction(
       () => {
+        // Check new AutoSaveIndicator component
+        const saved = document.querySelector('[data-testid="autosave-saved"]');
+        if (saved) return { saved: true };
+
+        const error = document.querySelector('[data-testid="autosave-error"]');
+        if (error) return { error: error.textContent };
+
+        // Fallback: check sonner toasts for error
         const toasts = document.querySelectorAll('[data-sonner-toast]');
         for (const t of toasts) {
-          const text = t.textContent?.toLowerCase() ?? '';
-          if (text.includes('changes saved') || (text.includes('saved') && !text.includes('will be'))) {
-            return { saved: true };
-          }
-          // Detect error toasts (data-type="error")
           if (t.getAttribute('data-type') === 'error') {
             return { error: t.textContent };
           }
@@ -333,7 +336,7 @@ export class UiHelper {
     );
     const val = await result.jsonValue();
     if (val && 'error' in val) {
-      throw new Error(`Save failed with error toast: ${val.error}`);
+      throw new Error(`Save failed: ${val.error}`);
     }
   }
 

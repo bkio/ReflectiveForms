@@ -17,4 +17,8 @@ export { getFieldTypes, findFieldInSchema, getAllFieldPaths } from './useSchema'
 export { useEntityLock } from './useEntityLock';
 
 // Auto-save
-export { useAutoSave, useSaveIndicator } from './useAutoSave';
+export { useAutoSave } from './useAutoSave';
+
+// Auth
+export { AuthProvider, useAuth } from './useAuth';
+export type { UserInfo } from './useAuth';

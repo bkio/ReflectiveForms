@@ -5,14 +5,13 @@ import { test, expect } from './helpers';
  *
  * Verifies the full auto-save flow:
  * 1. User edits a field in the UI
- * 2. A "Changes will be saved..." toast appears (debounce indicator)
- * 3. After the 5-second debounce, the save fires
- * 4. A "Changes saved" toast appears
- * 5. The backend database is updated
- * 6. Reloading the page shows the new value
+ * 2. Blur (focus change) triggers sanity check → countdown bar → save
+ * 3. The "Saved!" indicator appears
+ * 4. The backend database is updated
+ * 5. Reloading the page shows the new value
  *
- * Also tests: "Save Now" button bypasses debounce, auto-save on multiple
- * rapid edits (only the last state is saved), and create-mode auto-save
+ * Also tests: "Save Now" button bypasses countdown, auto-save on multiple
+ * edits with blur (only the last state is saved), and create-mode auto-save
  * that transitions to edit-mode (URL update).
  */
 
@@ -53,34 +52,30 @@ test.describe('Auto-Save Round-Trip', () => {
     expect(blogId).toBeGreaterThan(0);
   });
 
-  test('editing a field triggers "changes will be saved" toast', async ({ page, ui }) => {
+  test('editing a field and blurring triggers auto-save indicator', async ({ page, ui }) => {
     await ui.gotoEditEntity('blog-post', blogId);
 
     // Modify a field
     await ui.fillTextArea('Excerpt', 'Modified excerpt for auto-save test');
 
-    // Look for the pending toast
-    const pendingToast = page.locator('[data-sonner-toast]', { hasText: /saved/i });
-    await expect(pendingToast.first()).toBeVisible({ timeout: 10000 });
+    // Blur the field to trigger auto-save (click away)
+    await page.locator('h1').click();
+
+    // Look for the auto-save indicator (checking, countdown, or saved)
+    const indicator = page.locator('[data-testid="autosave-indicator"]');
+    await expect(indicator).toBeVisible({ timeout: 10000 });
   });
 
-  test('auto-save writes data to backend after debounce', async ({ page, ui, api }) => {
+  test('auto-save writes data to backend after blur', async ({ page, ui, api }) => {
     await ui.gotoEditEntity('blog-post', blogId);
 
     await ui.fillTextArea('Excerpt', 'Auto-saved excerpt value');
 
-    // Wait for auto-save to complete (5s debounce + network time)
-    await page.waitForFunction(
-      () => {
-        const toasts = document.querySelectorAll('[data-sonner-toast]');
-        for (const t of toasts) {
-          if (t.textContent?.toLowerCase().includes('changes saved')) return true;
-        }
-        return false;
-      },
-      undefined,
-      { timeout: 20000 },
-    );
+    // Blur to trigger auto-save (click the heading)
+    await page.locator('h1').click();
+
+    // Wait for auto-save to complete (sanity check + countdown + save)
+    await ui.waitForSave();
 
     // Verify via API
     const entity = await api.readEntity('blog-post', blogId);
@@ -101,32 +96,25 @@ test.describe('Auto-Save Round-Trip', () => {
     expect(entity.fields.excerpt).toBe('Immediate save excerpt');
   });
 
-  test('rapid edits result in only the final value being saved', async ({ page, ui, api }) => {
+  test('multiple edits before blur result in only the final value being saved', async ({ page, ui, api }) => {
     await ui.gotoEditEntity('blog-post', blogId);
 
-    // Make multiple rapid changes
+    // Make multiple changes without blurring
     const excerptField = page.locator('.field-wrapper, .bg-white.rounded-lg.shadow-sm')
       .filter({ has: page.locator('label', { hasText: 'Excerpt' }) })
       .locator('textarea');
 
     await excerptField.fill('First rapid edit');
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(200);
     await excerptField.fill('Second rapid edit');
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(200);
     await excerptField.fill('Final rapid edit');
 
-    // Wait for auto-save
-    await page.waitForFunction(
-      () => {
-        const toasts = document.querySelectorAll('[data-sonner-toast]');
-        for (const t of toasts) {
-          if (t.textContent?.toLowerCase().includes('changes saved')) return true;
-        }
-        return false;
-      },
-      undefined,
-      { timeout: 20000 },
-    );
+    // Now blur to trigger auto-save with the final value
+    await page.locator('h1').click();
+
+    // Wait for auto-save to complete
+    await ui.waitForSave();
 
     // Only the final value should be persisted
     const entity = await api.readEntity('blog-post', blogId);

@@ -130,9 +130,27 @@ public static class RfEndpointMapper
                 .Build();
         });
 
+        // Built-in CORS policy using the configured frontend URL
+        webAppBuilder.Services.AddCors(options =>
+        {
+            options.AddPolicy("ReflectiveFormsCors", policy =>
+            {
+                policy.WithOrigins(
+                        RfConfiguration.EndpointConfiguration.PublicFrontendBaseUrl.TrimEnd('/'))
+                    .AllowAnyMethod()
+                    .AllowAnyHeader()
+                    .AllowCredentials();
+            });
+        });
+
         var app = webAppBuilder.Build();
 
         app.UseRouting();
+
+        // CORS must be between UseRouting and UseAuthentication
+        // to handle preflight (OPTIONS) requests correctly
+        app.UseCors("ReflectiveFormsCors");
+
         app.UseSession();
 
         app.UseAuthentication();

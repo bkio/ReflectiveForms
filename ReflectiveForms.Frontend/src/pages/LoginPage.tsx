@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { login } from '../api/client';
+import { useAuth } from '../hooks/useAuth';
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const auth = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -19,6 +21,7 @@ export function LoginPage() {
       toast.error(result.error);
       return;
     }
+    auth.login(result.data?.token);
     toast.success('Logged in');
     navigate('/');
   };

@@ -1,203 +1,228 @@
-# ReflectiveForms Frontend
+# @reflectiveforms/frontend
 
-A modern React-based frontend for ReflectiveForms that renders dynamic forms from JSON schemas.
+React + TypeScript admin panel library for [ReflectiveForms](../README.md). Renders schema-driven CRUD forms with auto-save, entity locking, display conditions, nested repeaters, searchable selects, and more.
 
-## Features
-
-- **Schema-driven forms**: Dynamically renders forms based on JSON schemas from the backend
-- **Type-safe**: Full TypeScript support with types matching the backend schema
-- **Modern stack**: React 18, TanStack Query, React Hook Form, Zod validation
-- **Performance**:
-  - Schema caching (1 hour stale time)
-  - Code splitting with vendor chunks
-  - Minified production builds
-  - No `eval()` - safe condition parsing
-- **Entity locking**: Pessimistic locking for concurrent editing
-- **Auto-save**: Debounced auto-save with visual feedback
-- **Dynamic default values**: Fields pre-filled with runtime-computed defaults from the backend
-- **Read-only entity view**: Public view page for entities at `/entities-view/:entityName` with metadata display (author, tags, categories, parent), grid layouts for groups, structured repeater headers, and relation fields resolved to clickable entity names
-- **Searchable select**: Filterable dropdowns for Relation and Select fields; multi-select mode for tags/categories
-- **Tags & Categories selectors**: Multi-select entity pickers on the form when `has_tags` or `has_categories` is enabled
-- **Parent-child selector**: Single-select parent picker with self-exclusion when `has_parent_child` is enabled
-- **View-only mode**: Entities with `supports_frontend_edit: false` show in sidebar/dashboard but editing is blocked
-- **Search, sort & filter**: Client-side search by title/author, sortable column headers, formatted dates, and pagination over the full dataset
-- **Depth-aware nesting**: Nested fields inside repeaters and groups render without redundant card wrappers
-- **Responsive**: Mobile-friendly admin layout
-
-## Getting Started
+## Installation
 
 ```bash
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
+npm install @reflectiveforms/frontend react react-dom react-router-dom
 ```
 
-## Project Structure
+**Peer dependencies:** React 18+, React DOM 18+, React Router DOM 6+.
 
-```
-src/
-├── api/
-│   └── client.ts              # Fetch wrapper with credentials and error handling
-├── components/
-│   ├── fields/
-│   │   ├── FormField.tsx      # Field wrapper with condition logic
-│   │   ├── TextField.tsx      # Text and TextArea fields
-│   │   ├── SelectField.tsx    # Select, Checkbox, Number, DatePicker, Range
-│   │   ├── RelationField.tsx  # Foreign key relations (uses SearchableSelect)
-│   │   ├── GroupField.tsx     # Field groups with grid layout
-│   │   ├── RepeaterField.tsx  # Repeatable field arrays
-│   │   ├── MediaField.tsx     # Base64 image upload with drag-drop
-│   │   ├── WysiwygField.tsx   # Rich text editor
-│   │   └── types.ts           # Field component props
-│   ├── form/
-│   │   ├── DynamicForm.tsx    # Main form renderer with auto-save and lock
-│   │   ├── SearchableSelect.tsx       # Searchable dropdown for relations
-│   │   └── SearchableChoicesSelect.tsx # Searchable dropdown for selects
-│   └── layout/
-│       └── AdminLayout.tsx    # Admin sidebar and navigation
-├── hooks/
-│   ├── useEntity.ts           # React Query hooks for CRUD + pagination
-│   ├── useSchema.ts           # Schema fetching hooks
-│   ├── useEntityLock.ts       # Pessimistic entity locking
-│   └── useAutoSave.ts         # Debounced auto-save logic
-├── lib/
-│   ├── schemaToZod.ts         # Converts JSON schema to Zod validators + defaults
-│   ├── conditionParser.ts     # Parses display conditions without eval()
-│   ├── formUtils.ts           # Form utility helpers
-│   └── sanitize.ts            # HTML sanitization with DOMPurify
-├── pages/
-│   ├── LoginPage.tsx          # Login page
-│   ├── DashboardPage.tsx      # Admin dashboard
-│   ├── EntityListPage.tsx     # Entity listing with search, sort, filter & pagination
-│   ├── EntityEditPage.tsx     # Create/edit/clone entity
-│   └── EntityViewPage.tsx     # Read-only entity view with relation resolution
-├── types/
-│   └── schema.ts              # TypeScript types matching backend
-├── index.css                  # Tailwind + custom styles
-└── main.tsx                   # App entry point with routing
-```
+## Quick Start
 
-## Field Components
+```tsx
+// main.tsx
+import { createReflectiveFormsApp } from '@reflectiveforms/frontend';
 
-| Component | Field Types | Features |
-|-----------|------------|----------|
-| `TextField` | Text, Email, Url | Placeholder, max length |
-| `TextAreaField` | TextArea | Multiline text |
-| `WysiwygField` | WysiwygEditor | Rich text with toolbar |
-| `SelectField` | Select | Single/multiple choice, searchable for large sets |
-| `CheckboxField` | Checkbox | Boolean toggle |
-| `NumberField` | Number, Range | Min/max/step |
-| `DatePickerField` | DatePicker | Date input with dynamic defaults |
-| `RelationField` | Relation | Foreign key with searchable dropdown |
-| `GroupField` | Group | Nested fields with grid |
-| `RepeaterField` | Repeater | Add/remove/reorder items |
-| `MediaField` | MediaSourceBase64 | Drag-drop image upload |
-
-## Environment Variables
-
-Create a `.env` file:
-
-```env
-VITE_API_BASE_URL=http://localhost:9000/rf/api
-```
-
-## API Integration
-
-The frontend expects these backend endpoints:
-
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/rf/api/schema?type={name}` | GET | Fetch entity schema |
-| `/rf/api/schema` | GET | Fetch all schemas |
-| `/rf/api/crud?operation=READ&type={name}` | POST | Read entity |
-| `/rf/api/crud?operation=CREATE&type={name}` | POST | Create entity |
-| `/rf/api/crud?operation=UPDATE&type={name}` | POST | Update entity |
-| `/rf/api/crud?operation=DELETE&type={name}` | POST | Delete entity |
-| `/rf/api/crud?operation=PEEK_ALL&type={name}` | POST | List all entities |
-| `/rf/api/crud?operation=PEEK_ALL_PAGINATED&type={name}&page_size={n}` | POST | Paginated entity list |
-| `/rf/api/sanity_check?type={name}` | POST | Validate entity data |
-| `/rf/api/entity_lock_control?type={name}&id={id}&operation=try_lock` | POST | Acquire edit lock |
-| `/rf/api/entity_lock_control?type={name}&id={id}&operation=try_unlock` | POST | Release edit lock |
-| `/rf/api/entity_lock_control?type={name}&id={id}&operation=heartbeat` | POST | Refresh lock |
-
-## Deployment
-
-### Option 1: Serve from ASP.NET
-
-Copy the `dist/` folder contents to your ASP.NET wwwroot:
-
-```bash
-npm run build
-cp -r dist/* ../ReflectiveForms.Sample1/wwwroot/rf-app/
-```
-
-Add to ASP.NET `Program.cs`:
-```csharp
-app.UseStaticFiles();
-app.MapFallbackToFile("/rf/app/{**path}", "rf-app/index.html");
-```
-
-### Option 2: Separate Hosting
-
-Deploy to any static hosting (Vercel, Cloudflare Pages, etc.) and configure CORS:
-
-```csharp
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("ReactFrontend", policy =>
-    {
-        policy.WithOrigins("https://your-frontend-domain.com")
-              .AllowAnyMethod()
-              .AllowAnyHeader()
-              .AllowCredentials();
-    });
+createReflectiveFormsApp({
+  apiBaseUrl: 'http://localhost:9000/rf/api',
 });
 ```
 
-## Key Differences from Server-Side Rendering
+This renders a full admin panel into `#root` with login, dashboard, entity list/edit/view pages, and sidebar navigation — all driven by schemas from the backend.
 
-| Aspect | Old (Server-Side) | New (React SPA) |
-|--------|-------------------|-----------------|
-| Code location | C# string literals | TypeScript files |
-| Rendering | On every request | Static + JSON data |
-| Caching | None | Schema cached 1hr |
-| Bundle size | Unbundled JS | ~100KB gzipped |
-| Validation | Inline eval() | Zod schemas |
-| State management | ObservableSlim | React Hook Form |
-| IDE support | None for JS | Full TypeScript |
-| Entity locking | Manual refresh | Auto-refresh |
-| Auto-save | Manual implementation | Built-in hook |
+## Configuration
 
-## Development
-
-### Adding a New Field Type
-
-1. Create the component in `src/components/fields/`:
 ```tsx
-import { FieldComponentProps } from './types';
+import { createReflectiveFormsApp } from '@reflectiveforms/frontend';
+import { BarChart3 } from 'lucide-react';
+import AnalyticsPage from './pages/AnalyticsPage';
 
-export function MyField({ schema, path }: FieldComponentProps) {
-  // Implementation
+createReflectiveFormsApp({
+  // Required
+  apiBaseUrl: 'http://localhost:9000/rf/api',
+
+  // Branding
+  appName: 'My Admin',
+  logo: '/logo.svg',             // URL string or React component
+  primaryColor: '#7c3aed',       // Sets --rf-primary CSS variable
+
+  // Routing
+  basePath: '/admin',
+
+  // Auth
+  auth: {
+    mode: 'sso',                 // 'local' (default) or 'sso'
+    ssoLoginUrl: '/auth/sso/login',
+  },
+
+  // Custom sidebar pages
+  customPages: [
+    {
+      path: '/analytics',
+      label: 'Analytics',
+      icon: BarChart3,
+      component: AnalyticsPage,
+      section: 'Reports',
+    },
+  ],
+});
+```
+
+### Config Reference (`RfConfig`)
+
+| Property | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `apiBaseUrl` | `string` | Yes | — | Backend API URL |
+| `appName` | `string` | No | `"ReflectiveForms"` | Sidebar brand name |
+| `logo` | `string \| ComponentType` | No | — | Logo URL or React component |
+| `primaryColor` | `string` | No | `"#2563eb"` | Theme color (hex) |
+| `basePath` | `string` | No | `"/rf/app"` | Router base path |
+| `auth.mode` | `"local" \| "sso"` | No | `"local"` | Authentication mode |
+| `auth.ssoLoginUrl` | `string` | No | — | SSO redirect URL |
+| `customPages` | `CustomPage[]` | No | `[]` | Extra sidebar pages |
+
+### Custom Pages
+
+```tsx
+interface CustomPage {
+  path: string;          // Route path (e.g. '/analytics')
+  label: string;         // Sidebar label
+  icon?: ComponentType;  // Lucide-react icon or any component
+  component: ComponentType; // Page component to render
+  section?: string;      // Sidebar section group (default: 'Custom')
 }
 ```
 
-2. Register in `src/components/fields/FormField.tsx`:
-```tsx
-const fieldRegistry = {
-  // ...existing fields
-  MyFieldType: MyField,
+## Theming
+
+The primary color is set via the `--rf-primary` CSS variable. All blue-ish UI elements (buttons, active sidebar items, links) use this variable through Tailwind's `primary` color scale.
+
+When using `@reflectiveforms/frontend` as an npm package, include its CSS and extend your Tailwind config:
+
+```js
+// tailwind.config.js
+export default {
+  content: [
+    './src/**/*.{js,ts,jsx,tsx}',
+    './node_modules/@reflectiveforms/frontend/dist/**/*.{js,mjs}',
+  ],
+  theme: {
+    extend: {
+      colors: {
+        primary: {
+          DEFAULT: 'var(--rf-primary, #2563eb)',
+          50: 'color-mix(in srgb, var(--rf-primary, #2563eb) 5%, white)',
+          100: 'color-mix(in srgb, var(--rf-primary, #2563eb) 10%, white)',
+          600: 'var(--rf-primary, #2563eb)',
+          700: 'color-mix(in srgb, var(--rf-primary, #2563eb) 90%, black)',
+        },
+      },
+    },
+  },
 };
 ```
 
-3. Add Zod validation in `src/lib/schemaToZod.ts`:
+## Advanced Usage
+
+### Using Individual Components
+
+Instead of `createReflectiveFormsApp`, you can compose the pieces yourself:
+
+```tsx
+import {
+  RfConfigProvider,
+  AdminLayout,
+  RfRoutes,
+  DashboardPage,
+  LoginPage,
+  useRfConfig,
+} from '@reflectiveforms/frontend';
+
+function App() {
+  return (
+    <RfConfigProvider config={{ apiBaseUrl: '...' }}>
+      <BrowserRouter basename="/admin">
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route element={<AdminLayout />}>
+            <Route index element={<DashboardPage />} />
+            {/* RfRoutes provides entity list/edit/view */}
+            {RfRoutes()}
+            {/* Add your own routes */}
+            <Route path="/custom" element={<MyPage />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </RfConfigProvider>
+  );
+}
+```
+
+### Exports
+
+The library exports:
+
+- **Bootstrap:** `createReflectiveFormsApp`
+- **Provider:** `RfConfigProvider`, `useRfConfig`
+- **Layout:** `AdminLayout`
+- **Routes:** `RfRoutes`
+- **Pages:** `LoginPage`, `SsoLoginPage`, `DashboardPage`, `EntityListPage`, `EntityEditPage`, `EntityViewPage`
+- **Hooks:** `useSchema`, `useEntity`, `useEntityLock`, `useAutoSave`
+- **Types:** `RfConfig`, `CustomPage`, `EntitySchema`, `FieldSchema`
+- **Utilities:** `schemaToZod`, `conditionParser`, `sanitize`, `formUtils`
+
+## Project Structure (source)
+
+```
+src/
+├── api/client.ts                  # API client with configurable base URL
+├── components/
+│   ├── fields/                    # TextField, SelectField, RepeaterField, etc.
+│   ├── form/                      # DynamicForm, SearchableSelect
+│   └── layout/AdminLayout.tsx     # Config-driven sidebar layout
+├── hooks/                         # useEntity, useSchema, useAutoSave, useEntityLock
+├── lib/
+│   ├── createApp.tsx              # createReflectiveFormsApp()
+│   ├── RfConfigProvider.tsx       # React context for config
+│   ├── RfRoutes.tsx               # Pre-wired entity routes
+│   ├── types.ts                   # RfConfig, CustomPage interfaces
+│   ├── index.ts                   # Library barrel exports
+│   ├── schemaToZod.ts             # Schema → Zod conversion
+│   ├── conditionParser.ts         # Display condition evaluator
+│   └── sanitize.ts                # HTML sanitization
+├── pages/                         # Login, SSO, Dashboard, List, Edit, View
+└── types/schema.ts                # TypeScript schema types
+```
+
+## Testing
+
+### Unit Tests (Vitest)
+
+```bash
+npm run test:run       # 278+ tests
+npm run test:coverage  # With coverage report
+```
+
+### E2E Tests (Playwright)
+
+Requires the sample backend running at `localhost:9000`.
+
+```bash
+npx playwright install
+npm run test:e2e       # 270+ tests (Chromium)
+npm run test:e2e:ui    # Interactive mode
+```
+
+## Building the Library
+
+```bash
+npm run build:lib   # Outputs to dist/ (ES module + types)
+```
+
+The library build uses `vite.config.lib.ts` with React, React DOM, and React Router DOM externalized.
+
+## Environment Variables (dev mode)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VITE_API_BASE_URL` | `http://localhost:9000/rf/api` | Backend API URL |
+
+## License
+
+AGPL-3.0
 ```tsx
 case 'MyFieldType':
   schema = z.string(); // or appropriate type

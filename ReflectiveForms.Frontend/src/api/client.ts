@@ -1,10 +1,26 @@
 import { EntitySchema, EntityData, PeekEntity, PaginatedPeekResponse } from '../types/schema';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:9000/rf/api';
+let _apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:9000/rf/api';
+
+export function setApiBaseUrl(url: string) {
+  _apiBaseUrl = url;
+}
+
+export function getApiBaseUrl(): string {
+  return _apiBaseUrl;
+}
 
 interface ApiResponse<T> {
   data?: T;
   error?: string;
+}
+
+// Global 401 listener — AuthProvider subscribes to this
+type UnauthorizedListener = () => void;
+let _onUnauthorized: UnauthorizedListener | null = null;
+
+export function onUnauthorized(listener: UnauthorizedListener | null) {
+  _onUnauthorized = listener;
 }
 
 async function fetchApi<T>(
@@ -12,7 +28,7 @@ async function fetchApi<T>(
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetch(`${_apiBaseUrl}${endpoint}`, {
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
@@ -22,6 +38,9 @@ async function fetchApi<T>(
     });
 
     if (!response.ok) {
+      if (response.status === 401 && _onUnauthorized) {
+        _onUnauthorized();
+      }
       const errorData = await response.json().catch(() => ({ message: 'Request failed' }));
       const msg = typeof errorData === 'string' ? errorData : (errorData.detail || errorData.message);
       return { error: msg || `HTTP ${response.status}` };
@@ -149,4 +168,28 @@ export async function login(
     method: 'POST',
     body: JSON.stringify({ email, password }),
   });
+}
+
+export async function logout(): Promise<ApiResponse<{ message: string }>> {
+  return fetchApi<{ message: string }>('/logout', {
+    method: 'POST',
+  });
+}
+
+export async function checkAuth(): Promise<boolean> {
+  try {
+    const response = await fetch(
+      `${_apiBaseUrl}/crud?operation=PEEK_ALL_PAGINATED&type=_auth_check&page_size=1`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      },
+    );
+    // 401 = not authenticated; any other status (even 400/404) means session is valid
+    return response.status !== 401;
+  } catch {
+    return false;
+  }
 }

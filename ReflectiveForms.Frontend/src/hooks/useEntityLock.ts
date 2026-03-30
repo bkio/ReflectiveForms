@@ -1,9 +1,8 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { toast } from 'sonner';
-import { tryLockEntity, unlockEntity } from '../api/client';
+import { tryLockEntity, unlockEntity, getApiBaseUrl } from '../api/client';
 
 const LOCK_REFRESH_INTERVAL = 30000; // 30 seconds
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:9000/rf/api';
 
 interface UseEntityLockOptions {
   enabled?: boolean;
@@ -109,7 +108,7 @@ export function useEntityLock(
     const handleBeforeUnload = () => {
       if (isLockedRef.current && entityId && entityId > 0) {
         // Use sendBeacon for reliable delivery on page unload
-        const url = `${API_BASE_URL}/entity_lock?type=${encodeURIComponent(entityName)}&id=${entityId}&action=unlock`;
+        const url = `${getApiBaseUrl()}/entity_lock?type=${encodeURIComponent(entityName)}&id=${entityId}&action=unlock`;
         navigator.sendBeacon(url);
       }
     };

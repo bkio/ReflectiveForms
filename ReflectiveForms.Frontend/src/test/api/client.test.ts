@@ -10,6 +10,8 @@ import {
   sanityCheck,
   tryLockEntity,
   unlockEntity,
+  setApiBaseUrl,
+  getApiBaseUrl,
 } from '../../api/client';
 
 // Mock fetch globally
@@ -23,6 +25,32 @@ describe('API Client', () => {
 
   afterEach(() => {
     vi.resetAllMocks();
+  });
+
+  describe('setApiBaseUrl / getApiBaseUrl', () => {
+    it('should update the API base URL', () => {
+      setApiBaseUrl('http://custom-api/v1');
+      expect(getApiBaseUrl()).toBe('http://custom-api/v1');
+    });
+
+    it('should use the updated base URL in fetch calls', async () => {
+      setApiBaseUrl('http://custom-api/v1');
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({}),
+      });
+
+      await fetchSchema('TestEntity');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://custom-api/v1/schema?type=TestEntity',
+        expect.any(Object)
+      );
+
+      // Reset to default for other tests
+      setApiBaseUrl('http://localhost:9000/rf/api');
+    });
   });
 
   describe('fetchSchema', () => {

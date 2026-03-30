@@ -154,6 +154,8 @@ export interface PeekEntity {
   date_gmt?: string;
   categories?: string[];
   tags?: string[];
+  parent?: string;
+  parent_id?: number;
 }
 
 export interface PaginatedPeekResponse {

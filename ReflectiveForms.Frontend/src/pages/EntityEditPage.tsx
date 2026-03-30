@@ -1,10 +1,11 @@
-import { useParams, useSearchParams, Navigate } from 'react-router-dom';
+import { useParams, useSearchParams, Navigate, useNavigate } from 'react-router-dom';
 import { useSchema, useEntity } from '../hooks/useEntity';
 import { DynamicForm } from '../components/form/DynamicForm';
 
 export function EntityEditPage() {
   const { entityName } = useParams<{ entityName: string }>();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const idParam = searchParams.get('id');
 
   // Parse ID: 'new' = create, number = edit, 'clone_from_X' = clone
@@ -106,13 +107,9 @@ export function EntityEditPage() {
           initialData={initialData}
           entityId={entityId}
           onSuccess={(data) => {
-            // Navigate to edit page with new ID
+            // Navigate to edit mode with the new entity ID
             if (!entityId && data.id) {
-              window.history.replaceState(
-                null,
-                '',
-                `?type=${entityName}&id=${data.id}`
-              );
+              navigate(`/entities-admin/${entityName}?id=${data.id}`, { replace: true });
             }
           }}
         />

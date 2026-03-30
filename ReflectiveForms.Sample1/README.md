@@ -318,9 +318,11 @@ All endpoints are served under `/rf/api/`. The framework automatically generates
 The backend uses JWT + Cookie authentication:
 
 - **JWT Secret**: Configured in `RfBuilder.cs` → `EndpointConfiguration.JwtSecret`
+- **PublicFrontendBaseUrl**: Required — the frontend URL for CORS (e.g. `"http://localhost:3000"`)
 - **Root user**: Auto-created on first startup with credentials from `RootUserCredentials`
 - **IAM Roles**: Built-in role-based access control with capabilities per entity type
 - **Frontend auth**: JWT token stored in browser cookie, automatically sent with requests
+- **SSO**: Optional — configure via `EndpointConfiguration.SsoConfiguration` with OpenID Connect, Azure AD, or Google providers
 
 ---
 
@@ -728,7 +730,7 @@ These are always available and do not need to be registered in `EntityTypes`.
 - If using a different backend port, update both `vite.config.ts` and `VITE_API_BASE_URL`
 
 ### CORS errors
-- The backend allows origins `http://localhost:5173` and `http://localhost:3000` (the Vite default ports)
+- The backend allows origin `http://localhost:3000` (the configured Vite dev server port)
 - If your frontend runs on a different port, add it to the CORS policy in `Program.cs`
 
 ### "Forbidden title example" error

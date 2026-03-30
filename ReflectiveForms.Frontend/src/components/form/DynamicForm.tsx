@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useForm, FormProvider, UseFormReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
@@ -8,6 +8,8 @@ import { schemaToZod, generateDefaults } from '../../lib/schemaToZod';
 import { FormField } from '../fields/FormField';
 import { useSanityCheck, useCreateEntity, useUpdateEntity } from '../../hooks/useEntity';
 import { useEntityLock } from '../../hooks/useEntityLock';
+import { useAutoSave } from '../../hooks/useAutoSave';
+import { AutoSaveIndicator } from './AutoSaveIndicator';
 import { SearchableSelect } from './SearchableSelect';
 
 interface DynamicFormProps {
@@ -19,7 +21,7 @@ interface DynamicFormProps {
 
 export function DynamicForm({ schema, initialData, entityId, onSuccess }: DynamicFormProps) {
   const isCreateMode = entityId === undefined || entityId < 0;
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   // Entity locking for edit mode
   const { lockStatus, lockedBy } = useEntityLock(
@@ -54,88 +56,119 @@ export function DynamicForm({ schema, initialData, entityId, onSuccess }: Dynami
   // Check if form should be disabled
   const isFormDisabled = !isCreateMode && lockStatus === 'failed';
 
-  // Auto-save logic
-  const handleAutoSave = useCallback(async () => {
-    if (isFormDisabled) {
-      toast.error('Cannot save: entity is locked by another user');
-      return;
-    }
-
-    // Normalize date strings from yyyy-MM-dd (HTML input) to yyyyMMdd (backend format)
-    // Empty strings are converted to null so the backend skips validation on optional fields
-    const normalizeDates = (obj: unknown): unknown => {
-      if (typeof obj === 'string') {
-        if (/^\d{4}-\d{2}-\d{2}$/.test(obj)) return obj.replace(/-/g, '');
-        return obj;
-      }
-      if (Array.isArray(obj)) return obj.map(normalizeDates);
-      if (obj && typeof obj === 'object') {
-        return Object.fromEntries(
-          Object.entries(obj as Record<string, unknown>).map(([k, v]) => [k, normalizeDates(v)])
-        );
-      }
+  // Normalize date strings from yyyy-MM-dd (HTML input) to yyyyMMdd (backend format)
+  // Empty strings are converted to null so the backend skips validation on optional fields
+  const normalizeDates = useCallback((obj: unknown): unknown => {
+    if (typeof obj === 'string') {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(obj)) return obj.replace(/-/g, '');
       return obj;
-    };
+    }
+    if (Array.isArray(obj)) return obj.map(normalizeDates);
+    if (obj && typeof obj === 'object') {
+      return Object.fromEntries(
+        Object.entries(obj as Record<string, unknown>).map(([k, v]) => [k, normalizeDates(v)])
+      );
+    }
+    return obj;
+  }, []);
 
+  const getPayload = useCallback(() => {
     const values = normalizeDates(form.getValues()) as Record<string, unknown>;
-
-    // Include entity ID for update operations (backend requires it in the body)
     if (!isCreateMode && entityId !== undefined) {
       values.id = entityId;
     }
+    return values;
+  }, [form, normalizeDates, isCreateMode, entityId]);
 
-    try {
-
-      // Save directly — the CRUD endpoint performs its own sanity check
-      const mutation = isCreateMode ? createMutation : updateMutation;
-      const result = await mutation.mutateAsync(values as Partial<EntityData>);
-
-      if (result.error) {
-        toast.error(result.error);
-      } else {
-        toast.success('Changes saved');
-        if (result.data) {
-          onSuccess?.(result.data);
+  // Build a mapping of field technical names to readable labels
+  const fieldLabelMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    const addFields = (fields: EntitySchema['fields'], prefix = '') => {
+      for (const f of fields) {
+        map[prefix + f.name] = f.label;
+        if (f.group_options?.child_schema) {
+          addFields(f.group_options.child_schema, `${prefix}${f.name}.`);
         }
       }
-    } catch (err) {
-      console.error('Save error:', err);
-      toast.error(err instanceof Error ? err.message : 'Save failed');
-    }
-  }, [form, sanityCheck, createMutation, updateMutation, isCreateMode, onSuccess, isFormDisabled]);
+    };
+    addFields(schema.fields);
+    return map;
+  }, [schema.fields]);
 
-  // Watch for changes and trigger auto-save with debounce
+  // Replace technical field names in error messages with readable labels
+  // and strip the backend "Sanity check for X, entity id: N has failed with" prefix
+  const humanizeError = useCallback(
+    (msg: string): string => {
+      const cleaned = msg.replace(/^Sanity check for .+ has failed with\s*/i, '');
+      return cleaned.replace(/Field\s+-?([a-z0-9_.]+)-?:/gi, (_match, name: string) => {
+        const label = fieldLabelMap[name];
+        return label ? `${label}:` : _match;
+      });
+    },
+    [fieldLabelMap],
+  );
+
+  // Sanity check callback for autosave
+  const handleSanityCheck = useCallback(async () => {
+    const values = getPayload();
+    try {
+      const result = await sanityCheck.mutateAsync(values as Partial<EntityData>);
+      if (result.error) {
+        return { passed: false, errors: [humanizeError(result.error)] };
+      }
+      return { passed: true };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Validation failed';
+      return { passed: false, errors: [humanizeError(msg)] };
+    }
+  }, [sanityCheck, getPayload, humanizeError]);
+
+  // Save callback for autosave
+  const handleSave = useCallback(async () => {
+    if (isFormDisabled) {
+      throw new Error('Cannot save: entity is locked by another user');
+    }
+    const values = getPayload();
+    const mutation = isCreateMode ? createMutation : updateMutation;
+    const result = await mutation.mutateAsync(values as Partial<EntityData>);
+    if (result.error) {
+      throw new Error(humanizeError(result.error));
+    }
+    if (result.data) {
+      onSuccess?.(result.data);
+    }
+  }, [form, createMutation, updateMutation, isCreateMode, onSuccess, isFormDisabled, getPayload, humanizeError]);
+
+  // Auto-save hook
+  const autoSave = useAutoSave({
+    onSanityCheck: handleSanityCheck,
+    onSave: handleSave,
+    countdownDuration: 3000,
+    enabled: !isFormDisabled,
+  });
+
+  // Track if form is dirty and trigger autosave on blur
+  const isDirtyRef = useRef(false);
   useEffect(() => {
     if (isFormDisabled) return;
-
     const subscription = form.watch(() => {
-      // Clear existing timeout
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-
-      // Show pending save indicator
-      toast.info('Changes will be saved...', { duration: 5000 });
-
-      // Set new timeout for auto-save
-      saveTimeoutRef.current = setTimeout(handleAutoSave, 5000);
+      isDirtyRef.current = true;
     });
+    return () => subscription.unsubscribe();
+  }, [form, isFormDisabled]);
 
-    return () => {
-      subscription.unsubscribe();
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-    };
-  }, [form, handleAutoSave, isFormDisabled]);
+  const handleFormBlur = useCallback(() => {
+    if (isDirtyRef.current && !isFormDisabled) {
+      isDirtyRef.current = false;
+      autoSave.triggerAutoSave();
+    }
+  }, [autoSave, isFormDisabled]);
 
   // Manual save
   const handleSubmit = form.handleSubmit(
     async (_data) => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-      await handleAutoSave();
+      autoSave.cancel();
+      await autoSave.saveNow();
     },
     (errors) => {
       console.error('Form validation errors:', JSON.stringify(errors, null, 2));
@@ -165,7 +198,17 @@ export function DynamicForm({ schema, initialData, entityId, onSuccess }: Dynami
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Auto-save indicator */}
+      <AutoSaveIndicator
+        status={autoSave.status}
+        countdownRemaining={autoSave.countdownRemaining}
+        countdownTotal={autoSave.countdownTotal}
+        validationErrors={autoSave.validationErrors}
+        error={autoSave.error}
+        onDismissValidation={autoSave.dismissValidation}
+      />
+
+      <form ref={formRef} onSubmit={handleSubmit} onBlur={handleFormBlur} className="space-y-6">
         {/* Title field (always present) */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">

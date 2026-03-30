@@ -1,114 +1,146 @@
-import { useRef, useEffect, useCallback, useState } from 'react';
-import { UseFormReturn } from 'react-hook-form';
-import { toast } from 'sonner';
+import { useRef, useCallback, useState } from 'react';
 
 interface UseAutoSaveOptions {
-  form: UseFormReturn<any>;
+  onSanityCheck: () => Promise<{ passed: boolean; errors?: string[] }>;
   onSave: () => Promise<void>;
-  delay?: number;
+  countdownDuration?: number;
   enabled?: boolean;
 }
 
+export type AutoSaveStatus = 'idle' | 'checking' | 'validation-error' | 'countdown' | 'saving' | 'saved' | 'error';
+
 interface AutoSaveState {
-  status: 'idle' | 'pending' | 'saving' | 'saved' | 'error';
+  status: AutoSaveStatus;
   lastSaved: Date | null;
   error: string | null;
+  validationErrors: string[];
+  countdownRemaining: number;
+  countdownTotal: number;
 }
 
-export function useAutoSave({ form, onSave, delay = 5000, enabled = true }: UseAutoSaveOptions) {
+export function useAutoSave({
+  onSanityCheck,
+  onSave,
+  countdownDuration = 3000,
+  enabled = true,
+}: UseAutoSaveOptions) {
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [state, setState] = useState<AutoSaveState>({
     status: 'idle',
     lastSaved: null,
     error: null,
+    validationErrors: [],
+    countdownRemaining: 0,
+    countdownTotal: countdownDuration,
   });
 
-  const clearPendingSave = useCallback(() => {
+  const clearTimers = useCallback(() => {
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current);
+      countdownRef.current = null;
+    }
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
       saveTimeoutRef.current = null;
     }
   }, []);
 
-  const triggerSave = useCallback(async () => {
-    clearPendingSave();
-
-    setState(prev => ({ ...prev, status: 'saving', error: null }));
-
+  const performSave = useCallback(async () => {
+    clearTimers();
+    setState(prev => ({ ...prev, status: 'saving', countdownRemaining: 0 }));
     try {
       await onSave();
       setState({
         status: 'saved',
         lastSaved: new Date(),
         error: null,
+        validationErrors: [],
+        countdownRemaining: 0,
+        countdownTotal: countdownDuration,
       });
-    } catch (error) {
+      // Auto-dismiss after 2s
+      saveTimeoutRef.current = setTimeout(() => {
+        setState(prev => (prev.status === 'saved' ? { ...prev, status: 'idle' } : prev));
+      }, 2000);
+    } catch (err) {
       setState(prev => ({
         ...prev,
         status: 'error',
-        error: error instanceof Error ? error.message : 'Save failed',
+        error: err instanceof Error ? err.message : 'Save failed',
       }));
     }
-  }, [onSave, clearPendingSave]);
+  }, [onSave, clearTimers, countdownDuration]);
 
-  const scheduleSave = useCallback(() => {
+  const startCountdown = useCallback(() => {
+    clearTimers();
+    const step = 100; // Update every 100ms for smooth progress
+    let remaining = countdownDuration;
+
+    setState(prev => ({
+      ...prev,
+      status: 'countdown',
+      countdownRemaining: countdownDuration,
+      countdownTotal: countdownDuration,
+    }));
+
+    countdownRef.current = setInterval(() => {
+      remaining -= step;
+      if (remaining <= 0) {
+        clearTimers();
+        performSave();
+      } else {
+        setState(prev => (prev.status === 'countdown' ? { ...prev, countdownRemaining: remaining } : prev));
+      }
+    }, step);
+  }, [countdownDuration, clearTimers, performSave]);
+
+  // Called on blur — the main trigger
+  const triggerAutoSave = useCallback(async () => {
     if (!enabled) return;
+    clearTimers();
 
-    clearPendingSave();
-    setState(prev => ({ ...prev, status: 'pending' }));
+    setState(prev => ({ ...prev, status: 'checking', validationErrors: [], error: null }));
 
-    saveTimeoutRef.current = setTimeout(triggerSave, delay);
-  }, [enabled, delay, triggerSave, clearPendingSave]);
+    try {
+      const result = await onSanityCheck();
+      if (result.passed) {
+        startCountdown();
+      } else {
+        setState(prev => ({
+          ...prev,
+          status: 'validation-error',
+          validationErrors: result.errors ?? ['Validation failed'],
+        }));
+      }
+    } catch {
+      // Sanity check network error — still try to save (CRUD has its own validation)
+      startCountdown();
+    }
+  }, [enabled, onSanityCheck, startCountdown, clearTimers]);
 
-  // Watch form changes
-  useEffect(() => {
-    if (!enabled) return;
-
-    const subscription = form.watch(() => {
-      scheduleSave();
-    });
-
-    return () => {
-      subscription.unsubscribe();
-      clearPendingSave();
-    };
-  }, [form, scheduleSave, clearPendingSave, enabled]);
-
-  // Save immediately (e.g., on submit button click)
+  // Immediate save (e.g. save button)
   const saveNow = useCallback(async () => {
-    await triggerSave();
-  }, [triggerSave]);
+    clearTimers();
+    await performSave();
+  }, [clearTimers, performSave]);
 
   // Cancel pending save
   const cancel = useCallback(() => {
-    clearPendingSave();
-    setState(prev => ({ ...prev, status: 'idle' }));
-  }, [clearPendingSave]);
+    clearTimers();
+    setState(prev => ({ ...prev, status: 'idle', countdownRemaining: 0 }));
+  }, [clearTimers]);
+
+  // Dismiss validation errors (user acknowledged)
+  const dismissValidation = useCallback(() => {
+    setState(prev => (prev.status === 'validation-error' ? { ...prev, status: 'idle', validationErrors: [] } : prev));
+  }, []);
 
   return {
     ...state,
+    triggerAutoSave,
     saveNow,
     cancel,
-    isPending: state.status === 'pending',
-    isSaving: state.status === 'saving',
+    dismissValidation,
   };
-}
-
-/**
- * Hook for showing save status in the UI
- */
-export function useSaveIndicator(autoSave: ReturnType<typeof useAutoSave>) {
-  useEffect(() => {
-    if (autoSave.status === 'pending') {
-      toast.loading('Changes will be saved...', { id: 'auto-save', duration: Infinity });
-    } else if (autoSave.status === 'saving') {
-      toast.loading('Saving...', { id: 'auto-save', duration: Infinity });
-    } else if (autoSave.status === 'saved') {
-      toast.success('Saved', { id: 'auto-save', duration: 2000 });
-    } else if (autoSave.status === 'error') {
-      toast.error(autoSave.error || 'Save failed', { id: 'auto-save', duration: 5000 });
-    }
-  }, [autoSave.status, autoSave.error]);
-
-  return autoSave;
 }

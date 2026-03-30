@@ -1,211 +1,248 @@
 # ReflectiveForms
 
-A C# library that generates dynamic, schema-driven forms from entity configurations. The backend produces JSON schemas from decorated C# models, and a modern React + TypeScript frontend renders them as fully functional admin panels with auto-save, display conditions, nested repeaters, entity relations, and more.
+A schema-driven admin panel framework. Define entities with C# attributes, get a full CRUD admin panel with a modern React frontend — auto-save, display conditions, nested repeaters, entity relations, locking, SSO, and more.
 
-## Key Features
+## Packages
 
-- **Declarative Entity Models** — Define entities with C# attributes (`Text`, `TextArea`, `Select`, `Checkbox`, `DatePicker`, `Number`, `Range`, `Url`, `Email`, `Repeater`, `Group`, `Relation`, `WysiwygEditor`, `MediaSourceBase64`)
-- **Display Conditions** — Show/hide fields based on sibling field values, works at any nesting level including inside repeaters
-- **Nested Repeaters** — Up to 3+ levels of nesting (e.g. Survey → Sections → Questions → Choices) with min/max row enforcement
-- **Auto-Save** — Debounced auto-save with toast notifications, date format normalization, and error handling
-- **Entity Locking** — Concurrent edit protection with lock/unlock lifecycle
-- **Dynamic Choices** — Select fields populated at compile-time or runtime from async C# methods
-- **Dynamic Default Values** — Field defaults computed at runtime via async C# methods (e.g. today's date)
-- **Read-Only Entity View** — Public/read-only view page for entities at `/entities-view/:entityName` with metadata display (author, tags, categories, parent), grid layouts for groups, structured repeater headers, and relation fields resolved to clickable names
-- **Searchable Select** — Filterable dropdown for Relation and Select fields with large option sets; supports multi-select mode for tags/categories
-- **Tags & Categories** — Multi-select entity pickers on the form when `HasTags` or `HasCategories` is enabled
-- **Parent-Child Hierarchy** — Single-select parent picker with self-exclusion when `HasParentChildRelationship` is enabled
-- **Entity List with Search, Sort & Filter** — Client-side search by title/author, sortable columns (title, author, last modified), formatted dates, and client-side pagination over full dataset
-- **View-Only Mode** — Entities with `SupportsFrontendEdit = false` show in sidebar/dashboard but block editing (redirect to view page)
-- **Depth-Aware Form Nesting** — Nested fields inside repeaters and groups render without redundant card wrappers, eliminating cards-in-cards visual noise
-- **Role-Based Access** — IAM role system with per-entity-type CRUD capabilities
-- **CRUD API** — Create, Read, Update, Delete, Peek All (with pagination) operations via a single endpoint
-- **Sanity Checks** — Server-side validation with custom async logic (e.g. uniqueness checks)
+| Package | Description |
+|---------|-------------|
+| [`ReflectiveForms.Core`](ReflectiveForms.Core/) | .NET 8 NuGet library — entity configuration, schema generation, CRUD API, auth, SSO |
+| [`@reflectiveforms/frontend`](ReflectiveForms.Frontend/) | React + TypeScript npm library — renders schemas as a full admin panel |
+| [`@reflectiveforms/create-app`](ReflectiveForms.CreateApp/) | CLI scaffolder — generates a new project with backend, frontend, Docker, and a sample entity |
+
+## Quick Start
+
+### Option 1: Scaffold a new project (recommended)
+
+```bash
+npx @reflectiveforms/create-app my-project
+cd my-project
+# Start backend
+cd backend && dotnet run
+# In another terminal, start frontend
+cd frontend && npm install && npm run dev
+```
+
+### Option 2: Add to an existing .NET app
+
+**Backend:**
+
+```bash
+dotnet add package ReflectiveForms.Core
+```
+
+```csharp
+// Program.cs
+var builder = WebApplication.CreateBuilder(args);
+var app = builder.Build();
+
+app.BuildWithReflectiveFields(config => {
+    config.Endpoints.PublicFrontendBaseUrl = "http://localhost:3000";
+    config.Endpoints.JwtSecret = "your-secret";
+    config.Endpoints.DefaultAdminPassword = "admin";
+
+    config.Entity<NoteModel>(e => {
+        e.PluralName = "Notes";
+        e.ListColumns = new[] { "title", "content" };
+    });
+});
+
+app.Run();
+```
+
+**Frontend:**
+
+```bash
+npm install @reflectiveforms/frontend react react-dom react-router-dom
+```
+
+```tsx
+// main.tsx
+import { createReflectiveFormsApp } from '@reflectiveforms/frontend';
+
+createReflectiveFormsApp({
+  apiBaseUrl: 'http://localhost:9000/rf/api',
+  appName: 'My Admin',
+  primaryColor: '#2563eb',
+});
+```
+
+## Features
+
+### Entity Configuration (Backend)
+
+- **Declarative models** — C# attributes: `Text`, `TextArea`, `Select`, `Checkbox`, `DatePicker`, `Number`, `Range`, `Url`, `Email`, `Repeater`, `Group`, `Relation`, `WysiwygEditor`, `MediaSourceBase64`
+- **Display conditions** — Show/hide fields based on sibling values, works inside repeaters at any depth
+- **Nested repeaters** — 3+ levels (e.g. Survey → Sections → Questions → Choices) with min/max enforcement
+- **Dynamic choices** — Select options from async C# methods (compile-time or runtime)
+- **Dynamic defaults** — Runtime-computed default values via async methods
+- **Sanity checks** — Server-side validation with custom async logic (e.g. uniqueness)
+- **Entity metadata** — Tags, categories, parent-child hierarchy
+- **Role-based access** — IAM with per-entity-type CRUD capabilities
+- **SSO** — OpenID Connect, Azure AD, Google with auto-provisioning and domain filtering
+
+### Admin Panel (Frontend)
+
+- **Auto-save** — Debounced saves with toast notifications
+- **Entity locking** — Pessimistic concurrent edit protection
+- **Search, sort & filter** — Client-side search by title/author, sortable columns, pagination
+- **Searchable selects** — Filterable dropdowns for relations and large choice sets
+- **Read-only view** — Public entity view with metadata, grid layouts, resolved relations
+- **View-only mode** — Entities flagged `SupportsFrontendEdit = false` redirect to view page
+- **Depth-aware nesting** — Nested fields render without redundant card wrappers
+- **Branding** — Configurable app name, logo, primary color via CSS variable
+- **Custom pages** — Add sidebar pages grouped by section
+- **SSO login** — Dedicated SSO login page with branding
+
+## Configuration Reference
+
+### Backend (`EndpointConfiguration`)
+
+| Property | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `PublicFrontendBaseUrl` | Yes | — | Frontend URL for CORS |
+| `JwtSecret` | Yes | — | JWT signing key |
+| `DefaultAdminPassword` | No | `null` | Admin password (creates admin on first run) |
+| `SsoConfiguration` | No | `null` | SSO settings (see below) |
+
+### SSO Configuration
+
+```csharp
+config.Endpoints.SsoConfiguration = new SsoConfiguration {
+    Provider = SsoProvider.AzureAd,
+    Authority = "https://login.microsoftonline.com/{tenant}/v2.0",
+    ClientId = "your-client-id",
+    ClientSecret = "your-secret",
+    AllowedDomains = new[] { "company.com" },
+    AutoProvisionUsers = true,
+    DefaultRole = "editor",
+};
+```
+
+### Frontend (`RfConfig`)
+
+| Property | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `apiBaseUrl` | Yes | — | Backend API URL |
+| `appName` | No | `"ReflectiveForms"` | Sidebar brand name |
+| `logo` | No | — | URL string or React component |
+| `primaryColor` | No | `"#2563eb"` | Theme color (sets `--rf-primary` CSS variable) |
+| `basePath` | No | `"/rf/app"` | Router base path |
+| `auth.mode` | No | `"local"` | `"local"` or `"sso"` |
+| `auth.ssoLoginUrl` | No | — | SSO redirect endpoint (required when mode is `"sso"`) |
+| `customPages` | No | `[]` | Extra sidebar pages with `path`, `label`, `icon`, `component`, `section` |
 
 ## Architecture
 
 ```
-┌─────────────────────────┐     ┌─────────────────────────────┐
-│   React SPA (Vite)      │     │  ASP.NET Core Backend       │
-│   localhost:3000         │────▶│  localhost:9000              │
-│                         │     │                             │
-│  • React 18 + TypeScript│     │  • Kestrel HTTP server      │
-│  • React Hook Form + Zod│     │  • JSON schema generation   │
-│  • TanStack Query v5    │     │  • CRUD via CrossCloudKit   │
-│  • Tailwind CSS 3       │     │  • JWT + Cookie auth        │
-│  • Sonner toasts        │     │  • Entity locking           │
-│  • Playwright E2E tests │     │  • Sanity check pipeline    │
-└─────────────────────────┘     └─────────────────────────────┘
+┌─────────────────────────────┐     ┌─────────────────────────────┐
+│  @reflectiveforms/frontend  │     │  ReflectiveForms.Core       │
+│  React SPA (Vite)           │────▶│  ASP.NET Core Backend       │
+│                             │     │                             │
+│  • React 18 + TypeScript    │     │  • JSON schema generation   │
+│  • React Hook Form + Zod    │     │  • CRUD via CrossCloudKit   │
+│  • TanStack Query v5        │     │  • JWT + Cookie auth + SSO  │
+│  • Tailwind CSS 3           │     │  • Entity locking           │
+│  • Configurable branding    │     │  • Sanity check pipeline    │
+└─────────────────────────────┘     └─────────────────────────────┘
 ```
 
 ## Project Structure
 
 ```
 ReflectiveForms/
-├── ReflectiveForms.Core/             # Core library (NuGet-ready)
-│   ├── Attributes/                   #   Field attribute definitions
-│   │   └── Fields/                   #   Text, Select, Repeater, Group, etc.
-│   ├── Endpoints/                    #   API endpoints (CRUD, Schema, Login, Lock)
-│   ├── Models/                       #   Base models (EntityFieldsModel, EntityModel)
-│   ├── Operation/                    #   Sanity checking, defaults, locking
-│   ├── Repositories/                 #   CrossCloudKit DB integration
-│   ├── Schema/                       #   JSON schema generator
-│   └── Utilities/                    #   HTML sanitizer, date helpers
+├── ReflectiveForms.Core/             # .NET NuGet library
+│   ├── Attributes/Fields/            #   Field attribute definitions
+│   ├── Endpoints/                    #   API endpoints, SSO, auth
+│   ├── Models/                       #   Entity base models
+│   ├── Operation/                    #   Locking, sanity checks, defaults
+│   ├── Repositories/                 #   DB integration
+│   └── Schema/                       #   JSON schema generator
 │
-├── ReflectiveForms.Core.Tests/       # Backend unit tests (xUnit)
+├── ReflectiveForms.Core.Tests/       # Backend unit tests (xUnit, 175+)
 │
-├── ReflectiveForms.Frontend/         # React SPA frontend
+├── ReflectiveForms.Frontend/         # React npm library
 │   ├── src/
-│   │   ├── api/                      #   API client (fetchSchema, CRUD, login)
-│   │   ├── components/
-│   │   │   ├── fields/               #   Field components (Text, Select, Repeater, etc.)
-│   │   │   ├── form/                 #   DynamicForm (auto-save, Zod validation)
-│   │   │   └── layout/              #   AdminLayout (responsive sidebar)
-│   │   ├── hooks/                    #   React Query hooks (useEntity, useEntityLock, useAutoSave)
-│   │   ├── lib/                      #   conditionParser, schemaToZod, sanitize, formUtils
-│   │   └── pages/                    #   Dashboard, EntityList, EntityEdit, EntityView, Login
-│   └── e2e/                          #   Playwright E2E tests (266 Chromium tests)
-│       ├── helpers.ts                #   ApiHelper, UiHelper, test fixtures
-│       ├── sample-*.spec.ts          #   Per-entity CRUD tests (6 entity types)
-│       ├── integration-*.spec.ts     #   Cross-cutting integration tests (9 suites)
-│       ├── entity-*.spec.ts          #   CRUD, locking, view page tests
-│       ├── dynamic-default-value.spec.ts  # Dynamic default value tests
-│       └── searchable-select.spec.ts #   Searchable select component tests
+│   │   ├── api/                      #   API client
+│   │   ├── components/               #   Fields, form, layout
+│   │   ├── hooks/                    #   useEntity, useSchema, useAutoSave, useLock
+│   │   ├── lib/                      #   createApp, RfConfigProvider, exports
+│   │   └── pages/                    #   Dashboard, List, Edit, View, Login, SSO
+│   ├── e2e/                          #   Playwright E2E tests (270+)
+│   └── vite.config.lib.ts           #   Library build config
 │
-└── ReflectiveForms.Sample1/          # Sample ASP.NET application
-    ├── Program.cs                    #   App entry point, CORS, Kestrel config
-    ├── RfBuilder.cs                  #   Entity type registration
-    ├── RfObjectiveExampleModel.cs    #   Objective (OKR) entity model
-    ├── Models/
-    │   ├── BlogPostModel.cs          #   Blog post entity
-    │   ├── EventModel.cs             #   Event entity (venues, sessions)
-    │   ├── ProductModel.cs           #   Product entity (variants, specs)
-    │   ├── SurveyModel.cs            #   Survey entity (3-level nesting)
-    │   └── TeamMemberModel.cs        #   Team member entity
-    ├── Pages/                        #   Razor Pages (Login, Logout, Index)
-    └── wwwroot/                      #   Static assets
+├── ReflectiveForms.Sample1/          # Sample backend app (6 entity types)
+│
+└── ReflectiveForms.CreateApp/        # CLI scaffolder
+    ├── src/index.js                  #   Interactive prompts + template engine
+    ├── templates/                    #   Backend, frontend, Docker templates
+    └── tests/                        #   Scaffold integration tests (16)
 ```
-
-## Sample Entities
-
-| Entity | Key Features |
-|--------|-------------|
-| **Objective** | Repeater (key results with nested comments), Group, Relation, DatePicker, Select (static + dynamic), LogicSanityCheck, title uniqueness, DynamicDefaultValueAsync (work start date) |
-| **Blog Post** | WysiwygEditor, MediaSourceBase64, DisplayCondition (status → scheduled date), Repeater (external links), slug uniqueness, DynamicChoicesCompileTimeAsync |
-| **Team Member** | DisplayCondition (is_remote → office address), Repeater (emergency contacts min 1/max 3), Relation to blog-post, Range slider |
-| **Product** | DisplayCondition (is_digital → weight), Repeater ×3 (gallery, variants, specs), DynamicChoicesRuntimeAsync (category → subcategory) |
-| **Event** | DisplayCondition (is_online → meeting URL / venue), nested Groups (Venue → Address), Repeater (sessions, sponsors), DynamicDefaultValueAsync (start/end dates) |
-| **Survey** | 3-level nesting (Sections → Questions → Choices), DisplayCondition at every level, min/max row enforcement |
-
-## Getting Started
-
-### Prerequisites
-
-- [.NET 8 SDK](https://dotnet.microsoft.com/download) or later
-- [Node.js 18+](https://nodejs.org/) with npm
-
-### Backend
-
-```bash
-cd ReflectiveForms.Sample1
-dotnet restore
-dotnet run
-# Kestrel runs at http://localhost:9000
-```
-
-### Frontend (React SPA)
-
-```bash
-cd ReflectiveForms.Frontend
-npm install
-npm run dev
-# Vite dev server at http://localhost:3000
-```
-
-### Default Credentials
-
-| Field | Value |
-|-------|-------|
-| Email | `admin@karasoftware.com` |
-| Password | `123456` |
-
-> The React frontend is at `http://localhost:3000/rf/app/` (note the `/rf/app` base path).
 
 ## API Endpoints
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/rf/api/schema` | GET | Fetch all entity schemas |
-| `/rf/api/schema?type={name}` | GET | Fetch single entity schema |
+| `/rf/api/schema` | GET | All entity schemas |
+| `/rf/api/schema?type={name}` | GET | Single entity schema |
 | `/rf/api/crud?operation=CREATE&type={name}` | POST | Create entity |
-| `/rf/api/crud?operation=READ&type={name}` | POST | Read entity (body: `{ id }`) |
+| `/rf/api/crud?operation=READ&type={name}` | POST | Read entity |
 | `/rf/api/crud?operation=UPDATE&type={name}` | POST | Update entity |
-| `/rf/api/crud?operation=DELETE&type={name}` | POST | Delete entity (body: `{ id }`) |
-| `/rf/api/crud?operation=PEEK_ALL&type={name}` | POST | List all entities |
-| `/rf/api/crud?operation=PEEK_ALL_PAGINATED&type={name}&page_size={n}` | POST | List entities with pagination |
-| `/rf/api/sanity_check?type={name}` | POST | Validate entity data |
-| `/rf/api/entity_lock_control?type={name}&id={id}&operation=try_lock` | POST | Acquire entity lock |
-| `/rf/api/entity_lock_control?type={name}&id={id}&operation=try_unlock` | POST | Release entity lock |
-| `/rf/api/entity_lock_control?type={name}&id={id}&operation=heartbeat` | POST | Refresh lock |
-| `/rf/api/entity_lock_control?type={name}&operation=all_locked` | GET | List all locked entities |
-| `/rf/api/login` | POST | Authentication |
+| `/rf/api/crud?operation=DELETE&type={name}` | POST | Delete entity |
+| `/rf/api/crud?operation=PEEK_ALL&type={name}` | POST | List all |
+| `/rf/api/crud?operation=PEEK_ALL_PAGINATED&type={name}&page_size={n}` | POST | Paginated list |
+| `/rf/api/sanity_check?type={name}` | POST | Validate |
+| `/rf/api/entity_lock_control?type={name}&id={id}&operation=try_lock` | POST | Lock |
+| `/rf/api/entity_lock_control?type={name}&id={id}&operation=try_unlock` | POST | Unlock |
+| `/rf/api/entity_lock_control?type={name}&id={id}&operation=heartbeat` | POST | Heartbeat |
+| `/rf/api/login` | POST | Authenticate |
 | `/rf/api/logout` | POST | Logout |
 
 ## Testing
 
-### Backend Unit Tests
+### Backend
 
 ```bash
 cd ReflectiveForms.Core.Tests
-dotnet test
+dotnet test    # 175+ tests
 ```
 
-### Frontend Unit Tests (Vitest)
+### Frontend Unit Tests
 
 ```bash
 cd ReflectiveForms.Frontend
-npm run test           # Watch mode
-npm run test:run       # Single run
-npm run test:coverage  # With coverage
+npm run test:run       # 278+ tests (Vitest)
 ```
 
-### E2E Tests (Playwright)
+### E2E Tests
 
 ```bash
 cd ReflectiveForms.Frontend
-npx playwright install   # First time only
-npm run test:e2e         # Run all E2E tests
-npm run test:e2e:ui      # Interactive UI mode
-npm run test:e2e:headed  # See browser
+npx playwright install
+npm run test:e2e       # 270+ tests (Playwright, Chromium)
 ```
 
-The E2E suite includes 276+ tests (Chromium) across 28 spec files covering:
-- Per-entity CRUD flows (Objective, Blog Post, Team Member, Product, Event, Survey)
-- Display condition visibility at all nesting levels
-- Repeater add/remove with min/max enforcement (3 levels deep)
-- Auto-save with round-trip verification
-- Entity relations and cross-entity workflows
-- Entity locking with concurrent edit protection
-- Read-only entity view page with depth-aware styling
-- Dynamic default values
-- Searchable select and relation fields
-- List page search, sort, and filter
-- Pagination and data persistence
-- Schema API contract validation
-- Form validation and sanity check errors
-
-### Run All Tests
+### CLI Scaffolder Tests
 
 ```bash
-cd ReflectiveForms.Frontend
-npm run test:all   # Unit + E2E tests
+cd ReflectiveForms.CreateApp
+node --test tests/scaffold.test.js   # 16 tests
 ```
+
+## Sample Entities (in ReflectiveForms.Sample1)
+
+| Entity | Key Features |
+|--------|-------------|
+| **Objective** | Repeater (key results + comments), Group, Relation, Dynamic choices/defaults, Sanity check |
+| **Blog Post** | WysiwygEditor, MediaSourceBase64, DisplayCondition, DynamicChoicesCompileTimeAsync |
+| **Team Member** | DisplayCondition, Repeater (min 1/max 3), Relation, Range slider |
+| **Product** | 3 nested Repeaters, DynamicChoicesRuntimeAsync (category → subcategory) |
+| **Event** | Nested Groups, DisplayCondition, DynamicDefaultValueAsync (dates) |
+| **Survey** | 3-level nesting (Sections → Questions → Choices), DisplayCondition at every level |
 
 ## Technical Details
 
 ### Display Conditions
-
-Fields can be conditionally shown/hidden based on sibling values:
 
 ```csharp
 [JsonProperty("is_digital"),
@@ -218,30 +255,44 @@ public bool IsDigital;
 public double WeightKg;
 ```
 
-Conditions work at any nesting depth — inside repeater items, the evaluator scopes to the current item's values.
+Conditions scope to the current repeater item when nested.
 
-### Nested Repeaters
-
-Repeaters can nest arbitrarily. The Survey entity demonstrates 3 levels:
+### Nested Repeaters (3 levels)
 
 ```csharp
-// Level 1: Sections (min 1, max 10)
 [Repeater(repeaterFor: typeof(SurveySectionModel), minimumRows: 1, maximumRows: 10)]
 public List<SurveySectionModel> Sections = [];
 
-// Level 2 (inside Section): Questions (min 1, max 20)
+// Inside SectionModel:
 [Repeater(repeaterFor: typeof(SurveyQuestionModel), minimumRows: 1, maximumRows: 20)]
 public List<SurveyQuestionModel> Questions = [];
 
-// Level 3 (inside Question): Choices (min 2, max 8)
+// Inside QuestionModel:
 [DisplayCondition("question_type == choice"),
  Repeater(repeaterFor: typeof(SurveyChoiceModel), minimumRows: 2, maximumRows: 8)]
 public List<SurveyChoiceModel>? Choices = null;
 ```
 
-### Schema-to-Zod Conversion
+## Development (this repo)
 
-The frontend converts JSON schemas to Zod validation schemas at runtime, with permissive handling for complex nested structures and automatic default generation for repeater min-items.
+### Running the sample app
+
+```bash
+# Backend
+cd ReflectiveForms.Sample1 && dotnet run   # http://localhost:9000
+
+# Frontend
+cd ReflectiveForms.Frontend && npm install && npm run dev   # http://localhost:3000/rf/app/
+
+# Login: admin@karasoftware.com / 123456
+```
+
+### Building the frontend library
+
+```bash
+cd ReflectiveForms.Frontend
+npm run build:lib   # Outputs to dist/
+```
 
 ## License
 

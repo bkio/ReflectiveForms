@@ -1,8 +1,9 @@
 import { useParams, Link } from 'react-router-dom';
-import { Trash2, Edit, Copy, Plus, ChevronLeft, ChevronRight, Eye, Search, X, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import { Trash2, Edit, Copy, Plus, ChevronLeft, ChevronRight, Eye, Search, X, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown as ChevronDownIcon, ChevronRight as ChevronRightIcon } from 'lucide-react';
 import { useSchema, useEntityList, useDeleteEntity } from '../hooks/useEntity';
 import { toast } from 'sonner';
 import { useMemo, useState, useCallback } from 'react';
+import { PeekEntity } from '../types/schema';
 
 const PAGE_SIZE = 20;
 
@@ -11,6 +12,66 @@ type SortDirection = 'asc' | 'desc';
 interface SortConfig {
   column: SortColumn;
   direction: SortDirection;
+}
+
+export interface TreeNode {
+  entity: PeekEntity;
+  children: TreeNode[];
+  depth: number;
+}
+
+/**
+ * Build a tree from a flat list of entities using parent_id.
+ * Entities with no parent_id (or parent_id <= 0) are roots.
+ * Orphans (entities whose parent is missing from the list) become roots.
+ */
+export function buildEntityTree(entities: PeekEntity[]): TreeNode[] {
+  const byId = new Map<number, TreeNode>();
+  const roots: TreeNode[] = [];
+
+  // Create nodes
+  for (const entity of entities) {
+    byId.set(entity.id, { entity, children: [], depth: 0 });
+  }
+
+  // Wire parent-child
+  for (const entity of entities) {
+    const node = byId.get(entity.id)!;
+    const parentId = entity.parent_id;
+    if (parentId != null && parentId > 0 && byId.has(parentId)) {
+      byId.get(parentId)!.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+
+  // Set depths
+  function setDepths(nodes: TreeNode[], depth: number) {
+    for (const node of nodes) {
+      node.depth = depth;
+      setDepths(node.children, depth + 1);
+    }
+  }
+  setDepths(roots, 0);
+
+  return roots;
+}
+
+/**
+ * Flatten a tree into a pre-order list, respecting expanded/collapsed state.
+ */
+function flattenTree(roots: TreeNode[], expanded: Set<number>): TreeNode[] {
+  const result: TreeNode[] = [];
+  function walk(nodes: TreeNode[]) {
+    for (const node of nodes) {
+      result.push(node);
+      if (node.children.length > 0 && expanded.has(node.entity.id)) {
+        walk(node.children);
+      }
+    }
+  }
+  walk(roots);
+  return result;
 }
 
 function formatDate(dateStr: string | undefined): string {
@@ -29,12 +90,14 @@ export function EntityListPage() {
   const [currentPage, setCurrentPage] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState<SortConfig>({ column: 'modified', direction: 'desc' });
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
   const { data: schema, isLoading: schemaLoading } = useSchema(entityName ?? '');
   const { data: allEntities, isLoading: entitiesLoading } = useEntityList(entityName ?? '');
   const deleteMutation = useDeleteEntity(entityName ?? '');
 
   const hasAuthor = schema?.features.has_author ?? false;
+  const hasParentChild = schema?.features.has_parent_child ?? false;
 
   // Filter → Sort → Paginate pipeline
   const filteredAndSorted = useMemo(() => {
@@ -80,10 +143,37 @@ export function EntityListPage() {
     return result;
   }, [allEntities, searchTerm, sortConfig]);
 
-  const totalFiltered = filteredAndSorted.length;
+  // Build tree for hierarchical entities
+  const entityTree = useMemo(() => {
+    if (!hasParentChild) return null;
+    return buildEntityTree(filteredAndSorted);
+  }, [hasParentChild, filteredAndSorted]);
+
+  // Flatten tree based on expanded state (for hierarchical rendering)
+  const flattenedTree = useMemo(() => {
+    if (!entityTree) return null;
+    return flattenTree(entityTree, expanded);
+  }, [entityTree, expanded]);
+
+  const toggleExpanded = useCallback((id: number) => {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  // Determine what gets paginated: flattened tree in tree mode, flat list otherwise
+  const displayList = flattenedTree ?? filteredAndSorted;
+
+  const totalFiltered = displayList.length;
   const totalAll = allEntities?.length ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalFiltered / PAGE_SIZE));
-  const pageEntities = filteredAndSorted.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
+  const pageItems = displayList.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
 
   const handleSort = useCallback((column: SortColumn) => {
     setSortConfig(prev => {
@@ -220,17 +310,38 @@ export function EntityListPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {pageEntities.map((entity) => (
-                <tr key={entity.id} className="hover:bg-gray-50 transition-colors">
+              {pageItems.map((item) => {
+                const entity = hasParentChild ? (item as TreeNode).entity : (item as PeekEntity);
+                const depth = hasParentChild ? (item as TreeNode).depth : 0;
+                const hasChildren = hasParentChild ? (item as TreeNode).children.length > 0 : false;
+                const isExpanded = expanded.has(entity.id);
+
+                return (
+                <tr key={entity.id} className="hover:bg-gray-50 transition-colors" data-testid={`entity-row-${entity.id}`} data-depth={depth}>
                   <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                    <Link
-                      to={isEditable
-                        ? `/entities-admin/${entityName}?id=${entity.id}`
-                        : `/entities-view/${entityName}?id=${entity.id}`}
-                      className="text-blue-600 hover:text-blue-800 font-medium"
-                    >
-                      {entity.title ?? entity.name ?? `ID: ${entity.id}`}
-                    </Link>
+                    <div className="flex items-center" style={depth > 0 ? { paddingLeft: `${depth * 24}px` } : undefined}>
+                      {hasParentChild && (
+                        <button
+                          type="button"
+                          onClick={() => toggleExpanded(entity.id)}
+                          className={`mr-1 p-0.5 text-gray-400 hover:text-gray-600 ${hasChildren ? '' : 'invisible'}`}
+                          data-testid={`toggle-${entity.id}`}
+                          aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                        >
+                          {isExpanded
+                            ? <ChevronDownIcon className="w-4 h-4" />
+                            : <ChevronRightIcon className="w-4 h-4" />}
+                        </button>
+                      )}
+                      <Link
+                        to={isEditable
+                          ? `/entities-admin/${entityName}?id=${entity.id}`
+                          : `/entities-view/${entityName}?id=${entity.id}`}
+                        className="text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        {entity.title ?? entity.name ?? `ID: ${entity.id}`}
+                      </Link>
+                    </div>
                   </td>
                   {hasAuthor && (
                     <td className="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -277,8 +388,8 @@ export function EntityListPage() {
                     </div>
                   </td>
                 </tr>
-              ))}
-              {pageEntities.length === 0 && (
+              )})}
+              {pageItems.length === 0 && (
                 <tr>
                   <td colSpan={hasAuthor ? 4 : 3} className="px-6 py-8 text-center text-gray-500">
                     {searchTerm

@@ -33,7 +33,8 @@ public static class RfBuilder
             {
                 JwtSecret = "my-awesome-secret-key-1234567890",
                 RootPath = "/rf",
-                PublicUrlRootForApi = "http://localhost:9000/rf/api/"
+                PublicUrlRootForApi = "http://localhost:9000/rf/api/",
+                PublicFrontendBaseUrl = "http://localhost:3000"
             },
             EntityTypes =
             [

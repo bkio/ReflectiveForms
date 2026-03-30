@@ -4,6 +4,11 @@ import { FormField } from './FormField';
 import { FieldComponentProps } from './types';
 import { FieldSchema } from '../../types/schema';
 
+/** Height of each repeater sticky header in pixels (py-2 + text-sm line) */
+export const REPEATER_HEADER_HEIGHT = 37;
+/** Height of the top navigation bar in pixels (h-16 = 4rem) */
+export const TOP_BAR_HEIGHT = 64;
+
 export function RepeaterField({ schema, path, depth = 0 }: FieldComponentProps) {
   const { control } = useFormContext();
   const { fields, append, remove, move } = useFieldArray({
@@ -101,11 +106,18 @@ function RepeaterItem({
   const itemPath = `${path}.${index}`;
 
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden">
-      {/* Item header */}
-      <div className="flex items-center justify-between bg-gray-50 px-4 py-2 border-b border-gray-200">
-        <span className="font-medium text-gray-700">
-          {label}: {index + 1}
+    <div className="border border-gray-200 rounded-lg overflow-visible">
+      {/* Item header — sticky so users always see which item they're editing */}
+      <div
+        className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 px-4 py-2 border-b border-gray-200 sticky rounded-t-lg"
+        style={{
+          top: `${TOP_BAR_HEIGHT + depth * REPEATER_HEADER_HEIGHT}px`,
+          zIndex: 10 - depth,
+        }}
+        data-testid={`repeater-header-depth-${depth}`}
+      >
+        <span className="font-medium text-gray-700 dark:text-gray-200">
+          {label} #{index + 1}
         </span>
         <div className="flex items-center gap-1">
           <button
