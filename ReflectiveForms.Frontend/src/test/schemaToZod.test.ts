@@ -70,15 +70,15 @@ describe('schemaToZod', () => {
     });
     expect(validResult.success).toBe(true);
 
-    // Empty fields also pass — backend performs full sanity checks
+    // Empty required fields now fail Zod validation
     const emptyResult = zodSchema.safeParse({
       title: { rendered: 'Test' },
       fields: { description: '' },
     });
-    expect(emptyResult.success).toBe(true);
+    expect(emptyResult.success).toBe(false);
   });
 
-  it('should accept number fields permissively (backend validates min/max)', () => {
+  it('should validate number fields with min/max constraints', () => {
     const entitySchema = createMockSchema([
       {
         name: 'age',
@@ -94,18 +94,19 @@ describe('schemaToZod', () => {
 
     const zodSchema = schemaToZod(entitySchema);
 
-    // All field values pass — backend performs sanity checks on bounds
+    // Valid number within range passes
     const validResult = zodSchema.safeParse({
       title: { rendered: 'Test' },
       fields: { age: 25 },
     });
     expect(validResult.success).toBe(true);
 
+    // Number below min fails Zod validation
     const belowMinResult = zodSchema.safeParse({
       title: { rendered: 'Test' },
       fields: { age: -1 },
     });
-    expect(belowMinResult.success).toBe(true);
+    expect(belowMinResult.success).toBe(false);
   });
 
   it('should validate checkbox fields', () => {
@@ -127,7 +128,7 @@ describe('schemaToZod', () => {
     expect(result.success).toBe(true);
   });
 
-  it('should accept select fields permissively (backend validates choices)', () => {
+  it('should validate select fields against allowed choices', () => {
     const entitySchema = createMockSchema([
       {
         name: 'status',
@@ -145,18 +146,19 @@ describe('schemaToZod', () => {
 
     const zodSchema = schemaToZod(entitySchema);
 
-    // All field values pass — backend validates allowed choices
+    // Valid choice passes
     const validResult = zodSchema.safeParse({
       title: { rendered: 'Test' },
       fields: { status: 'active' },
     });
     expect(validResult.success).toBe(true);
 
+    // Unknown choice fails Zod validation
     const unknownResult = zodSchema.safeParse({
       title: { rendered: 'Test' },
       fields: { status: 'unknown' },
     });
-    expect(unknownResult.success).toBe(true);
+    expect(unknownResult.success).toBe(false);
   });
 
   it('should include parent field when has_parent_child is true', () => {

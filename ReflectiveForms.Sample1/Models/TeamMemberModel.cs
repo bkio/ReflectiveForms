@@ -13,6 +13,7 @@ namespace ReflectiveForms.Sample1.Models;
 /// <summary>
 /// Address sub-model – demonstrates a Group with full-width layout.
 /// </summary>
+[StickyTitle("city")]
 internal class AddressModel : BaseModel
 {
     [JsonProperty("street"),
@@ -71,6 +72,7 @@ internal class AddressModel : BaseModel
 /// <summary>
 /// Social media profile link – used in a Repeater.
 /// </summary>
+[StickyTitle("platform")]
 internal class SocialLinkModel : BaseModel
 {
     [JsonProperty("platform"),
@@ -102,6 +104,7 @@ internal class SocialLinkModel : BaseModel
 /// <summary>
 /// Emergency contact – used in a Repeater.
 /// </summary>
+[StickyTitle("contact_name")]
 internal class EmergencyContactModel : BaseModel
 {
     [JsonProperty("contact_name"),
@@ -254,7 +257,8 @@ internal class TeamMemberModel : EntityFieldsModel
          instructions: "Add links to professional profiles.",
          repeaterFor: typeof(SocialLinkModel),
          addButtonLabel: "Add Social Link",
-         useAccordion: RepeatUseAccordion.Yes)]
+         groupRenderStyle: GroupRenderStyle.Grid2ElementsInRow,
+         useAccordion: RepeatUseAccordion.No)]
     public List<SocialLinkModel> SocialLinks = [];
 
     [JsonProperty("emergency_contacts", NullValueHandling = NullValueHandling.Ignore),

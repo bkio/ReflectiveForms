@@ -14,6 +14,7 @@ namespace ReflectiveForms.Sample1.Models;
 /// <summary>
 /// Session/talk details for the event – used in a Repeater.
 /// </summary>
+[StickyTitle("session_title")]
 internal class EventSessionModel : BaseModel
 {
     [JsonProperty("session_title"),
@@ -87,6 +88,7 @@ internal class EventSessionModel : BaseModel
 /// <summary>
 /// Sponsor entry – used in a Repeater.
 /// </summary>
+[StickyTitle("sponsor_name")]
 internal class EventSponsorModel : BaseModel
 {
     [JsonProperty("sponsor_name"),
@@ -131,6 +133,7 @@ internal class EventSponsorModel : BaseModel
 /// <summary>
 /// Venue details – demonstrates Group with Grid3ElementsInRow.
 /// </summary>
+[StickyTitle("venue_name")]
 internal class VenueModel : BaseModel
 {
     [JsonProperty("venue_name"),

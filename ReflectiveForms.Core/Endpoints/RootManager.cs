@@ -47,7 +47,7 @@ internal static class RootManager
                     cancellationToken);
                 if (!putResult.IsSuccessful
                     || !putResult.Data.TryGetTypedValue(EntityModelAttributes.Id, out int roleId))
-                    throw new Exception($"Failed to create owner role with title {OwnerRoleTitleConstant}.");
+                    throw new Exception($"Failed to create owner role with title {OwnerRoleTitleConstant}. Error: {putResult.ErrorMessage}");
 
                 _ownerRoleId = roleId;
             }
@@ -172,7 +172,7 @@ internal static class RootManager
                     }.FromObjectWithPolymorphism(),
                     cancellationToken);
                 if (!putResult.IsSuccessful)
-                    throw new Exception($"Failed to create root user with email {newEmail}.");
+                    throw new Exception($"Failed to create root user with email {newEmail}. Error: {putResult.ErrorMessage}");
             }
         }
         finally

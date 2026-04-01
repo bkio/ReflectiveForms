@@ -5,13 +5,16 @@ using CrossCloudKit.Utilities.Common;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using ReflectiveForms.Core;
+using ReflectiveForms.Core.Attributes;
 using ReflectiveForms.Core.Attributes.Fields;
+using ReflectiveForms.Core.Enums;
 using ReflectiveForms.Core.Models;
 using ReflectiveForms.Core.Operation;
 using ReflectiveForms.Core.Utilities;
 
 namespace ReflectiveForms.Sample1;
 
+[StickyTitle("comment")]
 internal class SampleCommentModel : BaseModel
 {
     /// <summary>
@@ -35,6 +38,7 @@ internal class SampleCommentModel : BaseModel
     public string Text = "";
 }
 
+[StickyTitle("key_result")]
 internal class KeyResultsModel : BaseModel
 {
     /// <summary>
@@ -53,7 +57,8 @@ internal class KeyResultsModel : BaseModel
             label: "Key Result Comments",
             instructions: "",
             repeaterFor: typeof(SampleCommentModel),
-            addButtonLabel: "Add Comment to the Key Result")]
+            addButtonLabel: "Add Comment to the Key Result",
+            groupRenderStyle: GroupRenderStyle.Grid2ElementsInRow)]
     public List<SampleCommentModel> Comments = [];
 
     /// <summary>
@@ -158,7 +163,8 @@ internal class RfObjectiveExampleModel : EntityFieldsModel
          instructions:
          "<b>Add statements that are measurably. Avoid: 'happy customer'-like unmeasurable statements.</b>",
          repeaterFor: typeof(KeyResultsModel),
-         addButtonLabel: "Add Key Result")]
+         addButtonLabel: "Add Key Result",
+         useAccordion: RepeatUseAccordion.Yes)]
     public List<KeyResultsModel> KeyResults = [];
 
     /// <summary>
@@ -169,7 +175,8 @@ internal class RfObjectiveExampleModel : EntityFieldsModel
          label: "Objective Comments",
          instructions: "",
          repeaterFor: typeof(SampleCommentModel),
-         addButtonLabel: "Add Comment")]
+         addButtonLabel: "Add Comment",
+         groupRenderStyle: GroupRenderStyle.Grid2ElementsInRow)]
     public List<SampleCommentModel> Comments = [];
 
     /// <summary>

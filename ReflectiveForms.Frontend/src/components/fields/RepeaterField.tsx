@@ -1,13 +1,25 @@
-import { useFieldArray, useFormContext } from 'react-hook-form';
-import { Plus, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
+import { useState } from 'react';
+import { useFieldArray, useFormContext, useWatch } from 'react-hook-form';
+import { Plus, Trash2, ChevronUp, ChevronDown, ChevronRight } from 'lucide-react';
 import { FormField } from './FormField';
 import { FieldComponentProps } from './types';
-import { FieldSchema } from '../../types/schema';
+import { FieldSchema, GroupRenderStyle } from '../../types/schema';
+
+/** Max characters to show from the sticky title field value */
+const STICKY_TITLE_MAX_CHARS = 40;
 
 /** Height of each repeater sticky header in pixels (py-2 + text-sm line) */
 export const REPEATER_HEADER_HEIGHT = 37;
 /** Height of the top navigation bar in pixels (h-16 = 4rem) */
 export const TOP_BAR_HEIGHT = 64;
+
+const gridClassMap: Record<GroupRenderStyle, string> = {
+  Full: 'grid-cols-1',
+  Grid2: 'grid-cols-1 md:grid-cols-2',
+  Grid3: 'grid-cols-1 md:grid-cols-3',
+  Grid4: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4',
+  Grid6: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6',
+};
 
 export function RepeaterField({ schema, path, depth = 0 }: FieldComponentProps) {
   const { control } = useFormContext();
@@ -21,9 +33,30 @@ export function RepeaterField({ schema, path, depth = 0 }: FieldComponentProps) 
   const maxItems = schema.repeater_options?.max_items;
   const addButtonLabel = schema.repeater_options?.add_button_label ?? 'Add Item';
   const useAccordion = schema.repeater_options?.use_accordion ?? false;
+  const stickyTitleField = schema.repeater_options?.sticky_title_field ?? null;
+  const renderStyle = schema.repeater_options?.render_style ?? 'Full';
 
   const canAdd = maxItems == null || fields.length < maxItems;
   const canRemove = minItems == null || fields.length > minItems;
+
+  // Accordion state: track which items are expanded (by field array id)
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
+    // When not in accordion mode, everything is expanded (doesn't matter since we won't check).
+    // When in accordion mode, start all collapsed.
+    return new Set<string>();
+  });
+
+  const toggleExpanded = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   const handleAdd = () => {
     // Generate default values for new item
@@ -36,6 +69,32 @@ export function RepeaterField({ schema, path, depth = 0 }: FieldComponentProps) 
     append(defaultItem);
   };
 
+  // After append, auto-expand the new item. We use an effect-like approach:
+  // We track the last appended id and expand it once fields update.
+  const handleAddAndExpand = () => {
+    handleAdd();
+    // The new item will be at the end; we need to expand it after render.
+    // We'll use a microtask to let react-hook-form update fields first.
+    if (useAccordion) {
+      queueMicrotask(() => {
+        // fields won't be updated yet in this closure, but we know the new index
+        // will be at fields.length (current). We'll expand by id in the next render.
+        setExpandedIds((prev) => new Set([...prev, '__pending_new__']));
+      });
+    }
+  };
+
+  // Resolve pending expansion for newly added items
+  const resolvedExpandedIds = new Set(expandedIds);
+  if (resolvedExpandedIds.has('__pending_new__') && fields.length > 0) {
+    resolvedExpandedIds.delete('__pending_new__');
+    resolvedExpandedIds.add(fields[fields.length - 1].id);
+    // Sync state (deferred to avoid render-during-render)
+    if (expandedIds.has('__pending_new__')) {
+      queueMicrotask(() => setExpandedIds(resolvedExpandedIds));
+    }
+  }
+
   return (
     <div className="space-y-4">
       {fields.map((field, index) => (
@@ -46,6 +105,8 @@ export function RepeaterField({ schema, path, depth = 0 }: FieldComponentProps) 
           itemSchema={itemSchema}
           depth={depth}
           useAccordion={useAccordion}
+          isExpanded={!useAccordion || resolvedExpandedIds.has(field.id)}
+          onToggleExpand={() => toggleExpanded(field.id)}
           canRemove={canRemove}
           canMoveUp={index > 0}
           canMoveDown={index < fields.length - 1}
@@ -53,13 +114,15 @@ export function RepeaterField({ schema, path, depth = 0 }: FieldComponentProps) 
           onMoveUp={() => move(index, index - 1)}
           onMoveDown={() => move(index, index + 1)}
           label={schema.label}
+          stickyTitleField={stickyTitleField}
+          renderStyle={renderStyle}
         />
       ))}
 
       {canAdd && (
         <button
           type="button"
-          onClick={handleAdd}
+          onClick={handleAddAndExpand}
           className="
             flex items-center gap-2 px-4 py-2
             bg-blue-50 text-blue-600 rounded-md
@@ -80,6 +143,8 @@ interface RepeaterItemProps {
   itemSchema: FieldSchema[];
   depth: number;
   useAccordion: boolean;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
   canRemove: boolean;
   canMoveUp: boolean;
   canMoveDown: boolean;
@@ -87,6 +152,8 @@ interface RepeaterItemProps {
   onMoveUp: () => void;
   onMoveDown: () => void;
   label: string;
+  stickyTitleField: string | null;
+  renderStyle: GroupRenderStyle;
 }
 
 function RepeaterItem({
@@ -94,7 +161,9 @@ function RepeaterItem({
   path,
   itemSchema,
   depth,
-  useAccordion: _useAccordion,
+  useAccordion,
+  isExpanded,
+  onToggleExpand,
   canRemove,
   canMoveUp,
   canMoveDown,
@@ -102,24 +171,51 @@ function RepeaterItem({
   onMoveUp,
   onMoveDown,
   label,
+  stickyTitleField,
+  renderStyle,
 }: RepeaterItemProps) {
   const itemPath = `${path}.${index}`;
+
+  // Resolve the watch path: supports dotted paths like "title.rendered"
+  const watchPath = stickyTitleField ? `${itemPath}.${stickyTitleField}` : undefined;
+  const stickyValue = useWatch({ name: watchPath as string, disabled: !watchPath });
+
+  // Build the display suffix from the watched value
+  let stickyPreview = '';
+  if (stickyTitleField && stickyValue != null && String(stickyValue).trim() !== '') {
+    const raw = String(stickyValue).trim();
+    stickyPreview = raw.length > STICKY_TITLE_MAX_CHARS
+      ? raw.slice(0, STICKY_TITLE_MAX_CHARS) + '…'
+      : raw;
+  }
+
+  const gridClass = gridClassMap[renderStyle] ?? gridClassMap.Full;
 
   return (
     <div className="border border-gray-200 rounded-lg overflow-visible">
       {/* Item header — sticky so users always see which item they're editing */}
       <div
-        className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 px-4 py-2 border-b border-gray-200 sticky rounded-t-lg"
+        className={`flex items-center justify-between bg-gray-50 dark:bg-gray-700 px-4 py-2 border-b border-gray-200 sticky rounded-t-lg gap-2${useAccordion ? ' cursor-pointer select-none' : ''}`}
         style={{
           top: `${TOP_BAR_HEIGHT + depth * REPEATER_HEADER_HEIGHT}px`,
           zIndex: 10 - depth,
         }}
         data-testid={`repeater-header-depth-${depth}`}
+        onClick={useAccordion ? onToggleExpand : undefined}
       >
-        <span className="font-medium text-gray-700 dark:text-gray-200">
+        {useAccordion && (
+          <ChevronRight
+            className={`w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform flex-shrink-0 ${isExpanded ? 'rotate-90' : ''}`}
+            data-testid={`accordion-chevron-${index}`}
+          />
+        )}
+        <span className="font-medium text-gray-700 dark:text-gray-200 min-w-0 truncate flex-1" data-testid={`repeater-title-${index}`}>
           {label} #{index + 1}
+          {stickyPreview && (
+            <span className="font-normal text-gray-500 dark:text-gray-400"> — {stickyPreview}</span>
+          )}
         </span>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
             onClick={onMoveUp}
@@ -151,17 +247,19 @@ function RepeaterItem({
         </div>
       </div>
 
-      {/* Item content */}
-      <div className="p-4">
-        {itemSchema.map((fieldSchema) => (
-          <FormField
-            key={fieldSchema.name}
-            fieldSchema={fieldSchema}
-            basePath={itemPath}
-            depth={depth + 1}
-          />
-        ))}
-      </div>
+      {/* Item content — collapsed when accordion is active and item is not expanded */}
+      {isExpanded && (
+        <div className={`p-4 grid ${gridClass} gap-4`}>
+          {itemSchema.map((fieldSchema) => (
+            <FormField
+              key={fieldSchema.name}
+              fieldSchema={fieldSchema}
+              basePath={itemPath}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

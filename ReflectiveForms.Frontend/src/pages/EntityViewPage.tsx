@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
-import { useSchema, useEntity, useEntityList } from '../hooks/useEntity';
+import { useSchema, useEntity, useEntityList, useCapabilities } from '../hooks/useEntity';
 import { FieldSchema, EntitySchema, PeekEntity, GroupRenderStyle } from '../types/schema';
 import { sanitizeHtml } from '../lib/sanitize';
 import { evaluateCompoundCondition } from '../lib/conditionParser';
@@ -38,6 +38,7 @@ export function EntityViewPage() {
 
   const { data: schema, isLoading: schemaLoading, error: schemaError } = useSchema(entityName ?? '');
   const { data: entityData, isLoading: entityLoading, error: entityError } = useEntity(entityName ?? '', entityId);
+  const { data: capabilities } = useCapabilities();
 
   // Collect all unique relation entity names from the schema
   const relationEntityNames = useMemo(
@@ -126,7 +127,7 @@ export function EntityViewPage() {
               {schema.readable_name.singular} — ID: {entityId}
             </p>
           </div>
-          {schema.features.supports_frontend_edit && (
+          {schema.features.supports_frontend_edit && (capabilities?.[entityName!]?.can_update ?? true) && (
             <Link
               to={`/entities-admin/${entityName}?id=${entityId}`}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"

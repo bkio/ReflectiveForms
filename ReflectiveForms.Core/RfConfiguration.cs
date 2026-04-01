@@ -32,7 +32,8 @@ public static class RfConfiguration
             catch (Exception e)
             {
                 _initialized = false;
-                return OperationResult<bool>.Failure(e.Message, HttpStatusCode.InternalServerError);
+                var baseEx = e.GetBaseException();
+                return OperationResult<bool>.Failure(baseEx.Message, HttpStatusCode.InternalServerError);
             }
         }
         return OperationResult<bool>.Success(true);

@@ -1,9 +1,10 @@
 import { Link } from 'react-router-dom';
 import { Plus, FileText, ArrowRight, Eye } from 'lucide-react';
-import { useAllSchemas } from '../hooks/useEntity';
+import { useAllSchemas, useCapabilities } from '../hooks/useEntity';
 
 export function DashboardPage() {
   const { data: schemas, isLoading, error } = useAllSchemas();
+  const { data: capabilities } = useCapabilities();
 
   if (isLoading) {
     return (
@@ -22,7 +23,9 @@ export function DashboardPage() {
     );
   }
 
-  const entityTypes = Object.values(schemas ?? {});
+  const entityTypes = Object.values(schemas ?? {}).filter(
+    (s) => !capabilities || capabilities[s.entity_name]?.can_peek_all
+  );
   const editableTypes = entityTypes.filter((s) => s.features.supports_frontend_edit);
 
   return (
@@ -109,7 +112,7 @@ export function DashboardPage() {
                     : <><Eye className="w-4 h-4" /> Browse</>
                   }
                 </Link>
-                {schema.features.supports_frontend_edit && (
+                {schema.features.supports_frontend_edit && (capabilities?.[schema.entity_name]?.can_create ?? true) && (
                   <Link
                     to={`/entities-admin/${schema.entity_name}?id=new`}
                     className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"

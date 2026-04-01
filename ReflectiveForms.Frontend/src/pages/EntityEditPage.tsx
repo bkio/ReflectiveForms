@@ -1,5 +1,5 @@
 import { useParams, useSearchParams, Navigate, useNavigate } from 'react-router-dom';
-import { useSchema, useEntity } from '../hooks/useEntity';
+import { useSchema, useEntity, useCapabilities } from '../hooks/useEntity';
 import { DynamicForm } from '../components/form/DynamicForm';
 
 export function EntityEditPage() {
@@ -28,6 +28,8 @@ export function EntityEditPage() {
     error: schemaError,
   } = useSchema(entityName ?? '');
 
+  const { data: capabilities } = useCapabilities();
+
   // Fetch entity data (for edit/clone mode)
   const sourceId = entityId ?? cloneFromId;
   const {
@@ -37,7 +39,7 @@ export function EntityEditPage() {
   } = useEntity(entityName ?? '', sourceId);
 
   // Loading state
-  if (schemaLoading || entityLoading) {
+  if (schemaLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -45,13 +47,13 @@ export function EntityEditPage() {
     );
   }
 
-  // Error state
-  if (schemaError || entityError) {
+  // Error state (schema only — entity errors are checked after capability guard)
+  if (schemaError) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="bg-red-50 text-red-600 p-6 rounded-lg">
           <h2 className="text-lg font-semibold mb-2">Error</h2>
-          <p>{(schemaError || entityError)?.message}</p>
+          <p>{schemaError.message}</p>
         </div>
       </div>
     );
@@ -71,6 +73,38 @@ export function EntityEditPage() {
       ? `/entities-view/${entityName}?id=${entityId ?? idParam}`
       : `/entities/${entityName}`;
     return <Navigate to={viewPath} replace />;
+  }
+
+  // Redirect when user lacks the required capability (checked before entity load error)
+  const caps = entityName ? capabilities?.[entityName] : undefined;
+  if (caps) {
+    const isCreateAction = !entityId; // new or clone
+    if (isCreateAction && !caps.can_create) {
+      return <Navigate to={`/entities/${entityName}`} replace />;
+    }
+    if (!isCreateAction && !caps.can_update) {
+      return <Navigate to={`/entities-view/${entityName}?id=${entityId}`} replace />;
+    }
+  }
+
+  // Now check entity loading/error (after capability guard)
+  if (entityLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (entityError) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-red-50 text-red-600 p-6 rounded-lg">
+          <h2 className="text-lg font-semibold mb-2">Error</h2>
+          <p>{entityError.message}</p>
+        </div>
+      </div>
+    );
   }
 
   // Prepare initial data

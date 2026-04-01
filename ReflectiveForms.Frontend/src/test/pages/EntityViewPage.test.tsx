@@ -9,6 +9,7 @@ vi.mock('../../hooks/useEntity', () => ({
   useSchema: vi.fn(),
   useEntity: vi.fn(),
   useEntityList: vi.fn(),
+  useCapabilities: vi.fn(() => ({ data: undefined })),
 }));
 
 import { useSchema, useEntity, useEntityList } from '../../hooks/useEntity';

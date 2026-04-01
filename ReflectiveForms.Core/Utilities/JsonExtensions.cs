@@ -41,18 +41,19 @@ public static class JsonExtensions
 
     public static JObject FromObjectWithPolymorphism(this object value)
     {
-        return JObject.FromObject(value, Serializer);
+        var jObj = JObject.FromObject(value, Serializer);
+        RemoveJsonTypeProperties(jObj);
+        return jObj;
     }
 
     public static string SerializeObjectWithPolymorphism(this object? value)
     {
         if (value == null) return "{}";
         var jObject = value.FromObjectWithPolymorphism();
-        RemoveJsonTypeProperties(jObject);
         return jObject.ToString(Formatting.None);
     }
 
-    private static void RemoveJsonTypeProperties(JToken token)
+    internal static void RemoveJsonTypeProperties(JToken token)
     {
         switch (token.Type)
         {
@@ -63,9 +64,22 @@ public static class JsonExtensions
                 // Remove $type property if exists
                 obj.Property("$type")?.Remove();
 
-                // Recurse into children
+                // Unwrap TypeNameHandling.All array wrappers:
+                // { "$values": [...] } → replace with the inner JArray
                 foreach (var child in obj.Properties().ToList())
                 {
+                    if (child.Value is JObject wrapper
+                        && wrapper.Property("$values") is { Value: JArray innerArray })
+                    {
+                        wrapper.Property("$type")?.Remove();
+                        if (wrapper.Properties().Count() == 1) // only "$values" left
+                        {
+                            RemoveJsonTypeProperties(innerArray);
+                            child.Value = innerArray;
+                            continue;
+                        }
+                    }
+
                     RemoveJsonTypeProperties(child.Value);
                 }
 

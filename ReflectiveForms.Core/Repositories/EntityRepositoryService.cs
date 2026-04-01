@@ -365,18 +365,32 @@ public class EntityRepositoryService
                             $"FATAL ERROR: EntityRepository->PutOneAsync: DeleteItemAsync has failed. (Failed: Remove back {entityName}->{newId}) ({deleteResult.StatusCode})" +
                             $"{Environment.NewLine}{error}", HttpStatusCode.InternalServerError);
                     }
+                    success = false;
                     return OperationResult<JObject>.Failure(error, HttpStatusCode.InternalServerError);
                 }
             }
 
-            await PostCreateHook<T>(entityName, newId, result, cancellationToken);
-
+            // Do NOT run the hook inside the mutex — it may call UpdateOneAsync
+            // on the same entity, which would deadlock on the same mutex.
             break;
         }
         if (!success)
         {
             return OperationResult<JObject>.Failure($"EntityRepository->PutOneAsync: PutItemAsync has failed for entity type {entityName}.", HttpStatusCode.InternalServerError);
         }
+
+        // Run the post-create hook OUTSIDE the mutex to avoid deadlock
+        // when the hook calls UpdateOneAsync on the same entity.
+        await PostCreateHook<T>(entityName, newId, result.NotNull(), cancellationToken);
+
+        // Re-read the entity after the hook in case it was modified (e.g. password hashing)
+        var postHookRead = await _db.GetItemAsync(
+            GetEntityTableName(entityName),
+            new DbKey(EntityModelAttributes.Id, newId),
+            null,
+            cancellationToken);
+        if (postHookRead.IsSuccessful && postHookRead.Data != null)
+            result = postHookRead.Data;
 
         await PublishEntityChangedAsync<T>(
             entityName,
@@ -658,9 +672,11 @@ public class EntityRepositoryService
                             .ErrorMessage))
                         .ErrorMessage);
             }
-
-            await PostUpdateHook<T>(entityName, id, oldObject, result.NotNull(), cancellationToken);
         }
+
+        // Run the post-update hook OUTSIDE the mutex to avoid deadlock
+        // when the hook calls UpdateOneAsync on the same entity.
+        await PostUpdateHook<T>(entityName, id, oldObject, result.NotNull(), cancellationToken);
 
         await PublishEntityChangedAsync<T>(
             entityName,
@@ -1115,9 +1131,11 @@ public class EntityRepositoryService
             {
                 return OperationResult<JObject>.Failure($"Warning: EntityRepository->DeleteOneAsync: FixTheDelete_ForOthersThatHaveReferenceToThis has failed. Id: {id} Entity: {entityName}", fixOthersResult.StatusCode);
             }
-
-            await PostDeleteHook<T>(entityName, id, lastBody.NotNull(), cancellationToken);
         }
+
+        // Run the post-delete hook OUTSIDE the mutex to avoid deadlock
+        // when the hook calls UpdateOneAsync/DeleteOneAsync on the same entity.
+        await PostDeleteHook<T>(entityName, id, lastBody.NotNull(), cancellationToken);
 
         await PublishEntityChangedAsync<T>(
             entityName,

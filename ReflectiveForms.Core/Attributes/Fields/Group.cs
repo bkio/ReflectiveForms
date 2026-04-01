@@ -55,7 +55,7 @@ public sealed class Group : Field
 
         if (haystack[jNeedleFieldName] is not { Type: JTokenType.Object })
         {
-            return OperationResult<bool>.Failure($"Field {jNeedleFieldName}: Type is incorrect.", HttpStatusCode.BadRequest);
+            return OperationResult<bool>.Failure($"{Label}: Type is incorrect.", HttpStatusCode.BadRequest);
         }
 
         var casted = haystack[jNeedleFieldName]?.Value<JObject>();

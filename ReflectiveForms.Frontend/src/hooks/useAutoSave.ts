@@ -26,6 +26,7 @@ export function useAutoSave({
 }: UseAutoSaveOptions) {
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const statusRef = useRef<AutoSaveStatus>('idle');
   const [state, setState] = useState<AutoSaveState>({
     status: 'idle',
     lastSaved: null,
@@ -34,6 +35,14 @@ export function useAutoSave({
     countdownRemaining: 0,
     countdownTotal: countdownDuration,
   });
+
+  const setStatus = useCallback((newState: AutoSaveState | ((prev: AutoSaveState) => AutoSaveState)) => {
+    setState(prev => {
+      const next = typeof newState === 'function' ? newState(prev) : newState;
+      statusRef.current = next.status;
+      return next;
+    });
+  }, []);
 
   const clearTimers = useCallback(() => {
     if (countdownRef.current) {
@@ -48,10 +57,10 @@ export function useAutoSave({
 
   const performSave = useCallback(async () => {
     clearTimers();
-    setState(prev => ({ ...prev, status: 'saving', countdownRemaining: 0 }));
+    setStatus(prev => ({ ...prev, status: 'saving', countdownRemaining: 0 }));
     try {
       await onSave();
-      setState({
+      setStatus({
         status: 'saved',
         lastSaved: new Date(),
         error: null,
@@ -61,23 +70,23 @@ export function useAutoSave({
       });
       // Auto-dismiss after 2s
       saveTimeoutRef.current = setTimeout(() => {
-        setState(prev => (prev.status === 'saved' ? { ...prev, status: 'idle' } : prev));
+        setStatus(prev => (prev.status === 'saved' ? { ...prev, status: 'idle' } : prev));
       }, 2000);
     } catch (err) {
-      setState(prev => ({
+      setStatus(prev => ({
         ...prev,
         status: 'error',
         error: err instanceof Error ? err.message : 'Save failed',
       }));
     }
-  }, [onSave, clearTimers, countdownDuration]);
+  }, [onSave, clearTimers, countdownDuration, setStatus]);
 
   const startCountdown = useCallback(() => {
     clearTimers();
     const step = 100; // Update every 100ms for smooth progress
     let remaining = countdownDuration;
 
-    setState(prev => ({
+    setStatus(prev => ({
       ...prev,
       status: 'countdown',
       countdownRemaining: countdownDuration,
@@ -90,24 +99,34 @@ export function useAutoSave({
         clearTimers();
         performSave();
       } else {
-        setState(prev => (prev.status === 'countdown' ? { ...prev, countdownRemaining: remaining } : prev));
+        setStatus(prev => (prev.status === 'countdown' ? { ...prev, countdownRemaining: remaining } : prev));
       }
     }, step);
-  }, [countdownDuration, clearTimers, performSave]);
+  }, [countdownDuration, clearTimers, performSave, setStatus]);
 
-  // Called on blur — the main trigger
+  // Called on blur / value commit — the main trigger
   const triggerAutoSave = useCallback(async () => {
     if (!enabled) return;
+
+    // If already counting down, restart the countdown (new change came in)
+    if (statusRef.current === 'countdown') {
+      startCountdown();
+      return;
+    }
+
+    // Don't interrupt saving or checking
+    if (statusRef.current === 'saving' || statusRef.current === 'checking') return;
+
     clearTimers();
 
-    setState(prev => ({ ...prev, status: 'checking', validationErrors: [], error: null }));
+    setStatus(prev => ({ ...prev, status: 'checking', validationErrors: [], error: null }));
 
     try {
       const result = await onSanityCheck();
       if (result.passed) {
         startCountdown();
       } else {
-        setState(prev => ({
+        setStatus(prev => ({
           ...prev,
           status: 'validation-error',
           validationErrors: result.errors ?? ['Validation failed'],
@@ -117,7 +136,7 @@ export function useAutoSave({
       // Sanity check network error — still try to save (CRUD has its own validation)
       startCountdown();
     }
-  }, [enabled, onSanityCheck, startCountdown, clearTimers]);
+  }, [enabled, onSanityCheck, startCountdown, clearTimers, setStatus]);
 
   // Immediate save (e.g. save button)
   const saveNow = useCallback(async () => {
@@ -128,13 +147,13 @@ export function useAutoSave({
   // Cancel pending save
   const cancel = useCallback(() => {
     clearTimers();
-    setState(prev => ({ ...prev, status: 'idle', countdownRemaining: 0 }));
-  }, [clearTimers]);
+    setStatus(prev => ({ ...prev, status: 'idle', countdownRemaining: 0 }));
+  }, [clearTimers, setStatus]);
 
   // Dismiss validation errors (user acknowledged)
   const dismissValidation = useCallback(() => {
-    setState(prev => (prev.status === 'validation-error' ? { ...prev, status: 'idle', validationErrors: [] } : prev));
-  }, []);
+    setStatus(prev => (prev.status === 'validation-error' ? { ...prev, status: 'idle', validationErrors: [] } : prev));
+  }, [setStatus]);
 
   return {
     ...state,

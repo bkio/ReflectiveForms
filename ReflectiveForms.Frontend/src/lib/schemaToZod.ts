@@ -13,8 +13,8 @@ export function schemaToZod(entitySchema: EntitySchema): z.ZodObject<Record<stri
     rendered: z.string().min(1, 'Title is required').max(256, 'Title must be 256 characters or less'),
   });
 
-  // Use permissive field validation — the backend performs full sanity checks.
-  shape.fields = z.record(z.unknown());
+  // Build proper field-level validation from the entity schema.
+  shape.fields = z.object(buildFieldsShape(entitySchema.fields));
 
   // Optional entity features
   if (entitySchema.features.has_parent_child) {

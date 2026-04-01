@@ -10,6 +10,7 @@ vi.mock('../../hooks/useEntity', () => ({
   useSchema: vi.fn(),
   useEntityList: vi.fn(),
   useDeleteEntity: vi.fn(),
+  useCapabilities: vi.fn(() => ({ data: undefined })),
 }));
 
 vi.mock('sonner', () => ({
@@ -118,7 +119,9 @@ describe('EntityListPage', () => {
 
   it('shows author column when has_author is true', () => {
     renderList();
-    expect(screen.getByText('Author')).toBeInTheDocument();
+    // The table header says "Author" (in the thead)
+    const thead = screen.getAllByRole('columnheader');
+    expect(thead.some(th => th.textContent?.includes('Author'))).toBe(true);
     expect(screen.getByText('Alice')).toBeInTheDocument();
   });
 
@@ -204,7 +207,7 @@ describe('EntityListPage', () => {
     const searchInput = screen.getByTestId('search-input');
     await user.type(searchInput, 'zzzzz');
 
-    expect(screen.getByText(/No results for "zzzzz"/)).toBeInTheDocument();
+    expect(screen.getByText(/No results matching current filters/)).toBeInTheDocument();
   });
 
   it('clicking Title header sorts by title ascending then descending', async () => {
@@ -445,44 +448,22 @@ describe('EntityListPage – hierarchical rendering', () => {
     vi.clearAllMocks();
   });
 
-  it('renders only the root when children are collapsed (6 generations)', () => {
+  it('renders all generations expanded by default (6 levels)', () => {
     const chain = makeChain(6);
     renderHierarchyList(chain);
 
-    // Only root visible by default (children collapsed)
-    expect(screen.getByText('Gen1')).toBeInTheDocument();
-    expect(screen.queryByText('Gen2')).not.toBeInTheDocument();
-    expect(screen.queryByText('Gen6')).not.toBeInTheDocument();
-  });
-
-  it('expanding progressively reveals each generation (6 levels)', async () => {
-    const user = userEvent.setup();
-    const chain = makeChain(6);
-    renderHierarchyList(chain);
-
-    for (let gen = 1; gen <= 5; gen++) {
-      // Expand gen
-      const toggle = screen.getByTestId(`toggle-${gen}`);
-      await user.click(toggle);
-      // gen+1 should now be visible
-      expect(screen.getByText(`Gen${gen + 1}`)).toBeInTheDocument();
-    }
-
-    // All 6 generations visible
+    // All 6 generations visible by default (expanded)
     for (let gen = 1; gen <= 6; gen++) {
       expect(screen.getByText(`Gen${gen}`)).toBeInTheDocument();
     }
   });
 
-  it('collapsing a parent hides all descendants (6 levels)', async () => {
+  it('collapsing root hides all descendants', async () => {
     const user = userEvent.setup();
     const chain = makeChain(6);
     renderHierarchyList(chain);
 
-    // Expand all
-    for (let gen = 1; gen <= 5; gen++) {
-      await user.click(screen.getByTestId(`toggle-${gen}`));
-    }
+    // All visible by default
     expect(screen.getByText('Gen6')).toBeInTheDocument();
 
     // Collapse root (id=1)
@@ -494,31 +475,40 @@ describe('EntityListPage – hierarchical rendering', () => {
     expect(screen.queryByText('Gen6')).not.toBeInTheDocument();
   });
 
-  it('child rows have increasing data-depth attributes (6 levels)', async () => {
+  it('collapsing and re-expanding a mid-level node works', async () => {
     const user = userEvent.setup();
     const chain = makeChain(6);
     renderHierarchyList(chain);
 
-    // Expand all
-    for (let gen = 1; gen <= 5; gen++) {
-      await user.click(screen.getByTestId(`toggle-${gen}`));
-    }
+    // Collapse Gen3 (id=3)
+    await user.click(screen.getByTestId('toggle-3'));
 
+    // Gen1-3 visible, Gen4-6 hidden
+    expect(screen.getByText('Gen1')).toBeInTheDocument();
+    expect(screen.getByText('Gen2')).toBeInTheDocument();
+    expect(screen.getByText('Gen3')).toBeInTheDocument();
+    expect(screen.queryByText('Gen4')).not.toBeInTheDocument();
+    expect(screen.queryByText('Gen6')).not.toBeInTheDocument();
+
+    // Re-expand Gen3
+    await user.click(screen.getByTestId('toggle-3'));
+    expect(screen.getByText('Gen4')).toBeInTheDocument();
+  });
+
+  it('child rows have increasing data-depth attributes (6 levels)', () => {
+    const chain = makeChain(6);
+    renderHierarchyList(chain);
+
+    // All expanded by default → depth attributes directly checkable
     for (let gen = 1; gen <= 6; gen++) {
       const row = screen.getByTestId(`entity-row-${gen}`);
       expect(row.getAttribute('data-depth')).toBe(String(gen - 1));
     }
   });
 
-  it('child rows have increasing indentation (6 levels)', async () => {
-    const user = userEvent.setup();
+  it('child rows have increasing indentation (6 levels)', () => {
     const chain = makeChain(6);
     renderHierarchyList(chain);
-
-    // Expand all
-    for (let gen = 1; gen <= 5; gen++) {
-      await user.click(screen.getByTestId(`toggle-${gen}`));
-    }
 
     // Root (depth=0) – no paddingLeft
     const rootCell = screen.getByTestId('entity-row-1').querySelector('td .flex') as HTMLElement;
@@ -531,15 +521,9 @@ describe('EntityListPage – hierarchical rendering', () => {
     }
   });
 
-  it('leaf nodes have invisible toggle buttons', async () => {
-    const user = userEvent.setup();
+  it('leaf nodes have invisible toggle buttons', () => {
     const chain = makeChain(6);
     renderHierarchyList(chain);
-
-    // Expand to leaf
-    for (let gen = 1; gen <= 5; gen++) {
-      await user.click(screen.getByTestId(`toggle-${gen}`));
-    }
 
     // Gen6 is the leaf – toggle should be invisible
     const leafToggle = screen.getByTestId('toggle-6');
@@ -572,9 +556,7 @@ describe('EntityListPage – hierarchical rendering', () => {
     expect(screen.queryByTestId('toggle-1')).not.toBeInTheDocument();
   });
 
-  it('renders a broad tree with 6+ generations correctly', async () => {
-    const user = userEvent.setup();
-    // Root → two children → each has a child → each has a child → each has a child → each has a child (6 gens)
+  it('renders a broad tree fully expanded by default', () => {
     const entities = [
       { id: 1, title: 'Root', author: 'Admin', modified: '2026-01-01T00:00:00Z' },
       { id: 2, title: 'L2-A', parent_id: 1, author: 'Admin', modified: '2026-01-01T00:00:00Z' },
@@ -590,22 +572,277 @@ describe('EntityListPage – hierarchical rendering', () => {
     ];
     renderHierarchyList(entities);
 
-    // Only root visible initially
+    // All nodes visible by default
     expect(screen.getByText('Root')).toBeInTheDocument();
-    expect(screen.queryByText('L2-A')).not.toBeInTheDocument();
-
-    // Expand root
-    await user.click(screen.getByTestId('toggle-1'));
     expect(screen.getByText('L2-A')).toBeInTheDocument();
     expect(screen.getByText('L2-B')).toBeInTheDocument();
-
-    // Expand down A-branch
-    await user.click(screen.getByTestId('toggle-2'));
-    await user.click(screen.getByTestId('toggle-4'));
-    await user.click(screen.getByTestId('toggle-6'));
-    await user.click(screen.getByTestId('toggle-8'));
-
     expect(screen.getByText('L6-A')).toBeInTheDocument();
-    expect(screen.getByTestId('entity-row-10').getAttribute('data-depth')).toBe('5'); // 6th generation = depth 5
+    expect(screen.getByText('L6-B')).toBeInTheDocument();
+    expect(screen.getByTestId('entity-row-10').getAttribute('data-depth')).toBe('5');
+  });
+});
+
+// --------------- Filter tests ---------------
+
+const filterSchema = {
+  ...mockSchema,
+  entity_name: 'article',
+  readable_name: { singular: 'Article', plural: 'Articles' },
+  features: {
+    ...mockSchema.features,
+    has_author: true,
+    has_tags: true,
+    has_categories: true,
+  },
+};
+
+const filterEntities = [
+  { id: 1, title: 'React Basics', author: 'Alice', modified: '2026-01-01T00:00:00Z', categories: ['Frontend'], tags: ['react', 'beginner'] },
+  { id: 2, title: 'Node Guide', author: 'Bob', modified: '2026-01-02T00:00:00Z', categories: ['Backend'], tags: ['node', 'beginner'] },
+  { id: 3, title: 'CSS Tips', author: 'Alice', modified: '2026-01-03T00:00:00Z', categories: ['Frontend'], tags: ['css'] },
+  { id: 4, title: 'Database Design', author: 'Carol', modified: '2026-01-04T00:00:00Z', categories: ['Backend', 'Database'], tags: ['sql'] },
+  { id: 5, title: 'Full Stack App', author: 'Bob', modified: '2026-01-05T00:00:00Z', categories: ['Frontend', 'Backend'], tags: ['react', 'node'] },
+];
+
+function renderFilterList() {
+  vi.mocked(useSchema).mockReturnValue({
+    data: filterSchema,
+    isLoading: false,
+    error: null,
+  } as unknown as ReturnType<typeof useSchema>);
+
+  vi.mocked(useEntityList).mockReturnValue({
+    data: filterEntities,
+    isLoading: false,
+    error: null,
+  } as unknown as ReturnType<typeof useEntityList>);
+
+  vi.mocked(useDeleteEntity).mockReturnValue({
+    mutateAsync: vi.fn().mockResolvedValue({}),
+  } as unknown as ReturnType<typeof useDeleteEntity>);
+
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={['/entities/article']}>
+        <Routes>
+          <Route path="/entities/:entityName" element={<EntityListPage />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+describe('EntityListPage – filters', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders filter bar with Author, Category, Tag dropdowns', () => {
+    renderFilterList();
+    expect(screen.getByTestId('filter-bar')).toBeInTheDocument();
+    expect(screen.getByTestId('filter-author-toggle')).toHaveTextContent('Author');
+    expect(screen.getByTestId('filter-category-toggle')).toHaveTextContent('Category');
+    expect(screen.getByTestId('filter-tag-toggle')).toHaveTextContent('Tag');
+  });
+
+  it('does not render filter bar when no author/tags/categories', () => {
+    vi.mocked(useSchema).mockReturnValue({
+      data: {
+        ...filterSchema,
+        features: { ...filterSchema.features, has_author: false, has_tags: false, has_categories: false },
+      },
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useSchema>);
+    vi.mocked(useEntityList).mockReturnValue({
+      data: filterEntities,
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useEntityList>);
+    vi.mocked(useDeleteEntity).mockReturnValue({
+      mutateAsync: vi.fn().mockResolvedValue({}),
+    } as unknown as ReturnType<typeof useDeleteEntity>);
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/entities/article']}>
+          <Routes>
+            <Route path="/entities/:entityName" element={<EntityListPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(screen.queryByTestId('filter-bar')).not.toBeInTheDocument();
+  });
+
+  it('opens author dropdown and shows unique authors sorted', async () => {
+    const user = userEvent.setup();
+    renderFilterList();
+
+    await user.click(screen.getByTestId('filter-author-toggle'));
+    const menu = screen.getByTestId('filter-author-menu');
+    expect(menu).toBeInTheDocument();
+
+    // Alice, Bob, Carol (sorted)
+    const labels = within(menu).getAllByText(/Alice|Bob|Carol/);
+    expect(labels.map(l => l.textContent)).toEqual(['Alice', 'Bob', 'Carol']);
+  });
+
+  it('filtering by author shows only matching entities', async () => {
+    const user = userEvent.setup();
+    renderFilterList();
+
+    // Open author filter and select Alice
+    await user.click(screen.getByTestId('filter-author-toggle'));
+    await user.click(screen.getByTestId('filter-author-option-Alice'));
+
+    expect(screen.getByText('React Basics')).toBeInTheDocument();
+    expect(screen.getByText('CSS Tips')).toBeInTheDocument();
+    expect(screen.queryByText('Node Guide')).not.toBeInTheDocument();
+    expect(screen.queryByText('Database Design')).not.toBeInTheDocument();
+    expect(screen.queryByText('Full Stack App')).not.toBeInTheDocument();
+    expect(screen.getByTestId('filter-count')).toHaveTextContent('Showing 2 of 5');
+  });
+
+  it('filtering by multiple authors combines results', async () => {
+    const user = userEvent.setup();
+    renderFilterList();
+
+    await user.click(screen.getByTestId('filter-author-toggle'));
+    await user.click(screen.getByTestId('filter-author-option-Alice'));
+    await user.click(screen.getByTestId('filter-author-option-Carol'));
+
+    // Alice: React Basics, CSS Tips; Carol: Database Design
+    expect(screen.getByText('React Basics')).toBeInTheDocument();
+    expect(screen.getByText('CSS Tips')).toBeInTheDocument();
+    expect(screen.getByText('Database Design')).toBeInTheDocument();
+    expect(screen.queryByText('Node Guide')).not.toBeInTheDocument();
+    expect(screen.getByTestId('filter-count')).toHaveTextContent('Showing 3 of 5');
+  });
+
+  it('filtering by category shows entities that have any matching category', async () => {
+    const user = userEvent.setup();
+    renderFilterList();
+
+    await user.click(screen.getByTestId('filter-category-toggle'));
+    await user.click(screen.getByTestId('filter-category-option-Database'));
+
+    // Only Database Design has "Database" category
+    expect(screen.getByText('Database Design')).toBeInTheDocument();
+    expect(screen.queryByText('React Basics')).not.toBeInTheDocument();
+  });
+
+  it('filtering by tag shows entities that have any matching tag', async () => {
+    const user = userEvent.setup();
+    renderFilterList();
+
+    await user.click(screen.getByTestId('filter-tag-toggle'));
+    await user.click(screen.getByTestId('filter-tag-option-react'));
+
+    // react tag: React Basics, Full Stack App
+    expect(screen.getByText('React Basics')).toBeInTheDocument();
+    expect(screen.getByText('Full Stack App')).toBeInTheDocument();
+    expect(screen.queryByText('Node Guide')).not.toBeInTheDocument();
+    expect(screen.queryByText('CSS Tips')).not.toBeInTheDocument();
+    expect(screen.getByTestId('filter-count')).toHaveTextContent('Showing 2 of 5');
+  });
+
+  it('combining author + tag filters intersects results', async () => {
+    const user = userEvent.setup();
+    renderFilterList();
+
+    // Filter author: Bob
+    await user.click(screen.getByTestId('filter-author-toggle'));
+    await user.click(screen.getByTestId('filter-author-option-Bob'));
+
+    // Filter tag: react
+    await user.click(screen.getByTestId('filter-tag-toggle'));
+    await user.click(screen.getByTestId('filter-tag-option-react'));
+
+    // Bob + react = Full Stack App only
+    expect(screen.getByText('Full Stack App')).toBeInTheDocument();
+    expect(screen.queryByText('Node Guide')).not.toBeInTheDocument();
+    expect(screen.getByTestId('filter-count')).toHaveTextContent('Showing 1 of 5');
+  });
+
+  it('clear filters button removes all active filters', async () => {
+    const user = userEvent.setup();
+    renderFilterList();
+
+    // Set author filter
+    await user.click(screen.getByTestId('filter-author-toggle'));
+    await user.click(screen.getByTestId('filter-author-option-Alice'));
+    expect(screen.getByTestId('filter-count')).toHaveTextContent('Showing 2 of 5');
+
+    // Click clear
+    await user.click(screen.getByTestId('filter-clear-all'));
+
+    // All entities visible
+    expect(screen.queryByTestId('filter-count')).not.toBeInTheDocument();
+    expect(screen.getByText('React Basics')).toBeInTheDocument();
+    expect(screen.getByText('Node Guide')).toBeInTheDocument();
+    expect(screen.getByText('Database Design')).toBeInTheDocument();
+  });
+
+  it('deselecting a filter option removes it', async () => {
+    const user = userEvent.setup();
+    renderFilterList();
+
+    await user.click(screen.getByTestId('filter-author-toggle'));
+    await user.click(screen.getByTestId('filter-author-option-Alice'));
+    expect(screen.getByTestId('filter-count')).toHaveTextContent('Showing 2 of 5');
+
+    // Deselect Alice
+    await user.click(screen.getByTestId('filter-author-option-Alice'));
+    expect(screen.queryByTestId('filter-count')).not.toBeInTheDocument();
+  });
+
+  it('filter button shows badge count when options selected', async () => {
+    const user = userEvent.setup();
+    renderFilterList();
+
+    await user.click(screen.getByTestId('filter-author-toggle'));
+    await user.click(screen.getByTestId('filter-author-option-Alice'));
+    await user.click(screen.getByTestId('filter-author-option-Bob'));
+
+    // Badge should show "2"
+    const toggle = screen.getByTestId('filter-author-toggle');
+    expect(toggle).toHaveTextContent('Author');
+    expect(toggle).toHaveTextContent('2');
+  });
+
+  it('shows empty state message when filters match nothing', async () => {
+    const user = userEvent.setup();
+    renderFilterList();
+
+    // Filter tag: sql + author: Alice (no overlap)
+    await user.click(screen.getByTestId('filter-tag-toggle'));
+    await user.click(screen.getByTestId('filter-tag-option-sql'));
+    await user.click(screen.getByTestId('filter-author-toggle'));
+    await user.click(screen.getByTestId('filter-author-option-Alice'));
+
+    expect(screen.getByText('No results matching current filters')).toBeInTheDocument();
+  });
+
+  it('search and filters work together', async () => {
+    const user = userEvent.setup();
+    renderFilterList();
+
+    // Search for "a" + filter author: Alice
+    const searchInput = screen.getByTestId('search-input');
+    await user.type(searchInput, 'Basics');
+
+    await user.click(screen.getByTestId('filter-author-toggle'));
+    await user.click(screen.getByTestId('filter-author-option-Alice'));
+
+    expect(screen.getByText('React Basics')).toBeInTheDocument();
+    expect(screen.queryByText('CSS Tips')).not.toBeInTheDocument();
+    expect(screen.getByTestId('filter-count')).toHaveTextContent('Showing 1 of 5');
   });
 });

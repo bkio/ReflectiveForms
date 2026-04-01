@@ -75,7 +75,7 @@ public sealed class Select : Field
 
         if (value.Type != JTokenType.String)
         {
-            return Task.FromResult(OperationResult<bool>.Failure($"Field {jNeedleFieldName}: Type is incorrect.", HttpStatusCode.BadRequest));
+            return Task.FromResult(OperationResult<bool>.Failure($"{Label}: Type is incorrect.", HttpStatusCode.BadRequest));
         }
 
         var casted = (haystack[jNeedleFieldName]?.Value<string>()).NotNull();
@@ -87,8 +87,8 @@ public sealed class Select : Field
                 return Task.FromResult(OperationResult<bool>.Success(true));
 
             return Task.FromResult(OperationResult<bool>.Failure(casted.Length == 0
-                ? $"Field {jNeedleFieldName}: Mandatory to choose an option."
-                : $"Field {jNeedleFieldName}: Unexpected choice {casted}.", HttpStatusCode.BadRequest));
+                ? $"{Label}: Mandatory to choose an option."
+                : $"{Label}: Unexpected choice {casted}.", HttpStatusCode.BadRequest));
         }
 
         return Task.FromResult(OperationResult<bool>.Success(true));

@@ -31,6 +31,8 @@ public static class RfEndpointMapper
     internal const string MediaEndpoint = "media";
     internal const string LoginEndpoint = "login";
     internal const string LogoutEndpoint = "logout";
+    internal const string AuthCheckEndpoint = "auth_check";
+    internal const string CapabilitiesEndpoint = "capabilities";
     internal const string SchemaEndpoint = "schema";
 
     public static string PublicCrudEndpoint => RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + CrudEndpoint;
@@ -38,6 +40,8 @@ public static class RfEndpointMapper
     public static string PublicEntityLockControlEndpoint => RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + EntityLockControlEndpoint;
     public static string PublicLoginEndpoint => RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + LoginEndpoint;
     public static string PublicLogoutEndpoint => RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + LogoutEndpoint;
+    public static string PublicAuthCheckEndpoint => RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + AuthCheckEndpoint;
+    public static string PublicCapabilitiesEndpoint => RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + CapabilitiesEndpoint;
     public static string PublicSchemaEndpoint => RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + SchemaEndpoint;
 
     private static WebApplication MapEndpoints(WebApplication app)
@@ -51,6 +55,8 @@ public static class RfEndpointMapper
         MapEndpoint(group, SchemaEndpoint, new SchemaEndpoint());
         MapEndpoint(group, LoginEndpoint, new Login());
         MapEndpoint(group, LogoutEndpoint, new Logout());
+        MapEndpoint(group, AuthCheckEndpoint, new AuthCheck());
+        MapEndpoint(group, CapabilitiesEndpoint, new Capabilities());
 
         return app;
     }

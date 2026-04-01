@@ -9,8 +9,9 @@ import {
   updateEntity,
   deleteEntity,
   sanityCheck,
+  fetchCapabilities,
 } from '../api/client';
-import { EntityData, EntitySchema, PaginatedPeekResponse } from '../types/schema';
+import { EntityData, EntitySchema, PaginatedPeekResponse, AllCapabilities } from '../types/schema';
 
 // Schema hooks
 export function useSchema(entityName: string) {
@@ -34,6 +35,19 @@ export function useAllSchemas() {
       return result.data as Record<string, EntitySchema>;
     },
     staleTime: 1000 * 60 * 60,
+  });
+}
+
+// Capabilities hook
+export function useCapabilities() {
+  return useQuery({
+    queryKey: ['capabilities'],
+    queryFn: async () => {
+      const result = await fetchCapabilities();
+      if (result.error) throw new Error(result.error);
+      return result.data as AllCapabilities;
+    },
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
   });
 }
 
@@ -85,8 +99,13 @@ export function useCreateEntity(entityName: string) {
 
   return useMutation({
     mutationFn: (data: Partial<EntityData>) => createEntity(entityName, data),
-    onSuccess: () => {
+    onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['entities', entityName] });
+      // Pre-populate the entity cache so the edit page renders immediately
+      // without a loading flash after navigation.
+      if (response.data?.id) {
+        queryClient.setQueryData(['entity', entityName, response.data.id], response.data);
+      }
     },
   });
 }

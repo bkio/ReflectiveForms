@@ -25,6 +25,7 @@ export { SsoLoginPage } from '../pages/SsoLoginPage';
 export {
   useSchema,
   useAllSchemas,
+  useCapabilities,
   useEntity,
   useEntityList,
   useCreateEntity,
@@ -57,4 +58,6 @@ export type {
   EntityData,
   PeekEntity,
   PaginatedPeekResponse,
+  EntityCapabilities,
+  AllCapabilities,
 } from '../types/schema';

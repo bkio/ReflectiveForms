@@ -245,6 +245,9 @@ public class RepeaterFieldOptions
     [JsonProperty("use_accordion")]
     public bool UseAccordion { get; init; }
 
+    [JsonProperty("sticky_title_field")]
+    public string? StickyTitleField { get; init; }
+
     [JsonProperty("render_style")]
     [JsonConverter(typeof(StringEnumConverter))]
     public GroupRenderStyleSchema RenderStyle { get; init; }
@@ -254,6 +257,9 @@ public class GroupFieldOptions
 {
     [JsonProperty("child_schema")]
     public required List<FieldSchema> ChildSchema { get; init; }
+
+    [JsonProperty("sticky_title_field")]
+    public string? StickyTitleField { get; init; }
 
     [JsonProperty("render_style")]
     [JsonConverter(typeof(StringEnumConverter))]

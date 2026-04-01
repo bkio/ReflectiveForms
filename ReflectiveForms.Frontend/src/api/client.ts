@@ -1,4 +1,4 @@
-import { EntitySchema, EntityData, PeekEntity, PaginatedPeekResponse } from '../types/schema';
+import { EntitySchema, EntityData, PeekEntity, PaginatedPeekResponse, AllCapabilities } from '../types/schema';
 
 let _apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:9000/rf/api';
 
@@ -178,18 +178,19 @@ export async function logout(): Promise<ApiResponse<{ message: string }>> {
 
 export async function checkAuth(): Promise<boolean> {
   try {
-    const response = await fetch(
-      `${_apiBaseUrl}/crud?operation=PEEK_ALL_PAGINATED&type=_auth_check&page_size=1`,
-      {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: '{}',
-      },
-    );
-    // 401 = not authenticated; any other status (even 400/404) means session is valid
-    return response.status !== 401;
+    const response = await fetch(`${_apiBaseUrl}/auth_check`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    return response.ok;
   } catch {
     return false;
   }
+}
+
+// Capabilities API
+export async function fetchCapabilities(): Promise<ApiResponse<AllCapabilities>> {
+  return fetchApi<AllCapabilities>('/capabilities', {
+    method: 'POST',
+  });
 }

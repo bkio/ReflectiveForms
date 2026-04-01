@@ -40,7 +40,7 @@ public sealed class MediaSourceBase64 : Field
         {
             return Task.FromResult(!_mandatory
                 ? OperationResult<bool>.Success(true)
-                : OperationResult<bool>.Failure($"Field {jNeedleFieldName} is mandatory and missing.", HttpStatusCode.BadRequest));
+                : OperationResult<bool>.Failure($"{Label} is mandatory and missing.", HttpStatusCode.BadRequest));
         }
 
         if (!_mandatory && value.Type == JTokenType.Null)
@@ -48,14 +48,14 @@ public sealed class MediaSourceBase64 : Field
 
         if (haystack[jNeedleFieldName] is not { Type: JTokenType.String })
         {
-            return Task.FromResult(OperationResult<bool>.Failure($"Field {jNeedleFieldName}: Type is incorrect.", HttpStatusCode.BadRequest));
+            return Task.FromResult(OperationResult<bool>.Failure($"{Label}: Type is incorrect.", HttpStatusCode.BadRequest));
         }
 
         var casted = (haystack[jNeedleFieldName]?.Value<string>()).NotNull();
         if (casted.Length == 0)
         {
             return Task.FromResult(_mandatory
-                ? OperationResult<bool>.Failure($"Field {jNeedleFieldName}: Cannot be unset.", HttpStatusCode.BadRequest)
+                ? OperationResult<bool>.Failure($"{Label}: Cannot be unset.", HttpStatusCode.BadRequest)
                 : OperationResult<bool>.Success(true));
         }
 
@@ -84,7 +84,7 @@ public sealed class MediaSourceBase64 : Field
         }
         catch (Exception e)
         {
-            return Task.FromResult(OperationResult<bool>.Failure($"Field {jNeedleFieldName}: {e.Message}", HttpStatusCode.BadRequest));
+            return Task.FromResult(OperationResult<bool>.Failure($"{Label}: {e.Message}", HttpStatusCode.BadRequest));
         }
 
         return Task.FromResult(OperationResult<bool>.Success(true));

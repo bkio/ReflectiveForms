@@ -1,8 +1,8 @@
 import { useParams, Link } from 'react-router-dom';
-import { Trash2, Edit, Copy, Plus, ChevronLeft, ChevronRight, Eye, Search, X, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown as ChevronDownIcon, ChevronRight as ChevronRightIcon } from 'lucide-react';
-import { useSchema, useEntityList, useDeleteEntity } from '../hooks/useEntity';
+import { Trash2, Edit, Copy, Plus, ChevronLeft, ChevronRight, Eye, Search, X, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown as ChevronDownIcon, ChevronRight as ChevronRightIcon, Filter } from 'lucide-react';
+import { useSchema, useEntityList, useDeleteEntity, useCapabilities } from '../hooks/useEntity';
 import { toast } from 'sonner';
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { PeekEntity } from '../types/schema';
 
 const PAGE_SIZE = 20;
@@ -74,6 +74,21 @@ function flattenTree(roots: TreeNode[], expanded: Set<number>): TreeNode[] {
   return result;
 }
 
+/** Collect IDs of all nodes that have children (for expand-all). */
+function collectParentIds(roots: TreeNode[]): Set<number> {
+  const ids = new Set<number>();
+  function walk(nodes: TreeNode[]) {
+    for (const node of nodes) {
+      if (node.children.length > 0) {
+        ids.add(node.entity.id);
+        walk(node.children);
+      }
+    }
+  }
+  walk(roots);
+  return ids;
+}
+
 function formatDate(dateStr: string | undefined): string {
   if (!dateStr) return '-';
   try {
@@ -91,20 +106,63 @@ export function EntityListPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState<SortConfig>({ column: 'modified', direction: 'desc' });
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [selectedAuthors, setSelectedAuthors] = useState<Set<string>>(new Set());
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
 
   const { data: schema, isLoading: schemaLoading } = useSchema(entityName ?? '');
   const { data: allEntities, isLoading: entitiesLoading } = useEntityList(entityName ?? '');
+  const { data: capabilities } = useCapabilities();
   const deleteMutation = useDeleteEntity(entityName ?? '');
 
   const hasAuthor = schema?.features.has_author ?? false;
   const hasParentChild = schema?.features.has_parent_child ?? false;
+  const hasTags = schema?.features.has_tags ?? false;
+  const hasCategories = schema?.features.has_categories ?? false;
+
+  // Extract unique filter values from all entities
+  const uniqueAuthors = useMemo(() => {
+    if (!allEntities || !hasAuthor) return [];
+    const set = new Set<string>();
+    for (const e of allEntities) {
+      if (e.author) set.add(e.author);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [allEntities, hasAuthor]);
+
+  const uniqueCategories = useMemo(() => {
+    if (!allEntities || !hasCategories) return [];
+    const set = new Set<string>();
+    for (const e of allEntities) {
+      if (e.categories) for (const c of e.categories) set.add(c);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [allEntities, hasCategories]);
+
+  const uniqueTags = useMemo(() => {
+    if (!allEntities || !hasTags) return [];
+    const set = new Set<string>();
+    for (const e of allEntities) {
+      if (e.tags) for (const t of e.tags) set.add(t);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [allEntities, hasTags]);
+
+  const hasActiveFilters = selectedAuthors.size > 0 || selectedCategories.size > 0 || selectedTags.size > 0;
+
+  const clearAllFilters = useCallback(() => {
+    setSelectedAuthors(new Set());
+    setSelectedCategories(new Set());
+    setSelectedTags(new Set());
+    setCurrentPage(0);
+  }, []);
 
   // Filter → Sort → Paginate pipeline
   const filteredAndSorted = useMemo(() => {
     if (!allEntities) return [];
     let result = [...allEntities];
 
-    // Filter
+    // Text search filter
     if (searchTerm.trim()) {
       const term = searchTerm.trim().toLowerCase();
       result = result.filter(e => {
@@ -112,6 +170,25 @@ export function EntityListPage() {
         const author = (e.author ?? '').toLowerCase();
         return title.includes(term) || author.includes(term);
       });
+    }
+
+    // Author filter
+    if (selectedAuthors.size > 0) {
+      result = result.filter(e => e.author != null && selectedAuthors.has(e.author));
+    }
+
+    // Category filter (entity matches if it has ANY of the selected categories)
+    if (selectedCategories.size > 0) {
+      result = result.filter(e =>
+        e.categories != null && e.categories.some(c => selectedCategories.has(c))
+      );
+    }
+
+    // Tag filter (entity matches if it has ANY of the selected tags)
+    if (selectedTags.size > 0) {
+      result = result.filter(e =>
+        e.tags != null && e.tags.some(t => selectedTags.has(t))
+      );
     }
 
     // Sort
@@ -141,13 +218,25 @@ export function EntityListPage() {
     });
 
     return result;
-  }, [allEntities, searchTerm, sortConfig]);
+  }, [allEntities, searchTerm, sortConfig, selectedAuthors, selectedCategories, selectedTags]);
 
   // Build tree for hierarchical entities
   const entityTree = useMemo(() => {
     if (!hasParentChild) return null;
     return buildEntityTree(filteredAndSorted);
   }, [hasParentChild, filteredAndSorted]);
+
+  // Expand all parent nodes by default when tree data loads
+  const hasSeededExpanded = useRef(false);
+  useEffect(() => {
+    if (entityTree && !hasSeededExpanded.current) {
+      const parentIds = collectParentIds(entityTree);
+      if (parentIds.size > 0) {
+        setExpanded(parentIds);
+      }
+      hasSeededExpanded.current = true;
+    }
+  }, [entityTree]);
 
   // Flatten tree based on expanded state (for hierarchical rendering)
   const flattenedTree = useMemo(() => {
@@ -210,6 +299,11 @@ export function EntityListPage() {
   }
 
   const isEditable = schema?.features.supports_frontend_edit ?? true;
+  const caps = entityName ? capabilities?.[entityName] : undefined;
+  const canCreate = isEditable && (caps?.can_create ?? true);
+  const canRead = caps?.can_read ?? true;
+  const canUpdate = isEditable && (caps?.can_update ?? true);
+  const canDelete = isEditable && (caps?.can_delete ?? true);
 
   function SortIcon({ column }: { column: SortColumn }) {
     if (sortConfig.column !== column) return <ArrowUpDown className="w-3.5 h-3.5 ml-1 text-gray-400" />;
@@ -229,7 +323,7 @@ export function EntityListPage() {
             </h1>
             <p className="mt-1 text-sm text-gray-500">{totalAll} total</p>
           </div>
-          {isEditable && (
+          {canCreate && (
             <Link
               to={`/entities-admin/${entityName}?id=new`}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
@@ -262,12 +356,59 @@ export function EntityListPage() {
               </button>
             )}
           </div>
-          {searchTerm && (
+          {(searchTerm || hasActiveFilters) && (
             <p className="mt-1 text-xs text-gray-500" data-testid="filter-count">
               Showing {totalFiltered} of {totalAll}
             </p>
           )}
         </div>
+
+        {/* Filters */}
+        {(hasAuthor || hasCategories || hasTags) && (
+          <div className="mb-4 flex flex-wrap items-center gap-3" data-testid="filter-bar">
+            <Filter className="w-4 h-4 text-gray-400 flex-shrink-0" />
+
+            {hasAuthor && uniqueAuthors.length > 0 && (
+              <FilterDropdown
+                label="Author"
+                options={uniqueAuthors}
+                selected={selectedAuthors}
+                onChange={(v) => { setSelectedAuthors(v); setCurrentPage(0); }}
+                testId="filter-author"
+              />
+            )}
+
+            {hasCategories && uniqueCategories.length > 0 && (
+              <FilterDropdown
+                label="Category"
+                options={uniqueCategories}
+                selected={selectedCategories}
+                onChange={(v) => { setSelectedCategories(v); setCurrentPage(0); }}
+                testId="filter-category"
+              />
+            )}
+
+            {hasTags && uniqueTags.length > 0 && (
+              <FilterDropdown
+                label="Tag"
+                options={uniqueTags}
+                selected={selectedTags}
+                onChange={(v) => { setSelectedTags(v); setCurrentPage(0); }}
+                testId="filter-tag"
+              />
+            )}
+
+            {hasActiveFilters && (
+              <button
+                onClick={clearAllFilters}
+                className="text-xs text-gray-500 hover:text-gray-700 underline"
+                data-testid="filter-clear-all"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Table */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -334,9 +475,11 @@ export function EntityListPage() {
                         </button>
                       )}
                       <Link
-                        to={isEditable
+                        to={canUpdate
                           ? `/entities-admin/${entityName}?id=${entity.id}`
-                          : `/entities-view/${entityName}?id=${entity.id}`}
+                          : canRead
+                          ? `/entities-view/${entityName}?id=${entity.id}`
+                          : `#`}
                         className="text-blue-600 hover:text-blue-800 font-medium"
                       >
                         {entity.title ?? entity.name ?? `ID: ${entity.id}`}
@@ -353,14 +496,16 @@ export function EntityListPage() {
                   </td>
                   <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex justify-end gap-1 sm:gap-2">
-                      <Link
-                        to={`/entities-view/${entityName}?id=${entity.id}`}
-                        className="p-2 text-gray-500 hover:text-purple-600 rounded-md hover:bg-purple-50 transition-colors"
-                        title="View"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </Link>
-                      {isEditable && (
+                      {canRead && (
+                        <Link
+                          to={`/entities-view/${entityName}?id=${entity.id}`}
+                          className="p-2 text-gray-500 hover:text-purple-600 rounded-md hover:bg-purple-50 transition-colors"
+                          title="View"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Link>
+                      )}
+                      {canUpdate && (
                         <>
                           <Link
                             to={`/entities-admin/${entityName}?id=${entity.id}`}
@@ -369,6 +514,9 @@ export function EntityListPage() {
                           >
                             <Edit className="w-4 h-4" />
                           </Link>
+                        </>
+                      )}
+                      {canCreate && (
                           <Link
                             to={`/entities-admin/${entityName}?id=clone_from_${entity.id}`}
                             className="p-2 text-gray-500 hover:text-green-600 rounded-md hover:bg-green-50 transition-colors"
@@ -376,6 +524,8 @@ export function EntityListPage() {
                           >
                             <Copy className="w-4 h-4" />
                           </Link>
+                      )}
+                      {canDelete && (
                           <button
                             onClick={() => handleDelete(entity.id, entity.title ?? entity.name ?? '')}
                             className="p-2 text-gray-500 hover:text-red-600 rounded-md hover:bg-red-50 transition-colors"
@@ -383,7 +533,6 @@ export function EntityListPage() {
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
-                        </>
                       )}
                     </div>
                   </td>
@@ -392,10 +541,10 @@ export function EntityListPage() {
               {pageItems.length === 0 && (
                 <tr>
                   <td colSpan={hasAuthor ? 4 : 3} className="px-6 py-8 text-center text-gray-500">
-                    {searchTerm
-                      ? `No results for "${searchTerm}"`
+                    {(searchTerm || hasActiveFilters)
+                      ? `No results matching current filters`
                       : <>No {schema?.readable_name.plural.toLowerCase() ?? 'entities'} found.
-                        {isEditable && (
+                        {canCreate && (
                           <Link
                             to={`/entities-admin/${entityName}?id=new`}
                             className="ml-2 text-blue-600 hover:text-blue-800"
@@ -415,7 +564,7 @@ export function EntityListPage() {
             <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-t border-gray-200 bg-gray-50">
               <div className="text-sm text-gray-500">
                 Page {currentPage + 1} of {totalPages}
-                {searchTerm && <span className="ml-2">({totalFiltered} results)</span>}
+                {(searchTerm || hasActiveFilters) && <span className="ml-2">({totalFiltered} results)</span>}
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -439,6 +588,83 @@ export function EntityListPage() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ---- Filter dropdown component ----
+
+interface FilterDropdownProps {
+  label: string;
+  options: string[];
+  selected: Set<string>;
+  onChange: (next: Set<string>) => void;
+  testId: string;
+}
+
+function FilterDropdown({ label, options, selected, onChange, testId }: FilterDropdownProps) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const toggle = (value: string) => {
+    const next = new Set(selected);
+    if (next.has(value)) next.delete(value); else next.add(value);
+    onChange(next);
+  };
+
+  const count = selected.size;
+
+  return (
+    <div className="relative" ref={ref} data-testid={testId}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className={`
+          inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border rounded-md transition-colors
+          ${count > 0
+            ? 'border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100'
+            : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}
+        `}
+        data-testid={`${testId}-toggle`}
+      >
+        {label}
+        {count > 0 && (
+          <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-medium bg-blue-600 text-white rounded-full">
+            {count}
+          </span>
+        )}
+        <ChevronDownIcon className="w-3.5 h-3.5" />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 mt-1 w-56 bg-white border border-gray-200 rounded-md shadow-lg z-20 max-h-60 overflow-y-auto" data-testid={`${testId}-menu`}>
+          {options.map(opt => (
+            <label
+              key={opt}
+              className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm text-gray-700"
+            >
+              <input
+                type="checkbox"
+                checked={selected.has(opt)}
+                onChange={() => toggle(opt)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                data-testid={`${testId}-option-${opt}`}
+              />
+              <span className="truncate">{opt}</span>
+            </label>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

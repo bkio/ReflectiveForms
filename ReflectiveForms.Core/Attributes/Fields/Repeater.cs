@@ -87,19 +87,19 @@ public sealed class Repeater : Field
 
         if (haystack[jNeedleFieldName] is not { Type: JTokenType.Array })
         {
-            return OperationResult<bool>.Failure($"Field {jNeedleFieldName}: Type is not array.", HttpStatusCode.BadRequest);
+            return OperationResult<bool>.Failure($"{Label}: Type is not array.", HttpStatusCode.BadRequest);
         }
 
         var casted = (JArray)haystack[jNeedleFieldName].NotNull();
 
         if (MinimumRows.HasValue && casted.Count < MinimumRows.Value)
         {
-            return OperationResult<bool>.Failure($"Field {jNeedleFieldName}: Should have at least {MinimumRows.Value} elements. (Has {casted.Count})", HttpStatusCode.BadRequest);
+            return OperationResult<bool>.Failure($"{Label}: Should have at least {MinimumRows.Value} elements. (Has {casted.Count})", HttpStatusCode.BadRequest);
         }
 
         if (MaximumRows.HasValue && casted.Count > MaximumRows)
         {
-            return OperationResult<bool>.Failure($"Field {jNeedleFieldName}: Could have maximum {MaximumRows} elements. (Has {casted.Count})", HttpStatusCode.BadRequest);
+            return OperationResult<bool>.Failure($"{Label}: Could have maximum {MaximumRows} elements. (Has {casted.Count})", HttpStatusCode.BadRequest);
         }
 
         var i = 0;
@@ -107,7 +107,7 @@ public sealed class Repeater : Field
         {
             if (arrayItemToken.Type != JTokenType.Object)
             {
-                return OperationResult<bool>.Failure($"Field {jNeedleFieldName}: Type is array, but found an array element being non-object.", HttpStatusCode.BadRequest);
+                return OperationResult<bool>.Failure($"{Label}: Type is array, but found an array element being non-object.", HttpStatusCode.BadRequest);
             }
 
             var arrayItemCasted = (JObject)arrayItemToken;

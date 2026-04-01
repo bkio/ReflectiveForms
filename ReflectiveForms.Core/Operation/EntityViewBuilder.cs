@@ -29,7 +29,9 @@ internal static class EntityViewBuilder
         bool isForReserveParentElement,
         CancellationToken cancellationToken)
     {
-        var fields = groupFor.GetFields(BindingFlags.Instance | BindingFlags.Public);
+        var fields = groupFor.GetFields(BindingFlags.Instance | BindingFlags.Public)
+            .Cast<MemberInfo>()
+            .Concat(groupFor.GetProperties(BindingFlags.Instance | BindingFlags.Public));
 
         var rowForAllElements = groupContainerElement.CreateRow(createElement);
 
@@ -174,7 +176,9 @@ internal static class EntityViewBuilder
         EntityOperationState operationState,
         CancellationToken cancellationToken)
     {
-        var fields = groupFor.GetFields(BindingFlags.Instance | BindingFlags.Public);
+        var fields = groupFor.GetFields(BindingFlags.Instance | BindingFlags.Public)
+            .Cast<MemberInfo>()
+            .Concat(groupFor.GetProperties(BindingFlags.Instance | BindingFlags.Public));
 
         var rowForAllElements = groupContainerElement.CreateRow(createElement);
 

@@ -17,6 +17,7 @@ namespace ReflectiveForms.Sample1.Models;
 /// <summary>
 /// Nested model for SEO metadata – demonstrates Group with Grid layout.
 /// </summary>
+[StickyTitle("meta_title")]
 internal class SeoMetadataModel : BaseModel
 {
     [JsonProperty("meta_title"),
@@ -55,6 +56,7 @@ internal class SeoMetadataModel : BaseModel
 /// <summary>
 /// Nested model for external links within a post.
 /// </summary>
+[StickyTitle("link_title")]
 internal class ExternalLinkModel : BaseModel
 {
     [JsonProperty("link_title"),
@@ -174,6 +176,7 @@ internal class BlogPostModel : EntityFieldsModel
          addButtonLabel: "Add External Link",
          minimumRows: 0,
          maximumRows: 10,
+         groupRenderStyle: GroupRenderStyle.Grid2ElementsInRow,
          useAccordion: RepeatUseAccordion.No)]
     public List<ExternalLinkModel> ExternalLinks = [];
 

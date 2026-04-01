@@ -24,6 +24,16 @@ export interface EntityFeatures {
   supports_frontend_edit: boolean;
 }
 
+export interface EntityCapabilities {
+  can_peek_all: boolean;
+  can_read: boolean;
+  can_create: boolean;
+  can_update: boolean;
+  can_delete: boolean;
+}
+
+export type AllCapabilities = Record<string, EntityCapabilities>;
+
 export interface ApiEndpoints {
   crud: string;
   sanity_check: string;
@@ -111,11 +121,13 @@ export interface RepeaterFieldOptions {
   max_items?: number;
   add_button_label: string;
   use_accordion: boolean;
+  sticky_title_field?: string;
   render_style: GroupRenderStyle;
 }
 
 export interface GroupFieldOptions {
   child_schema: FieldSchema[];
+  sticky_title_field?: string;
   render_style: GroupRenderStyle;
 }
 

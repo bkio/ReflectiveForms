@@ -39,6 +39,7 @@ namespace ReflectiveForms.Sample1.Models;
 /// <summary>
 /// Level 3: Individual choice within a question
 /// </summary>
+[StickyTitle("choice_label")]
 internal class SurveyChoiceModel : BaseModel
 {
     [JsonProperty("choice_label"),
@@ -70,6 +71,7 @@ internal class SurveyChoiceModel : BaseModel
 /// <summary>
 /// Level 2: Individual question within a section
 /// </summary>
+[StickyTitle("question_text")]
 internal class SurveyQuestionModel : BaseModel
 {
     [JsonProperty("question_text"),
@@ -140,6 +142,7 @@ internal class SurveyQuestionModel : BaseModel
          addButtonLabel: "Add Choice",
          minimumRows: 2,
          maximumRows: 8,
+         groupRenderStyle: GroupRenderStyle.Grid3ElementsInRow,
          useAccordion: RepeatUseAccordion.No)]
     public List<SurveyChoiceModel>? Choices = null;
 }
@@ -147,6 +150,7 @@ internal class SurveyQuestionModel : BaseModel
 /// <summary>
 /// Level 1: Section containing questions
 /// </summary>
+[StickyTitle("section_title")]
 internal class SurveySectionModel : BaseModel
 {
     [JsonProperty("section_title"),
@@ -212,7 +216,8 @@ internal class SurveySectionModel : BaseModel
          repeaterFor: typeof(SurveyQuestionModel),
          addButtonLabel: "Add Question",
          minimumRows: 1,
-         maximumRows: 20)]
+         maximumRows: 20,
+         useAccordion: RepeatUseAccordion.Yes)]
     public List<SurveyQuestionModel> Questions = [];
 }
 
@@ -275,6 +280,7 @@ internal class SurveyModel : EntityFieldsModel
          repeaterFor: typeof(SurveySectionModel),
          addButtonLabel: "Add Section",
          minimumRows: 1,
-         maximumRows: 10)]
+         maximumRows: 10,
+         useAccordion: RepeatUseAccordion.Yes)]
     public List<SurveySectionModel> Sections = [];
 }

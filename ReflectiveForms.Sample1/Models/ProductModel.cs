@@ -17,6 +17,7 @@ namespace ReflectiveForms.Sample1.Models;
 /// <summary>
 /// Product specification row – used in a Repeater.
 /// </summary>
+[StickyTitle("spec_name")]
 internal class ProductSpecModel : BaseModel
 {
     [JsonProperty("spec_name"),
@@ -39,6 +40,7 @@ internal class ProductSpecModel : BaseModel
 /// <summary>
 /// Product variant – demonstrates Repeater with nested Group.
 /// </summary>
+[StickyTitle("variant_name")]
 internal class ProductVariantModel : BaseModel
 {
     [JsonProperty("variant_name"),
@@ -88,6 +90,7 @@ internal class ProductVariantModel : BaseModel
 /// <summary>
 /// Product gallery image – used in a Repeater.
 /// </summary>
+[StickyTitle("caption")]
 internal class GalleryImageModel : BaseModel
 {
     [JsonProperty("image"),
@@ -241,7 +244,8 @@ internal class ProductModel : EntityFieldsModel
          addButtonLabel: "Add Gallery Image",
          minimumRows: 0,
          maximumRows: 20,
-         useAccordion: RepeatUseAccordion.Yes)]
+         groupRenderStyle: GroupRenderStyle.Grid3ElementsInRow,
+         useAccordion: RepeatUseAccordion.No)]
     public List<GalleryImageModel> Gallery = [];
 
     [JsonProperty("base_price"),

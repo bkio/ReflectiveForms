@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useForm, FormProvider, UseFormReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
@@ -80,32 +80,10 @@ export function DynamicForm({ schema, initialData, entityId, onSuccess }: Dynami
     return values;
   }, [form, normalizeDates, isCreateMode, entityId]);
 
-  // Build a mapping of field technical names to readable labels
-  const fieldLabelMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    const addFields = (fields: EntitySchema['fields'], prefix = '') => {
-      for (const f of fields) {
-        map[prefix + f.name] = f.label;
-        if (f.group_options?.child_schema) {
-          addFields(f.group_options.child_schema, `${prefix}${f.name}.`);
-        }
-      }
-    };
-    addFields(schema.fields);
-    return map;
-  }, [schema.fields]);
-
-  // Replace technical field names in error messages with readable labels
-  // and strip the backend "Sanity check for X, entity id: N has failed with" prefix
+  // Strip the backend "Sanity check for X, entity id: N has failed with" prefix
   const humanizeError = useCallback(
-    (msg: string): string => {
-      const cleaned = msg.replace(/^Sanity check for .+ has failed with\s*/i, '');
-      return cleaned.replace(/Field\s+-?([a-z0-9_.]+)-?:/gi, (_match, name: string) => {
-        const label = fieldLabelMap[name];
-        return label ? `${label}:` : _match;
-      });
-    },
-    [fieldLabelMap],
+    (msg: string): string => humanizeSanityError(msg),
+    [],
   );
 
   // Sanity check callback for autosave
@@ -147,22 +125,49 @@ export function DynamicForm({ schema, initialData, entityId, onSuccess }: Dynami
     enabled: !isFormDisabled,
   });
 
-  // Track if form is dirty and trigger autosave on blur
+  // Track dirty state and trigger autosave on blur OR debounced value commit.
+  // Blur covers text inputs; debounce covers Controller-based fields (Select,
+  // Relation, Wysiwyg, Media, Repeater) that don't emit focus/blur.
+  //
+  // IMPORTANT: autoSave is a new object every render (spread of state + callbacks).
+  // We use a ref so the debounce timer and blur handler always call the latest
+  // triggerAutoSave without the useEffect re-running and clearing the timer.
   const isDirtyRef = useRef(false);
+  const commitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const triggerAutoSaveRef = useRef(autoSave.triggerAutoSave);
+  triggerAutoSaveRef.current = autoSave.triggerAutoSave;
+
   useEffect(() => {
     if (isFormDisabled) return;
     const subscription = form.watch(() => {
       isDirtyRef.current = true;
+
+      // Debounce: if no further change within 600ms, treat as "committed"
+      if (commitTimerRef.current) clearTimeout(commitTimerRef.current);
+      commitTimerRef.current = setTimeout(() => {
+        if (isDirtyRef.current) {
+          isDirtyRef.current = false;
+          triggerAutoSaveRef.current();
+        }
+      }, 600);
     });
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      if (commitTimerRef.current) clearTimeout(commitTimerRef.current);
+    };
   }, [form, isFormDisabled]);
 
   const handleFormBlur = useCallback(() => {
     if (isDirtyRef.current && !isFormDisabled) {
+      // Clear the debounce timer since blur is a more immediate signal
+      if (commitTimerRef.current) {
+        clearTimeout(commitTimerRef.current);
+        commitTimerRef.current = null;
+      }
       isDirtyRef.current = false;
-      autoSave.triggerAutoSave();
+      triggerAutoSaveRef.current();
     }
-  }, [autoSave, isFormDisabled]);
+  }, [isFormDisabled]);
 
   // Manual save
   const handleSubmit = form.handleSubmit(
@@ -350,4 +355,17 @@ function ParentSelect({ form, disabled, entityName, entityId }: { form: UseFormR
       />
     </div>
   );
+}
+
+/**
+ * Humanize a backend sanity-check error message by:
+ * - Stripping the backend prefix ("Sanity check for ... has failed with")
+ * - Stripping raw "Field value: ..." suffixes
+ * - Rewriting "has to be in length between X and Y" → "must be between X and Y characters"
+ */
+export function humanizeSanityError(msg: string, _fieldLabelMap: Record<string, string> = {}): string {
+  let cleaned = msg.replace(/^Sanity check for .+ has failed with\s*/i, '');
+  cleaned = cleaned.replace(/\s*Field value:.*$/i, '');
+  cleaned = cleaned.replace(/has to be in length between (\d+) and (\d+)/gi, 'must be between $1 and $2 characters');
+  return cleaned;
 }

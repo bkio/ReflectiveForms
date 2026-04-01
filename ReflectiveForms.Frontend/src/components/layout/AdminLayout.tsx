@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, Outlet, useParams, useLocation } from 'react-router-dom';
 import { Menu, X, ChevronRight, Home, Sun, Moon, LogOut, FileText, Settings } from 'lucide-react';
-import { useAllSchemas } from '../../hooks/useEntity';
+import { useAllSchemas, useCapabilities } from '../../hooks/useEntity';
 import { useRfConfig } from '../../lib/RfConfigProvider';
 import { useAuth } from '../../hooks/useAuth';
 import type { CustomPage } from '../../lib/types';
@@ -31,6 +31,7 @@ export function AdminLayout() {
   const { entityName: currentEntity } = useParams();
   const location = useLocation();
   const { data: schemas, isLoading } = useAllSchemas();
+  const { data: capabilities } = useCapabilities();
 
   // Auth
   let auth: ReturnType<typeof useAuth> | null = null;
@@ -85,7 +86,9 @@ export function AdminLayout() {
     }
   }, [location.pathname, isMobile]);
 
-  const entityTypes = Object.values(schemas ?? {});
+  const entityTypes = Object.values(schemas ?? {}).filter(
+    (s) => !capabilities || capabilities[s.entity_name]?.can_peek_all
+  );
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 dark:text-gray-100">

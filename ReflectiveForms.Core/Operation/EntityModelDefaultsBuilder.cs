@@ -41,34 +41,37 @@ public static class EntityModelDefaultsBuilder
         fieldsModel.MustSerializeUniqueFieldId = true;
 
         var objectType = fieldsModel.GetType();
-        var fields = objectType.GetFields(BindingFlags.Instance | BindingFlags.Public);
+        var members = objectType.GetFields(BindingFlags.Instance | BindingFlags.Public)
+            .Cast<MemberInfo>()
+            .Concat(objectType.GetProperties(BindingFlags.Instance | BindingFlags.Public));
 
-        foreach (var field in fields)
+        foreach (var member in members)
         {
-            if (!Attribute.IsDefined(field, typeof(Field), true))
+            if (!Attribute.IsDefined(member, typeof(Field), true))
                 continue;
 
-            var fieldAttribute = field.GetCustomAttribute<Field>(true);
+            var fieldAttribute = member.GetCustomAttribute<Field>(true);
+            var memberType = member is FieldInfo fi ? fi.FieldType : ((PropertyInfo)member).PropertyType;
 
             var shouldSerializeMethods = objectType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                           .Where(
-                                m => m.Name == $"ShouldSerialize{field.Name}"
+                                m => m.Name == $"ShouldSerialize{member.Name}"
                                 && m.ReturnType == typeof(bool)
                                 && (m.GetParameters().Length == 0))
                           .ToList();
             if (shouldSerializeMethods is { Count: > 0 })
             {
-                fieldsModel.OverrideShouldSerializeFor(field.Name);
+                fieldsModel.OverrideShouldSerializeFor(member.Name);
             }
 
-            if (field.FieldType.IsGenericType &&
-                field.FieldType.GetGenericTypeDefinition() == typeof(List<>))
+            if (memberType.IsGenericType &&
+                memberType.GetGenericTypeDefinition() == typeof(List<>))
             {
-                var elementType = field.FieldType.GetGenericArguments()[0];
+                var elementType = memberType.GetGenericArguments()[0];
 
                 var defaultElementInstance = Activator.CreateInstance(elementType, nonPublic: true);
 
-                var asList = field.GetValue(fieldsModel).NotNull();
+                var asList = GetMemberValue(member, fieldsModel).NotNull();
 
                 var addMethod = asList.GetType().GetMethod("Add").NotNull();
                 var removeAtMethod = asList.GetType().GetMethod("RemoveAt").NotNull();
@@ -105,21 +108,21 @@ public static class EntityModelDefaultsBuilder
                     await FillEntityFieldsListsWithAtLeastAnElementAsync((EntityFieldsModel)elementInstance, operationState, cancellationToken);
                 }
             }
-            else if (field.FieldType.IsClass && field.FieldType != typeof(string))
+            else if (memberType.IsClass && memberType != typeof(string))
             {
-                var objectInstance = (EntityFieldsModel)field.GetValue(fieldsModel).NotNull();
+                var objectInstance = (EntityFieldsModel)GetMemberValue(member, fieldsModel).NotNull();
                 await FillEntityFieldsListsWithAtLeastAnElementAsync(objectInstance, operationState, cancellationToken);
             }
             else
             {
                 if (fieldAttribute.NotNull().CalculatedDynamicDefaultValueNullable != null)
                 {
-                    field.SetValue(fieldsModel, fieldAttribute.NotNull().CalculatedDynamicDefaultValueNullable);
+                    SetMemberValue(member, fieldsModel, fieldAttribute.NotNull().CalculatedDynamicDefaultValueNullable);
                 }
                 else
                 {
                     var ddvFound = false;
-                    var dynamicDefaultValueFunction = fieldsModel.GetType().GetMethod($"{field.Name}___DynamicDefaultValueAsync");
+                    var dynamicDefaultValueFunction = fieldsModel.GetType().GetMethod($"{member.Name}___DynamicDefaultValueAsync");
                     if (dynamicDefaultValueFunction != null)
                     {
                         var dynamicDefaultValueTask = (Task<object?>)dynamicDefaultValueFunction.Invoke(
@@ -131,7 +134,7 @@ public static class EntityModelDefaultsBuilder
                         if (newDefaultValue != null)
                         {
                             fieldAttribute.NotNull().CalculatedDynamicDefaultValueNullable = newDefaultValue;
-                            field.SetValue(fieldsModel, newDefaultValue);
+                            SetMemberValue(member, fieldsModel, newDefaultValue);
                             ddvFound = true;
                         }
                     }
@@ -139,11 +142,22 @@ public static class EntityModelDefaultsBuilder
                     {
                         fieldAttribute.NotNull().SetDefaultValue(operationState, obj =>
                         {
-                            field.SetValue(fieldsModel, obj);
+                            SetMemberValue(member, fieldsModel, obj);
                         });
                     }
                 }
             }
+        }
+
+        return;
+
+        static object? GetMemberValue(MemberInfo m, object obj) =>
+            m is FieldInfo f ? f.GetValue(obj) : ((PropertyInfo)m).GetValue(obj);
+
+        static void SetMemberValue(MemberInfo m, object obj, object? value)
+        {
+            if (m is FieldInfo f) f.SetValue(obj, value);
+            else ((PropertyInfo)m).SetValue(obj, value);
         }
     }
 

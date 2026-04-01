@@ -402,4 +402,343 @@ describe('RepeaterField', () => {
       }
     });
   });
+
+  describe('sticky title field', () => {
+    const stickySchema: FieldSchema = {
+      name: 'sessions',
+      type: 'Repeater',
+      label: 'Sessions',
+      required: false,
+      has_dynamic_choices_runtime: false,
+      has_dynamic_choices_compile_time: false,
+      has_logic_sanity_check: false,
+      repeater_options: {
+        item_schema: [
+          {
+            name: 'session_title',
+            type: 'Text',
+            label: 'Session Title',
+            required: false,
+            has_dynamic_choices_runtime: false,
+            has_dynamic_choices_compile_time: false,
+            has_logic_sanity_check: false,
+          },
+          {
+            name: 'speaker',
+            type: 'Text',
+            label: 'Speaker',
+            required: false,
+            has_dynamic_choices_runtime: false,
+            has_dynamic_choices_compile_time: false,
+            has_logic_sanity_check: false,
+          },
+        ],
+        add_button_label: 'Add Session',
+        use_accordion: false,
+        render_style: 'Full',
+        sticky_title_field: 'session_title',
+      },
+    };
+
+    it('shows field value in sticky header when user types', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <FormWrapper defaultValues={{ fields: { sessions: [] } }}>
+          <RepeaterField schema={stickySchema} path="fields.sessions" />
+        </FormWrapper>
+      );
+
+      await user.click(screen.getByRole('button', { name: /Add Session/i }));
+
+      // session_title is the first textbox (comes first in schema)
+      const inputs = screen.getAllByRole('textbox');
+      await user.type(inputs[0], 'Keynote: AI Future');
+
+      const header = screen.getByTestId('repeater-title-0');
+      expect(header.textContent).toContain('Keynote: AI Future');
+    });
+
+    it('shows just "#1" when sticky field is empty', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <FormWrapper defaultValues={{ fields: { sessions: [] } }}>
+          <RepeaterField schema={stickySchema} path="fields.sessions" />
+        </FormWrapper>
+      );
+
+      await user.click(screen.getByRole('button', { name: /Add Session/i }));
+
+      const header = screen.getByTestId('repeater-title-0');
+      expect(header.textContent).toBe('Sessions #1');
+    });
+
+    it('truncates long values with ellipsis', async () => {
+      const user = userEvent.setup();
+      const longText = 'A'.repeat(60);
+
+      render(
+        <FormWrapper defaultValues={{ fields: { sessions: [] } }}>
+          <RepeaterField schema={stickySchema} path="fields.sessions" />
+        </FormWrapper>
+      );
+
+      await user.click(screen.getByRole('button', { name: /Add Session/i }));
+
+      // session_title is the first textbox
+      const inputs = screen.getAllByRole('textbox');
+      await user.type(inputs[0], longText);
+
+      const header = screen.getByTestId('repeater-title-0');
+      // Should contain truncated text (40 chars max + ellipsis)
+      expect(header.textContent).toContain('A'.repeat(40) + '…');
+      expect(header.textContent).not.toContain('A'.repeat(41));
+    });
+
+    it('does not show dash when no stickyTitleField is configured', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <FormWrapper defaultValues={{ fields: { items: [] } }}>
+          <RepeaterField schema={baseSchema} path="fields.items" />
+        </FormWrapper>
+      );
+
+      await user.click(screen.getByRole('button', { name: /Add Item/i }));
+
+      const header = screen.getByTestId('repeater-title-0');
+      expect(header.textContent).toBe('Items #1');
+      expect(header.textContent).not.toContain('—');
+    });
+
+    it('updates header reactively when field value changes', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <FormWrapper defaultValues={{ fields: { sessions: [] } }}>
+          <RepeaterField schema={stickySchema} path="fields.sessions" />
+        </FormWrapper>
+      );
+
+      await user.click(screen.getByRole('button', { name: /Add Session/i }));
+
+      const inputs = screen.getAllByRole('textbox');
+      await user.type(inputs[0], 'First');
+
+      const header = screen.getByTestId('repeater-title-0');
+      expect(header.textContent).toContain('First');
+
+      // Clear and type new value
+      await user.clear(inputs[0]);
+      await user.type(inputs[0], 'Second');
+
+      expect(header.textContent).toContain('Second');
+      expect(header.textContent).not.toContain('First');
+    });
+
+    it('shows different values for different items', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <FormWrapper defaultValues={{ fields: { sessions: [] } }}>
+          <RepeaterField schema={stickySchema} path="fields.sessions" />
+        </FormWrapper>
+      );
+
+      // Add two items
+      await user.click(screen.getByRole('button', { name: /Add Session/i }));
+      await user.click(screen.getByRole('button', { name: /Add Session/i }));
+
+      // Each item has 2 textboxes (session_title, speaker); first of each pair is session_title
+      const inputs = screen.getAllByRole('textbox');
+      // inputs[0] = item 0 session_title, inputs[1] = item 0 speaker
+      // inputs[2] = item 1 session_title, inputs[3] = item 1 speaker
+      await user.type(inputs[0], 'Alpha');
+      await user.type(inputs[2], 'Beta');
+
+      expect(screen.getByTestId('repeater-title-0').textContent).toContain('Alpha');
+      expect(screen.getByTestId('repeater-title-1').textContent).toContain('Beta');
+    });
+  });
+
+  describe('Accordion mode', () => {
+    const accordionSchema: FieldSchema = {
+      name: 'items',
+      type: 'Repeater',
+      label: 'Items',
+      required: false,
+      has_dynamic_choices_runtime: false,
+      has_dynamic_choices_compile_time: false,
+      has_logic_sanity_check: false,
+      repeater_options: {
+        item_schema: [
+          {
+            name: 'title',
+            type: 'Text',
+            label: 'Title',
+            required: false,
+            has_dynamic_choices_runtime: false,
+            has_dynamic_choices_compile_time: false,
+            has_logic_sanity_check: false,
+          },
+        ],
+        add_button_label: 'Add Item',
+        use_accordion: true,
+        render_style: 'Full',
+      },
+    };
+
+    it('collapses items by default when accordion is enabled', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <FormWrapper defaultValues={{ fields: { items: [] } }}>
+          <RepeaterField schema={accordionSchema} path="fields.items" />
+        </FormWrapper>
+      );
+
+      // Add two items — both auto-expand when added
+      await user.click(screen.getByRole('button', { name: /Add Item/i }));
+      await user.click(screen.getByRole('button', { name: /Add Item/i }));
+
+      // Headers should always be visible
+      expect(screen.getByTestId('repeater-title-0')).toBeInTheDocument();
+      expect(screen.getByTestId('repeater-title-1')).toBeInTheDocument();
+
+      // Both items auto-expanded → collapse first to verify accordion works
+      const headers = screen.getAllByTestId(/^repeater-header-depth-/);
+      await user.click(headers[0]);
+
+      // First collapsed → only second item's textbox visible
+      const inputs = screen.getAllByRole('textbox');
+      expect(inputs).toHaveLength(1);
+    });
+
+    it('expands a collapsed item when header is clicked', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <FormWrapper defaultValues={{ fields: { items: [] } }}>
+          <RepeaterField schema={accordionSchema} path="fields.items" />
+        </FormWrapper>
+      );
+
+      await user.click(screen.getByRole('button', { name: /Add Item/i }));
+
+      // Newly added item is expanded
+      expect(screen.getAllByRole('textbox')).toHaveLength(1);
+
+      // Click header to collapse
+      await user.click(screen.getByTestId('repeater-header-depth-0'));
+      expect(screen.queryAllByRole('textbox')).toHaveLength(0);
+
+      // Click header again to expand
+      await user.click(screen.getByTestId('repeater-header-depth-0'));
+      expect(screen.getAllByRole('textbox')).toHaveLength(1);
+    });
+
+    it('shows accordion chevron indicator when accordion is enabled', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <FormWrapper defaultValues={{ fields: { items: [] } }}>
+          <RepeaterField schema={accordionSchema} path="fields.items" />
+        </FormWrapper>
+      );
+
+      await user.click(screen.getByRole('button', { name: /Add Item/i }));
+      expect(screen.getByTestId('accordion-chevron-0')).toBeInTheDocument();
+    });
+
+    it('does not show accordion chevron when accordion is disabled', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <FormWrapper defaultValues={{ fields: { items: [] } }}>
+          <RepeaterField schema={baseSchema} path="fields.items" />
+        </FormWrapper>
+      );
+
+      await user.click(screen.getByRole('button', { name: /Add Item/i }));
+      expect(screen.queryByTestId('accordion-chevron-0')).not.toBeInTheDocument();
+    });
+
+    it('allows multiple items to be expanded independently', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <FormWrapper defaultValues={{ fields: { items: [] } }}>
+          <RepeaterField schema={accordionSchema} path="fields.items" />
+        </FormWrapper>
+      );
+
+      // Add two items
+      await user.click(screen.getByRole('button', { name: /Add Item/i }));
+      await user.click(screen.getByRole('button', { name: /Add Item/i }));
+
+      // Both auto-expanded → 2 textboxes
+      expect(screen.getAllByRole('textbox')).toHaveLength(2);
+
+      // Collapse first item
+      const headers = screen.getAllByTestId(/^repeater-header-depth-/);
+      await user.click(headers[0]);
+
+      // Only second item expanded → 1 textbox
+      expect(screen.getAllByRole('textbox')).toHaveLength(1);
+
+      // Expand first item again by clicking its header
+      await user.click(headers[0]);
+
+      // Both should now be expanded → 2 textboxes
+      expect(screen.getAllByRole('textbox')).toHaveLength(2);
+    });
+
+    it('move up/down buttons work without toggling accordion', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <FormWrapper defaultValues={{ fields: { items: [] } }}>
+          <RepeaterField schema={accordionSchema} path="fields.items" />
+        </FormWrapper>
+      );
+
+      // Add two items
+      await user.click(screen.getByRole('button', { name: /Add Item/i }));
+      await user.click(screen.getByRole('button', { name: /Add Item/i }));
+
+      // Click Move down on first header — buttons are inside a stopPropagation zone
+      const moveDownButtons = screen.getAllByTitle('Move down');
+      await user.click(moveDownButtons[0]);
+
+      // Headers should still render
+      expect(screen.getByTestId('repeater-title-0')).toBeInTheDocument();
+      expect(screen.getByTestId('repeater-title-1')).toBeInTheDocument();
+    });
+  });
+
+  describe('Render style grid', () => {
+    it('applies Grid2 layout to repeater item content', async () => {
+      const user = userEvent.setup();
+      const gridSchema: FieldSchema = {
+        ...baseSchema,
+        repeater_options: {
+          ...baseSchema.repeater_options!,
+          render_style: 'Grid2',
+        },
+      };
+
+      const { container } = render(
+        <FormWrapper defaultValues={{ fields: { items: [] } }}>
+          <RepeaterField schema={gridSchema} path="fields.items" />
+        </FormWrapper>
+      );
+
+      await user.click(screen.getByRole('button', { name: /Add Item/i }));
+
+      // The content div should have md:grid-cols-2
+      const contentDiv = container.querySelector('.md\\:grid-cols-2');
+      expect(contentDiv).toBeInTheDocument();
+    });
+  });
 });

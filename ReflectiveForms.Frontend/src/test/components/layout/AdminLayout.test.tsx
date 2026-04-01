@@ -14,6 +14,7 @@ vi.mock('../../../hooks/useEntity', async () => {
   return {
     ...actual,
     useAllSchemas: vi.fn(),
+    useCapabilities: vi.fn(() => ({ data: undefined })),
   };
 });
 

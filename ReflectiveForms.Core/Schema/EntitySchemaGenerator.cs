@@ -372,6 +372,8 @@ public static class EntitySchemaGenerator
         var renderStyle = GetPrivateField<GroupRenderStyle>(rep, "_groupRenderStyle");
         var useAccordion = GetPrivateField<RepeatUseAccordion>(rep, "_useAccordion");
 
+        var stickyTitle = repeaterForType?.GetCustomAttribute<StickyTitle>();
+
         return new RepeaterFieldOptions
         {
             ItemSchema = childSchemas,
@@ -379,6 +381,7 @@ public static class EntitySchemaGenerator
             MaxItems = rep.MaximumRows,
             AddButtonLabel = GetPrivateField<string>(rep, "_addButtonLabel") ?? "Add",
             UseAccordion = useAccordion == RepeatUseAccordion.Yes,
+            StickyTitleField = stickyTitle?.FieldName,
             RenderStyle = MapRenderStyle(renderStyle)
         };
     }
@@ -395,9 +398,12 @@ public static class EntitySchemaGenerator
 
         var renderStyle = GetPrivateField<GroupRenderStyle>(grp, "_renderStyle");
 
+        var stickyTitle = groupForType?.GetCustomAttribute<StickyTitle>();
+
         return new GroupFieldOptions
         {
             ChildSchema = childSchemas,
+            StickyTitleField = stickyTitle?.FieldName,
             RenderStyle = MapRenderStyle(renderStyle)
         };
     }
