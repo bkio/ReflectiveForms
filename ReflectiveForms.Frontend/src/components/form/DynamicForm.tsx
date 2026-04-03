@@ -169,22 +169,19 @@ export function DynamicForm({ schema, initialData, entityId, onSuccess }: Dynami
     }
   }, [isFormDisabled]);
 
-  // Manual save
-  const handleSubmit = form.handleSubmit(
-    async (_data) => {
-      autoSave.cancel();
-      await autoSave.saveNow();
-    },
-    (errors) => {
-      console.error('Form validation errors:', JSON.stringify(errors, null, 2));
-      const messages = Object.entries(errors)
-        .map(([key, err]) => `${key}: ${(err as { message?: string })?.message || JSON.stringify(err)}`)
-        .join('; ');
-      if (messages) {
-        toast.error(`Validation: ${messages}`);
-      }
+  // Manual save — bypass Zod (same path as autosave: backend sanity check is
+  // the source of truth). Also cancel any pending autosave and clear dirty flag
+  // so autosave doesn't re-trigger after a successful manual save.
+  const handleManualSave = useCallback(async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    autoSave.cancel();
+    isDirtyRef.current = false;
+    if (commitTimerRef.current) {
+      clearTimeout(commitTimerRef.current);
+      commitTimerRef.current = null;
     }
-  );
+    await autoSave.saveNow();
+  }, [autoSave]);
 
   return (
     <FormProvider {...form}>
@@ -213,7 +210,7 @@ export function DynamicForm({ schema, initialData, entityId, onSuccess }: Dynami
         onDismissValidation={autoSave.dismissValidation}
       />
 
-      <form ref={formRef} onSubmit={handleSubmit} onBlur={handleFormBlur} className="space-y-6">
+      <form ref={formRef} onSubmit={handleManualSave} onBlur={handleFormBlur} className="space-y-6">
         {/* Title field (always present) */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">

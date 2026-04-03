@@ -41,7 +41,7 @@ export function EntityEditPage() {
   // Loading state
   if (schemaLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[400px]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
@@ -50,7 +50,7 @@ export function EntityEditPage() {
   // Error state (schema only — entity errors are checked after capability guard)
   if (schemaError) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[400px]">
         <div className="bg-red-50 text-red-600 p-6 rounded-lg">
           <h2 className="text-lg font-semibold mb-2">Error</h2>
           <p>{schemaError.message}</p>
@@ -61,7 +61,7 @@ export function EntityEditPage() {
 
   if (!schema) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-gray-500">Schema not found</div>
       </div>
     );
@@ -90,7 +90,7 @@ export function EntityEditPage() {
   // Now check entity loading/error (after capability guard)
   if (entityLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[400px]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
@@ -98,7 +98,7 @@ export function EntityEditPage() {
 
   if (entityError) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[400px]">
         <div className="bg-red-50 text-red-600 p-6 rounded-lg">
           <h2 className="text-lg font-semibold mb-2">Error</h2>
           <p>{entityError.message}</p>
@@ -125,7 +125,7 @@ export function EntityEditPage() {
     : `New ${schema.readable_name.singular}`;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div>
       <div className="max-w-4xl mx-auto py-8 px-4">
         {/* Header */}
         <div className="mb-8">

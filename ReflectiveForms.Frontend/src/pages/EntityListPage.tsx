@@ -112,7 +112,7 @@ export function EntityListPage() {
 
   const { data: schema, isLoading: schemaLoading } = useSchema(entityName ?? '');
   const { data: allEntities, isLoading: entitiesLoading } = useEntityList(entityName ?? '');
-  const { data: capabilities, isLoading: capabilitiesLoading } = useCapabilities();
+  const { data: capabilities, isSuccess: capabilitiesLoaded } = useCapabilities();
   const deleteMutation = useDeleteEntity(entityName ?? '');
 
   const hasAuthor = schema?.features.has_author ?? false;
@@ -290,21 +290,21 @@ export function EntityListPage() {
     }
   };
 
-  if (schemaLoading || entitiesLoading || capabilitiesLoading) {
+  if (schemaLoading || entitiesLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[400px]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
   const isEditable = schema?.features.supports_frontend_edit ?? true;
-  const caps = entityName ? capabilities?.[entityName] : undefined;
-  const noAuthGate = !capabilities; // no capabilities data = no auth restriction
-  const canCreate = isEditable && (noAuthGate || (caps?.can_create ?? false));
-  const canRead = noAuthGate || (caps?.can_read ?? false);
-  const canUpdate = isEditable && (noAuthGate || (caps?.can_update ?? false));
-  const canDelete = isEditable && (noAuthGate || (caps?.can_delete ?? false));
+  // Only restrict when capabilities have actually loaded successfully with explicit false
+  const caps = (capabilitiesLoaded && entityName) ? capabilities?.[entityName] : undefined;
+  const canCreate = isEditable && (caps?.can_create ?? true);
+  const canRead = caps?.can_read ?? true;
+  const canUpdate = isEditable && (caps?.can_update ?? true);
+  const canDelete = isEditable && (caps?.can_delete ?? true);
 
   function SortIcon({ column }: { column: SortColumn }) {
     if (sortConfig.column !== column) return <ArrowUpDown className="w-3.5 h-3.5 ml-1 text-gray-400" />;
@@ -314,7 +314,7 @@ export function EntityListPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div>
       <div className="max-w-6xl mx-auto py-8 px-4">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">

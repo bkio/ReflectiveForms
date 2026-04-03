@@ -98,6 +98,15 @@ export function MediaField({ schema, path }: FieldComponentProps) {
       control={control}
       render={({ field: { value, onChange }, fieldState: { error } }) => (
         <div className="space-y-2">
+          {/* Hidden file input — always present so Replace works */}
+          <input
+            id={`file-input-${path}`}
+            type="file"
+            accept={acceptedTypes.join(',')}
+            className="hidden"
+            onChange={(e) => handleInputChange(e, onChange)}
+          />
+
           {/* Preview area */}
           {(preview || value) && previewEnabled ? (
             <div className="relative inline-block group max-w-full">
@@ -157,14 +166,6 @@ export function MediaField({ schema, path }: FieldComponentProps) {
                   </>
                 )}
               </div>
-
-              <input
-                id={`file-input-${path}`}
-                type="file"
-                accept={acceptedTypes.join(',')}
-                className="hidden"
-                onChange={(e) => handleInputChange(e, onChange)}
-              />
             </div>
           )}
 

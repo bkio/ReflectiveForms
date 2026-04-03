@@ -31,8 +31,8 @@ export function AdminLayout() {
   const { entityName: currentEntity } = useParams();
   const location = useLocation();
   const { data: schemas, isLoading: schemasLoading } = useAllSchemas();
-  const { data: capabilities, isLoading: capabilitiesLoading } = useCapabilities();
-  const isLoading = schemasLoading || capabilitiesLoading;
+  const { data: capabilities, isSuccess: capabilitiesLoaded } = useCapabilities();
+  const isLoading = schemasLoading;
 
   // Auth
   let auth: ReturnType<typeof useAuth> | null = null;
@@ -80,15 +80,23 @@ export function AdminLayout() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Close sidebar on navigation on mobile
+  // Close sidebar on navigation on mobile & scroll to top
   useEffect(() => {
     if (isMobile) {
       setSidebarOpen(false);
     }
+    window.scrollTo(0, 0);
   }, [location.pathname, isMobile]);
 
+  // Disable browser scroll restoration (prevents F5 scrolling past header)
+  useEffect(() => {
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+  }, []);
+
   const entityTypes = Object.values(schemas ?? {}).filter(
-    (s) => !capabilities || capabilities[s.entity_name]?.can_peek_all
+    (s) => !capabilitiesLoaded || capabilities?.[s.entity_name]?.can_peek_all
   );
 
   return (

@@ -77,7 +77,7 @@ export function EntityViewPage() {
 
   if (schemaLoading || entityLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[400px]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
@@ -85,7 +85,7 @@ export function EntityViewPage() {
 
   if (schemaError || entityError) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[400px]">
         <div className="bg-red-50 text-red-600 p-6 rounded-lg">
           <h2 className="text-lg font-semibold mb-2">Error</h2>
           <p>{(schemaError || entityError)?.message}</p>
@@ -96,7 +96,7 @@ export function EntityViewPage() {
 
   if (!schema || !entityData) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-gray-500">Entity not found</div>
       </div>
     );
@@ -106,7 +106,7 @@ export function EntityViewPage() {
   const fields = entityData.fields ?? {};
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div>
       <div className="max-w-4xl mx-auto py-8 px-4">
         {/* Header */}
         <div className="mb-8 flex items-start justify-between">
