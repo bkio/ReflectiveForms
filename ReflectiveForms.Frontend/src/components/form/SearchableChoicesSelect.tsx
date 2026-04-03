@@ -29,6 +29,7 @@ export function SearchableChoicesSelect({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [dropUp, setDropUp] = useState(false);
 
   // Filter choices by search term (client-side)
   const filteredChoices = useMemo(() => {
@@ -54,10 +55,15 @@ export function SearchableChoicesSelect({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Focus search input when dropdown opens
+  // Determine dropdown direction and focus search input when dropdown opens
   useEffect(() => {
-    if (isOpen && searchInputRef.current) {
-      searchInputRef.current.focus();
+    if (isOpen) {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        setDropUp(spaceBelow < 300);
+      }
+      searchInputRef.current?.focus();
     }
   }, [isOpen]);
 
@@ -166,7 +172,7 @@ export function SearchableChoicesSelect({
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg">
+        <div className={`absolute z-50 w-full bg-white border border-gray-200 rounded-md shadow-lg ${dropUp ? 'bottom-full mb-1' : 'mt-1'}`}>
           {/* Search input */}
           <div className="p-2 border-b border-gray-100">
             <div className="relative">

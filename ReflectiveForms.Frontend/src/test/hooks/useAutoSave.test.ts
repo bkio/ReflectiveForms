@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useAutoSave } from '../../hooks/useAutoSave';
 
+const WAIT = 500; // short waitDuration for tests
+
 describe('useAutoSave', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -21,7 +23,7 @@ describe('useAutoSave', () => {
     expect(result.current.status).toBe('idle');
   });
 
-  it('transitions to checking when triggerAutoSave is called', async () => {
+  it('transitions to waiting then checking after wait period', async () => {
     let resolveSanity!: (v: { passed: boolean }) => void;
     const sanityPromise = new Promise<{ passed: boolean }>(r => { resolveSanity = r; });
 
@@ -29,10 +31,15 @@ describe('useAutoSave', () => {
       useAutoSave({
         onSanityCheck: () => sanityPromise,
         onSave: vi.fn(),
+        waitDuration: WAIT,
       })
     );
 
     act(() => { result.current.triggerAutoSave(); });
+    expect(result.current.status).toBe('waiting');
+
+    // Advance past wait period
+    await act(async () => { vi.advanceTimersByTime(WAIT); });
     expect(result.current.status).toBe('checking');
 
     await act(async () => { resolveSanity({ passed: true }); });
@@ -46,36 +53,42 @@ describe('useAutoSave', () => {
     });
 
     const { result } = renderHook(() =>
-      useAutoSave({ onSanityCheck, onSave: vi.fn() })
+      useAutoSave({ onSanityCheck, onSave: vi.fn(), waitDuration: WAIT })
     );
 
-    await act(async () => { result.current.triggerAutoSave(); });
+    act(() => { result.current.triggerAutoSave(); });
+    expect(result.current.status).toBe('waiting');
+
+    await act(async () => { vi.advanceTimersByTime(WAIT); });
     expect(result.current.status).toBe('validation-error');
     expect(result.current.validationErrors).toEqual(['Title is required']);
   });
 
-  it('starts countdown after sanity check passes', async () => {
+  it('starts countdown after wait and sanity check passes', async () => {
     const onSanityCheck = vi.fn().mockResolvedValue({ passed: true });
     const onSave = vi.fn().mockResolvedValue(undefined);
 
     const { result } = renderHook(() =>
-      useAutoSave({ onSanityCheck, onSave, countdownDuration: 3000 })
+      useAutoSave({ onSanityCheck, onSave, countdownDuration: 3000, waitDuration: WAIT })
     );
 
-    await act(async () => { result.current.triggerAutoSave(); });
+    act(() => { result.current.triggerAutoSave(); });
+    await act(async () => { vi.advanceTimersByTime(WAIT); });
     expect(result.current.status).toBe('countdown');
     expect(result.current.countdownRemaining).toBeGreaterThan(0);
   });
 
-  it('saves after countdown completes', async () => {
+  it('saves after wait and countdown completes', async () => {
     const onSanityCheck = vi.fn().mockResolvedValue({ passed: true });
     const onSave = vi.fn().mockResolvedValue(undefined);
 
     const { result } = renderHook(() =>
-      useAutoSave({ onSanityCheck, onSave, countdownDuration: 1000 })
+      useAutoSave({ onSanityCheck, onSave, countdownDuration: 1000, waitDuration: WAIT })
     );
 
-    await act(async () => { result.current.triggerAutoSave(); });
+    act(() => { result.current.triggerAutoSave(); });
+    // Wait period
+    await act(async () => { vi.advanceTimersByTime(WAIT); });
     expect(result.current.status).toBe('countdown');
 
     // Advance past countdown
@@ -89,10 +102,11 @@ describe('useAutoSave', () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
 
     const { result } = renderHook(() =>
-      useAutoSave({ onSanityCheck, onSave, countdownDuration: 500 })
+      useAutoSave({ onSanityCheck, onSave, countdownDuration: 500, waitDuration: WAIT })
     );
 
-    await act(async () => { result.current.triggerAutoSave(); });
+    act(() => { result.current.triggerAutoSave(); });
+    await act(async () => { vi.advanceTimersByTime(WAIT); });
     await act(async () => { vi.advanceTimersByTime(600); });
     expect(result.current.status).toBe('saved');
 
@@ -106,13 +120,33 @@ describe('useAutoSave', () => {
     const onSave = vi.fn().mockRejectedValue(new Error('Network error'));
 
     const { result } = renderHook(() =>
-      useAutoSave({ onSanityCheck, onSave, countdownDuration: 500 })
+      useAutoSave({ onSanityCheck, onSave, countdownDuration: 500, waitDuration: WAIT })
     );
 
-    await act(async () => { result.current.triggerAutoSave(); });
+    act(() => { result.current.triggerAutoSave(); });
+    await act(async () => { vi.advanceTimersByTime(WAIT); });
     await act(async () => { vi.advanceTimersByTime(600); });
     expect(result.current.status).toBe('error');
     expect(result.current.error).toBe('Network error');
+  });
+
+  it('cancel stops the waiting period', async () => {
+    const onSanityCheck = vi.fn();
+    const onSave = vi.fn();
+
+    const { result } = renderHook(() =>
+      useAutoSave({ onSanityCheck, onSave, countdownDuration: 3000, waitDuration: WAIT })
+    );
+
+    act(() => { result.current.triggerAutoSave(); });
+    expect(result.current.status).toBe('waiting');
+
+    act(() => { result.current.cancel(); });
+    expect(result.current.status).toBe('idle');
+
+    await act(async () => { vi.advanceTimersByTime(10000); });
+    expect(onSanityCheck).not.toHaveBeenCalled();
+    expect(onSave).not.toHaveBeenCalled();
   });
 
   it('cancel stops the countdown', async () => {
@@ -120,10 +154,11 @@ describe('useAutoSave', () => {
     const onSave = vi.fn();
 
     const { result } = renderHook(() =>
-      useAutoSave({ onSanityCheck, onSave, countdownDuration: 3000 })
+      useAutoSave({ onSanityCheck, onSave, countdownDuration: 3000, waitDuration: WAIT })
     );
 
-    await act(async () => { result.current.triggerAutoSave(); });
+    act(() => { result.current.triggerAutoSave(); });
+    await act(async () => { vi.advanceTimersByTime(WAIT); });
     expect(result.current.status).toBe('countdown');
 
     act(() => { result.current.cancel(); });
@@ -133,7 +168,7 @@ describe('useAutoSave', () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
-  it('saveNow saves immediately without countdown', async () => {
+  it('saveNow saves immediately without wait or countdown', async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
 
     const { result } = renderHook(() =>
@@ -155,10 +190,11 @@ describe('useAutoSave', () => {
     });
 
     const { result } = renderHook(() =>
-      useAutoSave({ onSanityCheck, onSave: vi.fn() })
+      useAutoSave({ onSanityCheck, onSave: vi.fn(), waitDuration: WAIT })
     );
 
-    await act(async () => { result.current.triggerAutoSave(); });
+    act(() => { result.current.triggerAutoSave(); });
+    await act(async () => { vi.advanceTimersByTime(WAIT); });
     expect(result.current.status).toBe('validation-error');
 
     act(() => { result.current.dismissValidation(); });
@@ -172,7 +208,7 @@ describe('useAutoSave', () => {
       useAutoSave({ onSanityCheck, onSave: vi.fn(), enabled: false })
     );
 
-    await act(async () => { result.current.triggerAutoSave(); });
+    act(() => { result.current.triggerAutoSave(); });
     expect(onSanityCheck).not.toHaveBeenCalled();
     expect(result.current.status).toBe('idle');
   });
@@ -182,44 +218,73 @@ describe('useAutoSave', () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
 
     const { result } = renderHook(() =>
-      useAutoSave({ onSanityCheck, onSave, countdownDuration: 500 })
+      useAutoSave({ onSanityCheck, onSave, countdownDuration: 500, waitDuration: WAIT })
     );
 
-    await act(async () => { result.current.triggerAutoSave(); });
+    act(() => { result.current.triggerAutoSave(); });
+    await act(async () => { vi.advanceTimersByTime(WAIT); });
     expect(result.current.status).toBe('countdown');
   });
 
-  it('resets countdown when triggerAutoSave is called during countdown', async () => {
+  it('resets wait timer when triggerAutoSave is called during waiting', async () => {
     const onSanityCheck = vi.fn().mockResolvedValue({ passed: true });
     const onSave = vi.fn().mockResolvedValue(undefined);
 
     const { result } = renderHook(() =>
-      useAutoSave({ onSanityCheck, onSave, countdownDuration: 3000 })
+      useAutoSave({ onSanityCheck, onSave, countdownDuration: 1000, waitDuration: WAIT })
     );
 
-    // Start first countdown
-    await act(async () => { result.current.triggerAutoSave(); });
+    act(() => { result.current.triggerAutoSave(); });
+    expect(result.current.status).toBe('waiting');
+
+    // Advance partway through wait
+    act(() => { vi.advanceTimersByTime(300); });
+    expect(result.current.status).toBe('waiting');
+
+    // Trigger again — restarts the wait timer
+    act(() => { result.current.triggerAutoSave(); });
+    expect(result.current.status).toBe('waiting');
+
+    // Original wait would have elapsed here, but the reset means we're still waiting
+    act(() => { vi.advanceTimersByTime(300); });
+    expect(result.current.status).toBe('waiting');
+    expect(onSanityCheck).not.toHaveBeenCalled();
+
+    // Complete the reset wait
+    await act(async () => { vi.advanceTimersByTime(200); });
+    expect(result.current.status).toBe('countdown');
+    expect(onSanityCheck).toHaveBeenCalledTimes(1);
+  });
+
+  it('resets to waiting when triggerAutoSave is called during countdown', async () => {
+    const onSanityCheck = vi.fn().mockResolvedValue({ passed: true });
+    const onSave = vi.fn().mockResolvedValue(undefined);
+
+    const { result } = renderHook(() =>
+      useAutoSave({ onSanityCheck, onSave, countdownDuration: 3000, waitDuration: WAIT })
+    );
+
+    // Start → waiting → checking → countdown
+    act(() => { result.current.triggerAutoSave(); });
+    await act(async () => { vi.advanceTimersByTime(WAIT); });
     expect(result.current.status).toBe('countdown');
     expect(onSanityCheck).toHaveBeenCalledTimes(1);
 
     // Advance 2s into the 3s countdown
     act(() => { vi.advanceTimersByTime(2000); });
     expect(result.current.status).toBe('countdown');
-    expect(result.current.countdownRemaining).toBeLessThanOrEqual(1000);
 
-    // Trigger again mid-countdown — should restart without re-running sanity check
-    await act(async () => { result.current.triggerAutoSave(); });
+    // Trigger again mid-countdown — should reset to waiting
+    act(() => { result.current.triggerAutoSave(); });
+    expect(result.current.status).toBe('waiting');
+
+    // Wait period expires → sanity check runs again → countdown
+    await act(async () => { vi.advanceTimersByTime(WAIT); });
     expect(result.current.status).toBe('countdown');
-    expect(result.current.countdownRemaining).toBe(3000);
-    // Sanity check should NOT run again (skipped during countdown)
-    expect(onSanityCheck).toHaveBeenCalledTimes(1);
+    expect(onSanityCheck).toHaveBeenCalledTimes(2);
 
-    // Original 3s would have already elapsed — should NOT have saved since we reset
-    act(() => { vi.advanceTimersByTime(1100); });
-    expect(onSave).not.toHaveBeenCalled();
-
-    // Complete the reset countdown
-    await act(async () => { vi.advanceTimersByTime(2000); });
+    // Complete the countdown
+    await act(async () => { vi.advanceTimersByTime(3100); });
     expect(onSave).toHaveBeenCalledOnce();
     expect(result.current.status).toBe('saved');
   });
@@ -231,21 +296,42 @@ describe('useAutoSave', () => {
     const onSave = vi.fn().mockReturnValue(savePromise);
 
     const { result } = renderHook(() =>
-      useAutoSave({ onSanityCheck, onSave, countdownDuration: 500 })
+      useAutoSave({ onSanityCheck, onSave, countdownDuration: 500, waitDuration: WAIT })
     );
 
-    // Start save
-    await act(async () => { result.current.triggerAutoSave(); });
+    // Start → waiting → checking → countdown → saving
+    act(() => { result.current.triggerAutoSave(); });
+    await act(async () => { vi.advanceTimersByTime(WAIT); });
     await act(async () => { vi.advanceTimersByTime(600); });
     expect(result.current.status).toBe('saving');
 
     // Trigger again while saving — should be ignored
-    await act(async () => { result.current.triggerAutoSave(); });
+    act(() => { result.current.triggerAutoSave(); });
     expect(result.current.status).toBe('saving');
     expect(onSanityCheck).toHaveBeenCalledTimes(1);
 
     // Finish save
     await act(async () => { resolveSave(); });
     expect(result.current.status).toBe('saved');
+  });
+
+  it('uses default waitDuration of 5000ms', async () => {
+    const onSanityCheck = vi.fn().mockResolvedValue({ passed: true });
+
+    const { result } = renderHook(() =>
+      useAutoSave({ onSanityCheck, onSave: vi.fn() })
+    );
+
+    act(() => { result.current.triggerAutoSave(); });
+    expect(result.current.status).toBe('waiting');
+
+    // Still waiting after 4.9s
+    act(() => { vi.advanceTimersByTime(4900); });
+    expect(result.current.status).toBe('waiting');
+    expect(onSanityCheck).not.toHaveBeenCalled();
+
+    // Transitions after 5s
+    await act(async () => { vi.advanceTimersByTime(200); });
+    expect(onSanityCheck).toHaveBeenCalledTimes(1);
   });
 });

@@ -32,8 +32,8 @@ public static class UserEntityExtensions
     {
         foreach (var role in userRoles)
         {
-            if (RfConfiguration.IamRoleEntitiesCache.FindEntityByFilterAndGetCopy(e =>
-                    e.Id == role.RoleId && e.Fields.CanDo(entityType, crudOperation)) != null)
+            if (RfConfiguration.IamRoleEntitiesCache.AnyEntityMatchesFilter(e =>
+                    e.Id == role.RoleId && e.Fields.CanDo(entityType, crudOperation)))
                 return true;
         }
         return false;

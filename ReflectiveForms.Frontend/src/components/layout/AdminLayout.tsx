@@ -30,8 +30,9 @@ export function AdminLayout() {
   const toggleDarkMode = useCallback(() => setDarkMode(prev => !prev), []);
   const { entityName: currentEntity } = useParams();
   const location = useLocation();
-  const { data: schemas, isLoading } = useAllSchemas();
-  const { data: capabilities } = useCapabilities();
+  const { data: schemas, isLoading: schemasLoading } = useAllSchemas();
+  const { data: capabilities, isLoading: capabilitiesLoading } = useCapabilities();
+  const isLoading = schemasLoading || capabilitiesLoading;
 
   // Auth
   let auth: ReturnType<typeof useAuth> | null = null;

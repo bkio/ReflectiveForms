@@ -10,7 +10,7 @@ vi.mock('../../hooks/useEntity', () => ({
   useSchema: vi.fn(),
   useEntityList: vi.fn(),
   useDeleteEntity: vi.fn(),
-  useCapabilities: vi.fn(() => ({ data: undefined })),
+  useCapabilities: vi.fn(() => ({ data: undefined, isLoading: false })),
 }));
 
 vi.mock('sonner', () => ({

@@ -4,10 +4,11 @@ interface UseAutoSaveOptions {
   onSanityCheck: () => Promise<{ passed: boolean; errors?: string[] }>;
   onSave: () => Promise<void>;
   countdownDuration?: number;
+  waitDuration?: number;
   enabled?: boolean;
 }
 
-export type AutoSaveStatus = 'idle' | 'checking' | 'validation-error' | 'countdown' | 'saving' | 'saved' | 'error';
+export type AutoSaveStatus = 'idle' | 'waiting' | 'checking' | 'validation-error' | 'countdown' | 'saving' | 'saved' | 'error';
 
 interface AutoSaveState {
   status: AutoSaveStatus;
@@ -22,8 +23,10 @@ export function useAutoSave({
   onSanityCheck,
   onSave,
   countdownDuration = 3000,
+  waitDuration = 5000,
   enabled = true,
 }: UseAutoSaveOptions) {
+  const waitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusRef = useRef<AutoSaveStatus>('idle');
@@ -45,6 +48,10 @@ export function useAutoSave({
   }, []);
 
   const clearTimers = useCallback(() => {
+    if (waitTimerRef.current) {
+      clearTimeout(waitTimerRef.current);
+      waitTimerRef.current = null;
+    }
     if (countdownRef.current) {
       clearInterval(countdownRef.current);
       countdownRef.current = null;
@@ -104,23 +111,8 @@ export function useAutoSave({
     }, step);
   }, [countdownDuration, clearTimers, performSave, setStatus]);
 
-  // Called on blur / value commit — the main trigger
-  const triggerAutoSave = useCallback(async () => {
-    if (!enabled) return;
-
-    // If already counting down, restart the countdown (new change came in)
-    if (statusRef.current === 'countdown') {
-      startCountdown();
-      return;
-    }
-
-    // Don't interrupt saving or checking
-    if (statusRef.current === 'saving' || statusRef.current === 'checking') return;
-
-    clearTimers();
-
+  const startSanityAndCountdown = useCallback(async () => {
     setStatus(prev => ({ ...prev, status: 'checking', validationErrors: [], error: null }));
-
     try {
       const result = await onSanityCheck();
       if (result.passed) {
@@ -136,7 +128,26 @@ export function useAutoSave({
       // Sanity check network error — still try to save (CRUD has its own validation)
       startCountdown();
     }
-  }, [enabled, onSanityCheck, startCountdown, clearTimers, setStatus]);
+  }, [onSanityCheck, startCountdown, setStatus]);
+
+  // Called on blur / value commit — the main trigger.
+  // Starts a quiet wait period; if called again during wait or countdown,
+  // resets the timer so rapid edits don't trigger premature saves.
+  const triggerAutoSave = useCallback(() => {
+    if (!enabled) return;
+
+    // Don't interrupt an active save or sanity check
+    if (statusRef.current === 'saving' || statusRef.current === 'checking') return;
+
+    clearTimers();
+
+    setStatus(prev => ({ ...prev, status: 'waiting', error: null, validationErrors: [] }));
+
+    waitTimerRef.current = setTimeout(() => {
+      waitTimerRef.current = null;
+      startSanityAndCountdown();
+    }, waitDuration);
+  }, [enabled, clearTimers, setStatus, waitDuration, startSanityAndCountdown]);
 
   // Immediate save (e.g. save button)
   const saveNow = useCallback(async () => {

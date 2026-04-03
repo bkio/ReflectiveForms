@@ -112,7 +112,7 @@ export function EntityListPage() {
 
   const { data: schema, isLoading: schemaLoading } = useSchema(entityName ?? '');
   const { data: allEntities, isLoading: entitiesLoading } = useEntityList(entityName ?? '');
-  const { data: capabilities } = useCapabilities();
+  const { data: capabilities, isLoading: capabilitiesLoading } = useCapabilities();
   const deleteMutation = useDeleteEntity(entityName ?? '');
 
   const hasAuthor = schema?.features.has_author ?? false;
@@ -290,7 +290,7 @@ export function EntityListPage() {
     }
   };
 
-  if (schemaLoading || entitiesLoading) {
+  if (schemaLoading || entitiesLoading || capabilitiesLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -300,10 +300,11 @@ export function EntityListPage() {
 
   const isEditable = schema?.features.supports_frontend_edit ?? true;
   const caps = entityName ? capabilities?.[entityName] : undefined;
-  const canCreate = isEditable && (caps?.can_create ?? true);
-  const canRead = caps?.can_read ?? true;
-  const canUpdate = isEditable && (caps?.can_update ?? true);
-  const canDelete = isEditable && (caps?.can_delete ?? true);
+  const noAuthGate = !capabilities; // no capabilities data = no auth restriction
+  const canCreate = isEditable && (noAuthGate || (caps?.can_create ?? false));
+  const canRead = noAuthGate || (caps?.can_read ?? false);
+  const canUpdate = isEditable && (noAuthGate || (caps?.can_update ?? false));
+  const canDelete = isEditable && (noAuthGate || (caps?.can_delete ?? false));
 
   function SortIcon({ column }: { column: SortColumn }) {
     if (sortConfig.column !== column) return <ArrowUpDown className="w-3.5 h-3.5 ml-1 text-gray-400" />;

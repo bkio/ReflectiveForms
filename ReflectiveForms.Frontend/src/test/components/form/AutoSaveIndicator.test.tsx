@@ -22,6 +22,11 @@ describe('AutoSaveIndicator', () => {
     expect(container.firstChild).toBeNull();
   });
 
+  it('renders nothing when waiting', () => {
+    const { container } = render(<AutoSaveIndicator {...defaultProps} status="waiting" />);
+    expect(container.firstChild).toBeNull();
+  });
+
   it('shows "Validating..." when checking', () => {
     render(<AutoSaveIndicator {...defaultProps} status="checking" />);
     expect(screen.getByTestId('autosave-checking')).toHaveTextContent('Validating...');

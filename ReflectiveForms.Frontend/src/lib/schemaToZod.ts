@@ -86,10 +86,10 @@ function fieldToZod(field: FieldSchema, parentHasCondition = false): ZodTypeAny 
     case 'Number':
     case 'Range':
       schema = z.number();
-      if (field.number_options?.min !== undefined) {
+      if (field.number_options?.min != null) {
         schema = (schema as z.ZodNumber).min(field.number_options.min);
       }
-      if (field.number_options?.max !== undefined) {
+      if (field.number_options?.max != null) {
         schema = (schema as z.ZodNumber).max(field.number_options.max);
       }
       break;
@@ -137,13 +137,13 @@ function fieldToZod(field: FieldSchema, parentHasCondition = false): ZodTypeAny 
         const itemShape = buildFieldsShape(field.repeater_options.item_schema, hasCondition);
         let arraySchema = z.array(z.object(itemShape));
 
-        if (field.repeater_options.min_items !== undefined) {
+        if (field.repeater_options.min_items != null) {
           arraySchema = arraySchema.min(
             field.repeater_options.min_items,
             `At least ${field.repeater_options.min_items} items required`
           );
         }
-        if (field.repeater_options.max_items !== undefined) {
+        if (field.repeater_options.max_items != null) {
           arraySchema = arraySchema.max(
             field.repeater_options.max_items,
             `Maximum ${field.repeater_options.max_items} items allowed`

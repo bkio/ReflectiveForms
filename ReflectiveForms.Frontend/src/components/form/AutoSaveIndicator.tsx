@@ -18,13 +18,13 @@ export function AutoSaveIndicator({
   error,
   onDismissValidation,
 }: AutoSaveIndicatorProps) {
-  if (status === 'idle') return null;
+  if (status === 'idle' || status === 'waiting') return null;
 
   const progress = countdownTotal > 0 ? ((countdownTotal - countdownRemaining) / countdownTotal) * 100 : 0;
   const secondsLeft = Math.ceil(countdownRemaining / 1000);
 
   return (
-    <div data-testid="autosave-indicator" className="fixed top-16 left-0 lg:left-64 right-0 z-20 mx-4 lg:mx-6 mt-4 rounded-lg overflow-hidden shadow-sm border">
+    <div data-testid="autosave-indicator" className="fixed bottom-0 left-0 right-0 lg:bottom-4 lg:left-auto lg:right-4 lg:max-w-sm z-20 rounded-t-lg lg:rounded-lg overflow-hidden shadow-lg border">
       {status === 'checking' && (
         <div className="bg-blue-50 border-blue-200 px-4 py-3 text-sm text-blue-700" data-testid="autosave-checking">
           Validating...
@@ -33,10 +33,10 @@ export function AutoSaveIndicator({
 
       {status === 'validation-error' && (
         <div className="bg-amber-50 border-amber-200 px-4 py-3" data-testid="autosave-validation-error">
-          <div className="flex items-start justify-between">
-            <div>
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-amber-800">Please fix the following before saving:</p>
-              <ul className="mt-1 text-sm text-amber-700 list-disc list-inside">
+              <ul className="mt-1 text-sm text-amber-700 list-disc list-inside break-words">
                 {validationErrors.map((err, i) => (
                   <li key={i}>{err}</li>
                 ))}
@@ -44,7 +44,7 @@ export function AutoSaveIndicator({
             </div>
             <button
               onClick={onDismissValidation}
-              className="ml-3 text-amber-400 hover:text-amber-600"
+              className="ml-1 flex-shrink-0 text-amber-400 hover:text-amber-600"
               data-testid="autosave-dismiss"
               aria-label="Dismiss"
             >

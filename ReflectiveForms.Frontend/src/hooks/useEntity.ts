@@ -91,6 +91,7 @@ export function usePaginatedEntityList(entityName: string, pageSize: number = 20
     },
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.next_page_token ?? undefined,
+    staleTime: 1000 * 30, // 30 seconds — mutations invalidate explicitly
   });
 }
 
@@ -101,6 +102,7 @@ export function useCreateEntity(entityName: string) {
     mutationFn: (data: Partial<EntityData>) => createEntity(entityName, data),
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['entities', entityName] });
+      queryClient.invalidateQueries({ queryKey: ['entities-paginated', entityName] });
       // Pre-populate the entity cache so the edit page renders immediately
       // without a loading flash after navigation.
       if (response.data?.id) {
@@ -117,6 +119,7 @@ export function useUpdateEntity(entityName: string) {
     mutationFn: (data: Partial<EntityData>) => updateEntity(entityName, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['entities', entityName] });
+      queryClient.invalidateQueries({ queryKey: ['entities-paginated', entityName] });
       queryClient.invalidateQueries({ queryKey: ['entity', entityName, variables.id] });
     },
   });
@@ -129,6 +132,7 @@ export function useDeleteEntity(entityName: string) {
     mutationFn: (id: number) => deleteEntity(entityName, id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['entities', entityName] });
+      queryClient.invalidateQueries({ queryKey: ['entities-paginated', entityName] });
     },
   });
 }

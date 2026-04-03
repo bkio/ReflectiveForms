@@ -101,6 +101,19 @@ public class EntitiesCacheBase<T> where T : EntityFieldsModel, new()
         return entityValue?.FromObjectWithPolymorphism().ToObjectWithPolymorphism<EntityModel<T>>();
     }
 
+    /// <summary>
+    /// Read-only filter that does NOT deep-copy. The returned object is the live
+    /// cache entry — callers MUST NOT mutate it. Use this for authorization
+    /// checks and other hot-path read-only lookups.
+    /// </summary>
+    public bool AnyEntityMatchesFilter(Func<EntityModel<T>, bool> filter)
+    {
+        lock (_entitiesLock)
+        {
+            return _entities.Values.Any(filter);
+        }
+    }
+
     public JObject? FindEntityByFilterAndGetCopyAsJObject(Func<EntityModel<T>, bool> filter)
     {
         EntityModel<T>? entityValue;
