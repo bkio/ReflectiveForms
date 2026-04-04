@@ -33,21 +33,63 @@ dotnet add package ReflectiveForms.Core
 
 ```csharp
 // Program.cs
+using ReflectiveForms.Core;
+
 var builder = WebApplication.CreateBuilder(args);
-var app = builder.Build();
-
-app.BuildWithReflectiveFields(config => {
-    config.Endpoints.PublicFrontendBaseUrl = "http://localhost:3000";
-    config.Endpoints.JwtSecret = "your-secret";
-    config.Endpoints.DefaultAdminPassword = "admin";
-
-    config.Entity<NoteModel>(e => {
-        e.PluralName = "Notes";
-        e.ListColumns = new[] { "title", "content" };
-    });
-});
-
+var app = builder.BuildWithReflectiveFields(RfBuilder.Build());
 app.Run();
+```
+
+```csharp
+// RfBuilder.cs
+using CrossCloudKit.Database.Basic;
+using CrossCloudKit.File.Basic;
+using CrossCloudKit.Memory.Basic;
+using CrossCloudKit.PubSub.Basic;
+using ReflectiveForms.Core;
+using ReflectiveForms.Core.Endpoints;
+
+public static class RfBuilder
+{
+    public static RfConfigurationBuilder Build()
+    {
+        var pubSub = new PubSubServiceBasic();
+        var memory = new MemoryServiceBasic(pubSub);
+        var file = new FileServiceBasic(memory, pubSub);
+        var db = new DatabaseServiceBasic("my-app-db", memory, Path.GetTempPath());
+
+        return new RfConfigurationBuilder
+        {
+            RootUserCredentials = new RootUserCredentials("admin@karasoftware.com", "123456"),
+            RepositoryServiceConfiguration = new EntityRepositoryServiceConfiguration(
+                db, memory, pubSub,
+                new FileServiceConfiguration(file, "my-app-media")),
+            EndpointConfiguration = new EndpointConfiguration
+            {
+                JwtSecret = "change-this-to-a-random-secret-at-least-32-chars",
+                RootPath = "/rf",
+                PublicUrlRootForApi = "http://localhost:9000/rf/api/",
+                PublicFrontendBaseUrl = "http://localhost:3000",
+            },
+            EntityTypes =
+            [
+                new EntityConfigurationBuilder<NoteModel>
+                {
+                    EntityName = "note",
+                    EntityReadableNameSingular = "Note",
+                    EntityReadableNamePlural = "Notes",
+                    SupportsFrontendEdit = true,
+                    HasAuthor = false,
+                    HasTags = false,
+                    HasCategories = false,
+                    HasParentChildRelationship = false,
+                    RequireGlobalTitleUniqueness = false,
+                    OptionalTitleSanityCheck = null,
+                },
+            ],
+        };
+    }
+}
 ```
 
 **Frontend:**
@@ -92,6 +134,7 @@ createReflectiveFormsApp({
 - **Depth-aware nesting** — Nested fields render without redundant card wrappers
 - **Branding** — Configurable app name, logo, primary color via CSS variable
 - **Custom pages** — Add sidebar pages grouped by section
+- **Revision diff** — Side-by-side comparison of entity revisions with field-level change highlighting
 - **SSO login** — Dedicated SSO login page with branding
 
 ## Configuration Reference
@@ -102,7 +145,8 @@ createReflectiveFormsApp({
 |----------|----------|---------|-------------|
 | `PublicFrontendBaseUrl` | Yes | — | Frontend URL for CORS |
 | `JwtSecret` | Yes | — | JWT signing key |
-| `DefaultAdminPassword` | No | `null` | Admin password (creates admin on first run) |
+| `RootPath` | No | `"/rf"` | API route prefix |
+| `PublicUrlRootForApi` | Yes | — | Public API URL for schema links |
 | `SsoConfiguration` | No | `null` | SSO settings (see below) |
 
 ### SSO Configuration
@@ -159,7 +203,7 @@ ReflectiveForms/
 │   ├── Repositories/                 #   DB integration
 │   └── Schema/                       #   JSON schema generator
 │
-├── ReflectiveForms.Core.Tests/       # Backend unit tests (xUnit, 175+)
+├── ReflectiveForms.Core.Tests/       # Backend unit tests (xUnit, 190+)
 │
 ├── ReflectiveForms.Frontend/         # React npm library
 │   ├── src/
@@ -167,8 +211,8 @@ ReflectiveForms/
 │   │   ├── components/               #   Fields, form, layout
 │   │   ├── hooks/                    #   useEntity, useSchema, useAutoSave, useLock
 │   │   ├── lib/                      #   createApp, RfConfigProvider, exports
-│   │   └── pages/                    #   Dashboard, List, Edit, View, Login, SSO
-│   ├── e2e/                          #   Playwright E2E tests (270+)
+│   │   └── pages/                    #   Dashboard, List, Edit, View, RevisionDiff, Login, SSO
+│   ├── e2e/                          #   Playwright E2E tests (30 suites)
 │   └── vite.config.lib.ts           #   Library build config
 │
 ├── ReflectiveForms.Sample1/          # Sample backend app (6 entity types)
@@ -191,6 +235,7 @@ ReflectiveForms/
 | `/rf/api/crud?operation=DELETE&type={name}` | POST | Delete entity |
 | `/rf/api/crud?operation=PEEK_ALL&type={name}` | POST | List all |
 | `/rf/api/crud?operation=PEEK_ALL_PAGINATED&type={name}&page_size={n}` | POST | Paginated list |
+| `/rf/api/crud?operation=HISTORY&type={name}` | POST | Revision history |
 | `/rf/api/sanity_check?type={name}` | POST | Validate |
 | `/rf/api/entity_lock_control?type={name}&id={id}&operation=try_lock` | POST | Lock |
 | `/rf/api/entity_lock_control?type={name}&id={id}&operation=try_unlock` | POST | Unlock |
@@ -204,7 +249,7 @@ ReflectiveForms/
 
 ```bash
 cd ReflectiveForms.Core.Tests
-dotnet test    # 175+ tests
+dotnet test    # 190+ tests
 ```
 
 ### Frontend Unit Tests
@@ -219,7 +264,7 @@ npm run test:run       # 278+ tests (Vitest)
 ```bash
 cd ReflectiveForms.Frontend
 npx playwright install
-npm run test:e2e       # 270+ tests (Playwright, Chromium)
+npm run test:e2e       # 30 suites (Playwright, Chromium)
 ```
 
 ### CLI Scaffolder Tests

@@ -3,6 +3,7 @@ import { useForm, FormProvider, UseFormReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Lock } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { EntitySchema, EntityData } from '../../types/schema';
 import { schemaToZod, generateDefaults } from '../../lib/schemaToZod';
 import { FormField } from '../fields/FormField';
@@ -22,12 +23,19 @@ interface DynamicFormProps {
 export function DynamicForm({ schema, initialData, entityId, onSuccess }: DynamicFormProps) {
   const isCreateMode = entityId === undefined || entityId < 0;
   const formRef = useRef<HTMLFormElement>(null);
+  const navigate = useNavigate();
 
   // Entity locking for edit mode
-  const { lockStatus, lockedBy } = useEntityLock(
+  const { lockStatus, lockedBy, signalActivity } = useEntityLock(
     schema.entity_name,
     entityId,
-    { enabled: !isCreateMode }
+    {
+      enabled: !isCreateMode,
+      onLockLost: () => {
+        // Redirect to view-only page when lock expires due to inactivity
+        navigate(`/entities-view/${schema.entity_name}?id=${entityId}`);
+      },
+    }
   );
 
   // Build Zod schema from entity schema
@@ -88,6 +96,7 @@ export function DynamicForm({ schema, initialData, entityId, onSuccess }: Dynami
 
   // Sanity check callback for autosave
   const handleSanityCheck = useCallback(async () => {
+    signalActivity(); // Any save attempt counts as activity
     const values = getPayload();
     try {
       const result = await sanityCheck.mutateAsync(values as Partial<EntityData>);
@@ -99,10 +108,11 @@ export function DynamicForm({ schema, initialData, entityId, onSuccess }: Dynami
       const msg = err instanceof Error ? err.message : 'Validation failed';
       return { passed: false, errors: [humanizeError(msg)] };
     }
-  }, [sanityCheck, getPayload, humanizeError]);
+  }, [sanityCheck, getPayload, humanizeError, signalActivity]);
 
   // Save callback for autosave
   const handleSave = useCallback(async () => {
+    signalActivity(); // Any save attempt counts as activity
     if (isFormDisabled) {
       throw new Error('Cannot save: entity is locked by another user');
     }
@@ -115,7 +125,7 @@ export function DynamicForm({ schema, initialData, entityId, onSuccess }: Dynami
     if (result.data) {
       onSuccess?.(result.data);
     }
-  }, [form, createMutation, updateMutation, isCreateMode, onSuccess, isFormDisabled, getPayload, humanizeError]);
+  }, [form, createMutation, updateMutation, isCreateMode, onSuccess, isFormDisabled, getPayload, humanizeError, signalActivity]);
 
   // Auto-save hook
   const autoSave = useAutoSave({

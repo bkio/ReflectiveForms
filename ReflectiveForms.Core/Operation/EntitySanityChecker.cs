@@ -321,7 +321,6 @@ internal static class EntitySanityChecker
                 attr = EntityModelAttributes.Tags;
                 entityName = RfReservedEntities.TagsEntityName;
                 break;
-            //if (_What == InternalVariousFieldSanityCheck.Categories)
             case InternalVariousFieldSanityCheck.Categories:
             default:
                 attr = EntityModelAttributes.Categories;

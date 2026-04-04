@@ -108,12 +108,12 @@ describe('useEntityLock', () => {
       expect(client.tryLockEntity).toHaveBeenCalledTimes(1);
     });
 
-    // Advance timers to trigger refresh (default is 30 seconds)
+    // Advance timers to trigger heartbeat check (every 15 seconds)
     await act(async () => {
-      vi.advanceTimersByTime(30000);
+      vi.advanceTimersByTime(15000);
     });
 
-    // Should have refreshed
+    // Should have heartbeat-refreshed (initial + 1 heartbeat)
     expect(client.tryLockEntity).toHaveBeenCalledTimes(2);
   });
 });

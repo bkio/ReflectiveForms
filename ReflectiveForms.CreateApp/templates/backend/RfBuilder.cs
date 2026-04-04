@@ -1,4 +1,7 @@
-using CrossCloudKit.Interfaces.Classes;
+using CrossCloudKit.Database.Basic;
+using CrossCloudKit.File.Basic;
+using CrossCloudKit.Memory.Basic;
+using CrossCloudKit.PubSub.Basic;
 using ReflectiveForms.Core;
 using ReflectiveForms.Core.Endpoints;
 
@@ -8,15 +11,15 @@ public static class RfBuilder
     {
         var pubSubService = new PubSubServiceBasic();
         var memoryService = new MemoryServiceBasic(pubSubService);
-        var fileService = new FileServiceBasic(Path.GetTempPath());
-        var databaseService = new DatabaseServiceBasic("{{PROJECT_NAME}}-db", memoryService);
+        var fileService = new FileServiceBasic(memoryService, pubSubService);
+        var databaseService = new DatabaseServiceBasic("{{PROJECT_NAME}}-db", memoryService, Path.GetTempPath());
 
         return new RfConfigurationBuilder
         {
             Logger = logger,
             RootUserCredentials = new RootUserCredentials(
-                "admin@example.com",
-                Environment.GetEnvironmentVariable("ADMIN_PASSWORD") ?? "changeme123"),
+                "admin@karasoftware.com",
+                Environment.GetEnvironmentVariable("ADMIN_PASSWORD") ?? "123456"),
             RepositoryServiceConfiguration = new EntityRepositoryServiceConfiguration(
                 databaseService,
                 memoryService,
@@ -34,10 +37,15 @@ public static class RfBuilder
                 new EntityConfigurationBuilder<NoteModel>
                 {
                     EntityName = "note",
-                    ReadableEntityName = "Note",
-                    PluralReadableEntityName = "Notes",
+                    EntityReadableNameSingular = "Note",
+                    EntityReadableNamePlural = "Notes",
                     SupportsFrontendEdit = true,
-                    RequireTitleUniqueness = true,
+                    HasAuthor = false,
+                    HasTags = false,
+                    HasCategories = false,
+                    HasParentChildRelationship = false,
+                    RequireGlobalTitleUniqueness = true,
+                    OptionalTitleSanityCheck = null,
                 }
             ]
         };

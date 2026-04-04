@@ -139,6 +139,12 @@ export async function sanityCheck(
 }
 
 // Entity Lock API
+export interface LockStatus {
+  entity_id: number;
+  locked_by_user_id: number;
+  locked_by_user_name: string | null;
+}
+
 export async function tryLockEntity(
   entityName: string,
   id: number
@@ -156,6 +162,23 @@ export async function unlockEntity(
   return fetchApi<void>(
     `/entity_lock_control?type=${encodeURIComponent(entityName)}&id=${id}&operation=unlock`,
     { method: 'POST', body: '{}' }
+  );
+}
+
+export async function fetchLockStatus(
+  entityName: string,
+  id: number
+): Promise<ApiResponse<LockStatus>> {
+  return fetchApi<LockStatus>(
+    `/entity_lock_control?type=${encodeURIComponent(entityName)}&id=${id}&operation=status_one`
+  );
+}
+
+export async function fetchAllLocked(
+  entityName: string
+): Promise<ApiResponse<LockStatus[]>> {
+  return fetchApi<LockStatus[]>(
+    `/entity_lock_control?type=${encodeURIComponent(entityName)}&operation=all_locked`
   );
 }
 

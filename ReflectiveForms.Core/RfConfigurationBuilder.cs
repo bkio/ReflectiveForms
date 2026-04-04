@@ -113,7 +113,7 @@ public class RfConfigurationBuilder
             {
                 errors.Add($"Entity name '{config.EntityName}' in the configuration is not unique");
             }
-            if (!config.EntityName.Equals(config.EntityName, StringComparison.InvariantCultureIgnoreCase))
+            if (config.EntityName != config.EntityName.ToLowerInvariant())
             {
                 errors.Add($"Entity name '{config.EntityName}' in the configuration must be lowercase");
             }

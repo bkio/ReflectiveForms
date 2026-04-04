@@ -56,7 +56,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000 and log in with `admin` / `admin`. You'll see a "Notes" section in the sidebar — that's your first entity, ready to use.
+Open http://localhost:3000 and log in with `admin@karasoftware.com` / `123456`. You'll see a "Notes" section in the sidebar — that's your first entity, ready to use.
 
 **Skip to [Understanding Your Entity Model](#understanding-your-entity-model) to learn how it works.**
 
@@ -125,7 +125,7 @@ public static class RfBuilder
 
         return new RfConfigurationBuilder
         {
-            RootUserCredentials = new RootUserCredentials("admin@admin.com", "admin"),
+            RootUserCredentials = new RootUserCredentials("admin@karasoftware.com", "123456"),
             RepositoryServiceConfiguration = new EntityRepositoryServiceConfiguration(
                 db, memory, pubSub,
                 new FileServiceConfiguration(file, "my-notes-media")),
@@ -258,7 +258,7 @@ Start the frontend:
 npx vite
 ```
 
-Open http://localhost:3000 and log in with `admin@admin.com` / `admin`.
+Open http://localhost:3000 and log in with `admin@karasoftware.com` / `123456`.
 
 ---
 
@@ -334,6 +334,18 @@ EntityTypes =
         EntityReadableNameSingular = "Note",
         EntityReadableNamePlural = "Notes",
         SupportsFrontendEdit = true,
+        HasAuthor = false,
+        HasTags = false,
+        HasCategories = false,
+        HasParentChildRelationship = false,
+        RequireGlobalTitleUniqueness = false,
+        OptionalTitleSanityCheck = null,
+        HasAuthor = false,
+        HasTags = false,
+        HasCategories = false,
+        HasParentChildRelationship = false,
+        RequireGlobalTitleUniqueness = false,
+        OptionalTitleSanityCheck = null,
     },
     new EntityConfigurationBuilder<TaskModel>
     {
@@ -341,7 +353,12 @@ EntityTypes =
         EntityReadableNameSingular = "Task",
         EntityReadableNamePlural = "Tasks",
         SupportsFrontendEdit = true,
-        HasAuthor = true,      // track who created each task
+        HasAuthor = true,
+        HasTags = false,
+        HasCategories = false,
+        HasParentChildRelationship = false,
+        RequireGlobalTitleUniqueness = false,
+        OptionalTitleSanityCheck = null,
     },
 ],
 ```
@@ -410,9 +427,7 @@ new EntityConfigurationBuilder<TaskModel>
 
     // Validation
     RequireGlobalTitleUniqueness = true, // No duplicate titles
-
-    // List page columns (besides title)
-    ListColumns = ["status", "due_date"],
+    OptionalTitleSanityCheck = null,     // No custom title check
 }
 ```
 

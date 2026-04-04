@@ -7,7 +7,7 @@ Built with [ReflectiveForms](https://github.com/nicenemo/ReflectiveForms) — a 
 ### Prerequisites
 
 - [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-- [Node.js 20+](https://nodejs.org/)
+- [Node.js 18+](https://nodejs.org/)
 
 ### Development
 
@@ -30,7 +30,7 @@ npm run dev
 
 The app will be available at `http://localhost:{{FRONTEND_PORT}}`.
 
-3. **Log in** with username `admin` and password `admin`.
+3. **Log in** with `admin@karasoftware.com` and password `123456`.
 
 ### Docker
 
@@ -61,25 +61,38 @@ docker compose up --build
 1. Create a model class in `backend/Models/`:
 
 ```csharp
-using ReflectiveForms.Core.Attributes;
+using Newtonsoft.Json;
+using ReflectiveForms.Core.Attributes.Fields;
+using ReflectiveForms.Core.Models;
 
-public class TaskModel
+public class TaskModel : EntityFieldsModel
 {
-    [Field(FieldType.TextLine, Required = true)]
-    public string Title { get; set; } = "";
+    [JsonProperty("description")]
+    [TextArea(label: "Description", instructions: "What needs to be done?", mandatory: true, placeholderText: "")]
+    public string Description = "";
 
-    [Field(FieldType.Checkbox)]
-    public bool Done { get; set; }
+    [JsonProperty("is_done")]
+    [Checkbox(label: "Done", instructions: "", defaultValue: false)]
+    public bool IsDone;
 }
 ```
 
 2. Register it in `backend/RfBuilder.cs`:
 
 ```csharp
-config.Entity<TaskModel>(e => {
-    e.PluralName = "Tasks";
-    e.ListColumns = new[] { "title", "done" };
-});
+new EntityConfigurationBuilder<TaskModel>
+{
+    EntityName = "task",
+    EntityReadableNameSingular = "Task",
+    EntityReadableNamePlural = "Tasks",
+    SupportsFrontendEdit = true,
+    HasAuthor = false,
+    HasTags = false,
+    HasCategories = false,
+    HasParentChildRelationship = false,
+    RequireGlobalTitleUniqueness = false,
+    OptionalTitleSanityCheck = null,
+}
 ```
 
 3. Restart the backend — the entity appears automatically in the admin panel.

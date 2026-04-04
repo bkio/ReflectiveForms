@@ -71,7 +71,7 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000` and log in with `admin` / `admin`.
+Open `http://localhost:3000` and log in with `admin@karasoftware.com` / `123456`.
 
 ### Docker
 

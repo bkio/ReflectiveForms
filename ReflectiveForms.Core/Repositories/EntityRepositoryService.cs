@@ -13,6 +13,7 @@ using CrossCloudKit.Utilities.Common;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using ReflectiveForms.Core.Models;
+using ReflectiveForms.Core.Operation;
 using ReflectiveForms.Core.Utilities;
 
 namespace ReflectiveForms.Core.Repositories;
@@ -412,6 +413,13 @@ public class EntityRepositoryService
         CancellationToken cancellationToken) where T : EntityFieldsModel, new()
     {
         // Note: If parameters of this method change, remember to update Crud.cs as well. Reflection is used there.
+
+        if (!entityUpdaterIdentity.IsDuringHookUpdate && entityUpdaterIdentity.UserId > 0)
+        {
+            var lockCheckResult = await CheckEntityNotLockedByAnotherUserAsync(entityName, id, entityUpdaterIdentity.UserId, cancellationToken);
+            if (!lockCheckResult.IsSuccessful)
+                return OperationResult<JObject>.Failure(lockCheckResult.ErrorMessage, lockCheckResult.StatusCode);
+        }
 
         body[EntityModelAttributes.Id] = id;
 
@@ -1122,9 +1130,16 @@ public class EntityRepositoryService
     }
 
     private const string DeleteOneAsyncMethodName = "DeleteOneAsync";
-    public async Task<OperationResult<JObject>> DeleteOneAsync<T>(string entityName, int id, CancellationToken cancellationToken) where T : EntityFieldsModel, new()
+    public async Task<OperationResult<JObject>> DeleteOneAsync<T>(string entityName, int id, int requestingUserId, CancellationToken cancellationToken) where T : EntityFieldsModel, new()
     {
         // Note: If parameters of this method change, remember to update Crud.cs as well. Reflection is used there.
+
+        if (requestingUserId > 0)
+        {
+            var lockCheckResult = await CheckEntityNotLockedByAnotherUserAsync(entityName, id, requestingUserId, cancellationToken);
+            if (!lockCheckResult.IsSuccessful)
+                return OperationResult<JObject>.Failure(lockCheckResult.ErrorMessage, lockCheckResult.StatusCode);
+        }
 
         var key = new DbKey(EntityModelAttributes.Id, id);
 
@@ -1429,6 +1444,25 @@ public class EntityRepositoryService
             .GetMethod(
                 DeleteOneAsyncMethodName,
                 BindingFlags.Public | BindingFlags.Instance).NotNull();
+
+    /// <summary>
+    /// Checks if the entity is locked by a different user. Returns success if not locked or locked by the same user.
+    /// </summary>
+    private static async Task<OperationResult<bool>> CheckEntityNotLockedByAnotherUserAsync(
+        string entityName, int entityId, int requestingUserId, CancellationToken cancellationToken)
+    {
+        var lockStatus = await EntityLockController.GetLockStatusAsync(entityName, entityId, cancellationToken);
+        if (!lockStatus.IsSuccessful)
+            return OperationResult<bool>.Success(true); // If we can't check, don't block the operation
+
+        var state = lockStatus.Data;
+        if (state != null && state.LockedByUserId != requestingUserId)
+            return OperationResult<bool>.Failure(
+                $"Entity is currently being edited by {state.LockedByUserName ?? "another user"}.",
+                HttpStatusCode.Conflict);
+
+        return OperationResult<bool>.Success(true);
+    }
 }
 
 public enum EntityChangedEventType

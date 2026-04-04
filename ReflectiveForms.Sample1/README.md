@@ -109,7 +109,7 @@ Open http://localhost:3000 in your browser and log in with:
 
 ## Entity Types in This Sample
 
-This sample registers **5 custom entity types** plus the **5 built-in reserved entities**, covering every feature of the framework:
+This sample registers **6 custom entity types** plus the **5 built-in reserved entities**, covering every feature of the framework:
 
 ### 1. Objectives (OKR System)
 > `EntityName: "objective"` — The original example model demonstrating core features.
@@ -176,6 +176,17 @@ This sample registers **5 custom entity types** plus the **5 built-in reserved e
 | DisplayCondition | `meeting_url` visible when `is_online == true`; `venue` visible when `is_online == false` || Dynamic defaults | `DynamicDefaultValueAsync` — start date defaults to today, end date to tomorrow || Relation | Links to `team-member` entity |
 | Config | HasAuthor ✓, HasTags ✗, HasCategories ✓, HasParent ✗, TitleUnique ✗ |
 
+### 6. Surveys
+> `EntityName: "survey"` — A 3-level nested repeater model demonstrating deep nesting.
+
+| Feature | Details |
+|---------|---------|
+| Field types | TextArea, Select, Checkbox, Number, DatePicker |
+| 3-level Repeater nesting | Survey → Sections → Questions → Choices |
+| DisplayCondition at every level | `passing_score` visible when `has_scoring == true`, `choices` visible when `question_type == choice`, `help_text` when `is_required == true` |
+| Repeater constraints | Sections (1–10), Questions (1–20), Choices (2–8) |
+| Config | HasAuthor ✓, HasTags ✗, HasCategories ✗, HasParent ✗, TitleUnique ✗ |
+
 ---
 
 ## Feature Coverage
@@ -219,7 +230,7 @@ Every ReflectiveForms feature is demonstrated at least once in this sample:
 | **HasTags** | Objective ✓, Blog Post ✓, Product ✓, Team Member ✗, Event ✗ |
 | **HasCategories** | Objective ✓, Blog Post ✓, Product ✓, Event ✓, Team Member ✗ |
 | **HasParentChildRelationship** | Objective ✓, Product ✓, Blog Post ✗, Team Member ✗, Event ✗ |
-| **SupportsFrontendEdit** | ForAllAuthorized (4 entities), ForSuperAdminOnly (Team Member) |
+| **SupportsFrontendEdit** | `true` for all authorized (5 entities), `false` for some if needed (Team Member) |
 | **PostCreateHook** | Objective, Blog Post, Product |
 | **PostUpdateHook** | Objective, Blog Post |
 | **PostDeleteHook** | Objective, Blog Post |
@@ -250,7 +261,8 @@ ReflectiveForms.Sample1/
 │   ├── BlogPostModel.cs              # Blog post entity + SEO metadata + external links
 │   ├── TeamMemberModel.cs            # Team member entity + address + social links + contacts
 │   ├── ProductModel.cs               # Product entity + variants + specs + gallery
-│   └── EventModel.cs                 # Event entity + sessions + sponsors + venue
+│   ├── EventModel.cs                 # Event entity + sessions + sponsors + venue
+│   └── SurveyModel.cs                # Survey entity + sections + questions + choices (3-level nesting)
 ├── Pages/                            # Razor Pages (login, index, error)
 ├── Properties/launchSettings.json
 ├── appsettings.json
@@ -274,7 +286,7 @@ new EntityConfigurationBuilder<YourModel>
     EntityName = "your-entity",                           // URL-safe slug name
     EntityReadableNameSingular = "Your Entity",           // UI display (singular)
     EntityReadableNamePlural = "Your Entities",           // UI display (plural)
-    ShallSupportFrontendEdit = SupportsFrontendEdit.ForAllAuthorized,  // or ForSuperAdminOnly, No
+    SupportsFrontendEdit = true,                                      // or false for read-only
     HasAuthor = true,                                     // Adds author relationship
     HasTags = true,                                       // Adds tag taxonomy
     HasCategories = true,                                 // Adds category taxonomy
@@ -332,6 +344,7 @@ The frontend is a React single-page application that dynamically renders forms b
 
 - **Entity CRUD pages** — Dashboard, entity listing (with search, sort, filter & pagination), create/edit/clone forms
 - **Read-only entity view** — Public view page at `/entities-view/:entityName` with grid layouts for groups, structured repeater headers, and relation fields resolved to clickable entity names
+- **Revision diff** — Side-by-side revision comparison at `/entities-revisions/:entityName` with searchable revision selectors and field-level change highlighting
 - **Dynamic default values** — Fields pre-filled with runtime-computed defaults from the backend
 - **Searchable selects** — Filterable dropdowns for Relation and Select fields with large option sets
 - **Entity locking** — Pessimistic locking with auto-refresh heartbeat
@@ -486,7 +499,7 @@ EntityTypes =
         EntityName = "faq",
         EntityReadableNamePlural = "FAQs",
         EntityReadableNameSingular = "FAQ",
-        ShallSupportFrontendEdit = SupportsFrontendEdit.ForAllAuthorized,
+        SupportsFrontendEdit = true,
         HasAuthor = false,
         HasTags = true,
         HasCategories = false,

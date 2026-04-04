@@ -141,9 +141,10 @@ internal class Crud: BaseEndpoint
         var t = (Task<OperationResult<JObject>>)crudMethodInfo.DeleteOneAsyncMethodInfo.Invoke(RfConfiguration.RepositoryService, [
             entityName,
             id,
+            RequesterUser.NotNull().Id,
             cancellationToken]).NotNull();
         var result = await t.NotNull();
-        return !result.IsSuccessful ? result.ErrorMessage.ToResult() : result.Data.ToResult();
+        return !result.IsSuccessful ? result.StatusCode.ToResult(result.ErrorMessage) : result.Data.ToResult();
     }
 
     private async Task<IResult> HandleHistory(string entityName, CancellationToken cancellationToken)

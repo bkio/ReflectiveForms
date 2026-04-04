@@ -1,6 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
-import { Trash2, Edit, Copy, Plus, ChevronLeft, ChevronRight, Eye, Search, X, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown as ChevronDownIcon, ChevronRight as ChevronRightIcon, Filter } from 'lucide-react';
+import { Trash2, Edit, Copy, Plus, ChevronLeft, ChevronRight, Eye, Search, X, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown as ChevronDownIcon, ChevronRight as ChevronRightIcon, Filter, Lock } from 'lucide-react';
 import { useSchema, useEntityList, useDeleteEntity, useCapabilities } from '../hooks/useEntity';
+import { useLockedEntities } from '../hooks/useLockedEntities';
 import { toast } from 'sonner';
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { PeekEntity } from '../types/schema';
@@ -114,6 +115,7 @@ export function EntityListPage() {
   const { data: allEntities, isLoading: entitiesLoading } = useEntityList(entityName ?? '');
   const { data: capabilities, isSuccess: capabilitiesLoaded } = useCapabilities();
   const deleteMutation = useDeleteEntity(entityName ?? '');
+  const lockedEntities = useLockedEntities(entityName ?? '');
 
   const hasAuthor = schema?.features.has_author ?? false;
   const hasParentChild = schema?.features.has_parent_child ?? false;
@@ -457,6 +459,7 @@ export function EntityListPage() {
                 const depth = hasParentChild ? (item as TreeNode).depth : 0;
                 const hasChildren = hasParentChild ? (item as TreeNode).children.length > 0 : false;
                 const isExpanded = expanded.has(entity.id);
+                const lockInfo = lockedEntities.get(entity.id);
 
                 return (
                 <tr key={entity.id} className="hover:bg-gray-50 transition-colors" data-testid={`entity-row-${entity.id}`} data-depth={depth}>
@@ -476,7 +479,7 @@ export function EntityListPage() {
                         </button>
                       )}
                       <Link
-                        to={canUpdate
+                        to={canUpdate && !lockInfo
                           ? `/entities-admin/${entityName}?id=${entity.id}`
                           : canRead
                           ? `/entities-view/${entityName}?id=${entity.id}`
@@ -485,6 +488,16 @@ export function EntityListPage() {
                       >
                         {entity.title ?? entity.name ?? `ID: ${entity.id}`}
                       </Link>
+                      {lockInfo && (
+                        <span
+                          className="inline-flex items-center gap-1 ml-2 px-2 py-0.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full"
+                          title={`Being edited by ${lockInfo.locked_by_user_name ?? 'another user'}`}
+                          data-testid={`lock-badge-${entity.id}`}
+                        >
+                          <Lock className="w-3 h-3" />
+                          {lockInfo.locked_by_user_name ?? 'Locked'}
+                        </span>
+                      )}
                     </div>
                   </td>
                   {hasAuthor && (
@@ -507,7 +520,14 @@ export function EntityListPage() {
                         </Link>
                       )}
                       {canUpdate && (
-                        <>
+                        lockInfo ? (
+                          <span
+                            className="p-2 text-gray-300 cursor-not-allowed"
+                            title={`Locked by ${lockInfo.locked_by_user_name ?? 'another user'}`}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </span>
+                        ) : (
                           <Link
                             to={`/entities-admin/${entityName}?id=${entity.id}`}
                             className="p-2 text-gray-500 hover:text-blue-600 rounded-md hover:bg-blue-50 transition-colors"
@@ -515,7 +535,7 @@ export function EntityListPage() {
                           >
                             <Edit className="w-4 h-4" />
                           </Link>
-                        </>
+                        )
                       )}
                       {canCreate && (
                           <Link
@@ -527,13 +547,22 @@ export function EntityListPage() {
                           </Link>
                       )}
                       {canDelete && (
-                          <button
-                            onClick={() => handleDelete(entity.id, entity.title ?? entity.name ?? '')}
-                            className="p-2 text-gray-500 hover:text-red-600 rounded-md hover:bg-red-50 transition-colors"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          lockInfo ? (
+                            <span
+                              className="p-2 text-gray-300 cursor-not-allowed"
+                              title={`Locked by ${lockInfo.locked_by_user_name ?? 'another user'}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => handleDelete(entity.id, entity.title ?? entity.name ?? '')}
+                              className="p-2 text-gray-500 hover:text-red-600 rounded-md hover:bg-red-50 transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )
                       )}
                     </div>
                   </td>

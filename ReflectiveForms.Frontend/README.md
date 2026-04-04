@@ -159,7 +159,7 @@ The library exports:
 - **Provider:** `RfConfigProvider`, `useRfConfig`
 - **Layout:** `AdminLayout`
 - **Routes:** `RfRoutes`
-- **Pages:** `LoginPage`, `SsoLoginPage`, `DashboardPage`, `EntityListPage`, `EntityEditPage`, `EntityViewPage`
+- **Pages:** `LoginPage`, `SsoLoginPage`, `DashboardPage`, `EntityListPage`, `EntityEditPage`, `EntityViewPage`, `RevisionDiffPage`
 - **Hooks:** `useSchema`, `useEntity`, `useEntityLock`, `useAutoSave`
 - **Types:** `RfConfig`, `CustomPage`, `EntitySchema`, `FieldSchema`
 - **Utilities:** `schemaToZod`, `conditionParser`, `sanitize`, `formUtils`
@@ -183,7 +183,7 @@ src/
 │   ├── schemaToZod.ts             # Schema → Zod conversion
 │   ├── conditionParser.ts         # Display condition evaluator
 │   └── sanitize.ts                # HTML sanitization
-├── pages/                         # Login, SSO, Dashboard, List, Edit, View
+├── pages/                         # Login, SSO, Dashboard, List, Edit, View, RevisionDiff
 └── types/schema.ts                # TypeScript schema types
 ```
 
@@ -202,7 +202,7 @@ Requires the sample backend running at `localhost:9000`.
 
 ```bash
 npx playwright install
-npm run test:e2e       # 270+ tests (Chromium)
+npm run test:e2e       # 30 suites (Chromium)
 npm run test:e2e:ui    # Interactive mode
 ```
 
@@ -223,19 +223,6 @@ The library build uses `vite.config.lib.ts` with React, React DOM, and React Rou
 ## License
 
 AGPL-3.0
-```tsx
-case 'MyFieldType':
-  schema = z.string(); // or appropriate type
-  break;
-```
-
-### Customizing Styles
-
-The project uses Tailwind CSS. Edit `tailwind.config.js` for theme customization or `src/index.css` for custom styles.
-
-## License
-
-AGPL-3.0 - See LICENSE file for details.
 
 ## Testing
 
@@ -297,6 +284,9 @@ E2E test suites:
 - **sample-cross-entity.spec.ts** - Cross-entity workflows
 - **sample-auth-dashboard.spec.ts** - Auth and dashboard rendering
 - **integration-*.spec.ts** - 9 integration suites (auto-save, data persistence, display conditions, locking, navigation, pagination, relations, schema API, validation)
+- **authorization.spec.ts** - Role-based access control and IAM
+- **list-sort-filter.spec.ts** - Entity list search, sorting, and filtering
+- **revision-diff.spec.ts** - Revision diff comparison page
 
 ### Running All Tests
 
