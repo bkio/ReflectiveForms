@@ -227,26 +227,26 @@ test.describe('Navigation: URL parameter handling', () => {
   });
 
   test('?id=new shows create form', async ({ page }) => {
-    await page.goto(`/rf/app/entities-admin/blog-post?id=new`);
+    await page.goto(`/entities-admin/blog-post?id=new`);
     await page.waitForSelector('form', { timeout: 15000 });
     await expect(page.locator('h1')).toContainText('New');
   });
 
   test('?id=<number> shows edit form', async ({ page, ui }) => {
-    await page.goto(`/rf/app/entities-admin/blog-post?id=${blogId}`);
+    await page.goto(`/entities-admin/blog-post?id=${blogId}`);
     await page.waitForSelector('form', { timeout: 15000 });
     await expect(page.locator('h1')).toContainText('Edit');
     await expect(page.locator('p', { hasText: `Editing ID: ${blogId}` })).toBeVisible();
   });
 
   test('?id=clone_from_<number> shows clone form', async ({ page, ui }) => {
-    await page.goto(`/rf/app/entities-admin/blog-post?id=clone_from_${blogId}`);
+    await page.goto(`/entities-admin/blog-post?id=clone_from_${blogId}`);
     await page.waitForSelector('form', { timeout: 15000 });
     await expect(page.locator('h1')).toContainText('Clone');
   });
 
   test('navigating to invalid entity ID shows error', async ({ page, ui }) => {
-    await page.goto(`/rf/app/entities-admin/blog-post?id=999999`);
+    await page.goto(`/entities-admin/blog-post?id=999999`);
     // Should show an error state or empty form
     await page.waitForTimeout(5000);
 

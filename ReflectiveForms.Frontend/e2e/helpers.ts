@@ -1,7 +1,7 @@
 import { test as base, expect, Page, APIRequestContext } from '@playwright/test';
 
 const API_BASE = 'http://localhost:9000/rf/api';
-const APP_PREFIX = '/rf/app';
+const APP_PREFIX = '';
 
 // -----------------------------------------------------------------
 // API helper – direct HTTP calls for setup/teardown & assertions

@@ -217,7 +217,7 @@ test.describe('Blog Post CRUD', () => {
   // CLONE
   // ──────────────────────────────────────
   test('clone blog post and verify independence', async ({ page, ui, api }) => {
-    await page.goto(`/rf/app/entities-admin/${ENTITY}?id=clone_from_${createdId}`);
+    await page.goto(`/entities-admin/${ENTITY}?id=clone_from_${createdId}`);
     await page.waitForSelector('form', { timeout: 15000 });
 
     await expect(page.locator('h1')).toContainText('Clone Blog Post');

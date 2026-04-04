@@ -69,7 +69,7 @@ createReflectiveFormsApp({
 | `appName` | `string` | No | `"ReflectiveForms"` | Sidebar brand name |
 | `logo` | `string \| ComponentType` | No | — | Logo URL or React component |
 | `primaryColor` | `string` | No | `"#2563eb"` | Theme color (hex) |
-| `basePath` | `string` | No | `"/rf/app"` | Router base path |
+| `basePath` | `string` | No | `"/"` | Router base path |
 | `auth.mode` | `"local" \| "sso"` | No | `"local"` | Authentication mode |
 | `auth.ssoLoginUrl` | `string` | No | — | SSO redirect URL |
 | `customPages` | `CustomPage[]` | No | `[]` | Extra sidebar pages |

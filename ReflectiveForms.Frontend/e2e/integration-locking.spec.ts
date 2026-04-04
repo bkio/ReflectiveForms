@@ -79,14 +79,14 @@ test.describe('Entity Locking', () => {
       });
 
       // First editor opens the entity
-      await page1.goto(`/rf/app/entities-admin/blog-post?id=${blogId}`);
+      await page1.goto(`/entities-admin/blog-post?id=${blogId}`);
       await page1.waitForSelector('form', { timeout: 15000 });
 
       // Wait a moment for the lock to register
       await page1.waitForTimeout(3000);
 
       // Second editor opens the same entity
-      await page2.goto(`/rf/app/entities-admin/blog-post?id=${blogId}`);
+      await page2.goto(`/entities-admin/blog-post?id=${blogId}`);
       await page2.waitForSelector('form', { timeout: 15000 });
 
       // Wait for lock check

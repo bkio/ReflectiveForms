@@ -37,28 +37,28 @@ test.describe('Entity View Page', () => {
   });
 
   test('navigates to view page and displays title', async ({ ui }) => {
-    await ui.page.goto(`/rf/app/entities-view/${ENTITY}?id=${entityId}`);
+    await ui.page.goto(`/entities-view/${ENTITY}?id=${entityId}`);
     await ui.page.waitForSelector('h1', { timeout: 15000 });
 
     await expect(ui.page.locator('h1')).toContainText('View Test - Jane Smith');
   });
 
   test('displays entity ID', async ({ ui }) => {
-    await ui.page.goto(`/rf/app/entities-view/${ENTITY}?id=${entityId}`);
+    await ui.page.goto(`/entities-view/${ENTITY}?id=${entityId}`);
     await ui.page.waitForSelector('h1', { timeout: 15000 });
 
     await expect(ui.page.locator('text=ID:')).toBeVisible();
   });
 
   test('displays text field values', async ({ ui }) => {
-    await ui.page.goto(`/rf/app/entities-view/${ENTITY}?id=${entityId}`);
+    await ui.page.goto(`/entities-view/${ENTITY}?id=${entityId}`);
     await ui.page.waitForSelector('h1', { timeout: 15000 });
 
     await expect(ui.page.locator('text=Senior Engineer')).toBeVisible();
   });
 
   test('displays email as mailto link', async ({ ui }) => {
-    await ui.page.goto(`/rf/app/entities-view/${ENTITY}?id=${entityId}`);
+    await ui.page.goto(`/entities-view/${ENTITY}?id=${entityId}`);
     await ui.page.waitForSelector('h1', { timeout: 15000 });
 
     const emailLink = ui.page.locator('a[href="mailto:jane@company.com"]');
@@ -66,7 +66,7 @@ test.describe('Entity View Page', () => {
   });
 
   test('displays checkbox as Yes/No badge', async ({ ui }) => {
-    await ui.page.goto(`/rf/app/entities-view/${ENTITY}?id=${entityId}`);
+    await ui.page.goto(`/entities-view/${ENTITY}?id=${entityId}`);
     await ui.page.waitForSelector('h1', { timeout: 15000 });
 
     // is_remote = true → "Yes"
@@ -77,7 +77,7 @@ test.describe('Entity View Page', () => {
   });
 
   test('displays select field with human-readable label', async ({ ui }) => {
-    await ui.page.goto(`/rf/app/entities-view/${ENTITY}?id=${entityId}`);
+    await ui.page.goto(`/entities-view/${ENTITY}?id=${entityId}`);
     await ui.page.waitForSelector('h1', { timeout: 15000 });
 
     // department = "engineering" → should display label
@@ -87,7 +87,7 @@ test.describe('Entity View Page', () => {
   });
 
   test('displays number value', async ({ ui }) => {
-    await ui.page.goto(`/rf/app/entities-view/${ENTITY}?id=${entityId}`);
+    await ui.page.goto(`/entities-view/${ENTITY}?id=${entityId}`);
     await ui.page.waitForSelector('h1', { timeout: 15000 });
 
     // years_of_experience = 5, check in the specific field wrapper
@@ -97,14 +97,14 @@ test.describe('Entity View Page', () => {
   });
 
   test('displays text area content', async ({ ui }) => {
-    await ui.page.goto(`/rf/app/entities-view/${ENTITY}?id=${entityId}`);
+    await ui.page.goto(`/entities-view/${ENTITY}?id=${entityId}`);
     await ui.page.waitForSelector('h1', { timeout: 15000 });
 
     await expect(ui.page.locator('text=passionate engineer')).toBeVisible();
   });
 
   test('has Edit button linking to edit page', async ({ ui }) => {
-    await ui.page.goto(`/rf/app/entities-view/${ENTITY}?id=${entityId}`);
+    await ui.page.goto(`/entities-view/${ENTITY}?id=${entityId}`);
     await ui.page.waitForSelector('h1', { timeout: 15000 });
 
     const editLink = ui.page.locator('a[title="Edit"]');
@@ -114,7 +114,7 @@ test.describe('Entity View Page', () => {
   });
 
   test('has Back to list link', async ({ ui }) => {
-    await ui.page.goto(`/rf/app/entities-view/${ENTITY}?id=${entityId}`);
+    await ui.page.goto(`/entities-view/${ENTITY}?id=${entityId}`);
     await ui.page.waitForSelector('h1', { timeout: 15000 });
 
     const backLink = ui.page.locator('a[title="Back to list"]');
@@ -139,7 +139,7 @@ test.describe('Entity View Page', () => {
       fields: { ...validFields, job_title: 'Sparse', email: '', bio: '' },
     });
 
-    await ui.page.goto(`/rf/app/entities-view/${ENTITY}?id=${sparse.id}`);
+    await ui.page.goto(`/entities-view/${ENTITY}?id=${sparse.id}`);
     await ui.page.waitForSelector('h1', { timeout: 15000 });
 
     // Should have "Not set" for empty fields
@@ -157,7 +157,7 @@ test.describe('Entity View Page', () => {
       fields: { ...validFields, is_remote: false },
     });
 
-    await ui.page.goto(`/rf/app/entities-view/${ENTITY}?id=${onSite.id}`);
+    await ui.page.goto(`/entities-view/${ENTITY}?id=${onSite.id}`);
     await ui.page.waitForSelector('h1', { timeout: 15000 });
 
     // office_address is a Group field — its children (street, city, postal_code)
@@ -172,7 +172,7 @@ test.describe('Entity View Page', () => {
   });
 
   test('repeater items show structured headers', async ({ ui }) => {
-    await ui.page.goto(`/rf/app/entities-view/${ENTITY}?id=${entityId}`);
+    await ui.page.goto(`/entities-view/${ENTITY}?id=${entityId}`);
     await ui.page.waitForSelector('h1', { timeout: 15000 });
 
     // emergency_contacts is a Repeater — items should have "Emergency Contacts #1"
@@ -186,7 +186,7 @@ test.describe('Entity View Page', () => {
       fields: { ...validFields, is_remote: false },
     });
 
-    await ui.page.goto(`/rf/app/entities-view/${ENTITY}?id=${onSite.id}`);
+    await ui.page.goto(`/entities-view/${ENTITY}?id=${onSite.id}`);
     await ui.page.waitForSelector('h1', { timeout: 15000 });
 
     // office_address group (render_style=Grid3) should have a grid container

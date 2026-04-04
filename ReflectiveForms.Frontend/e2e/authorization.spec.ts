@@ -1,7 +1,7 @@
 import { test, expect, ApiHelper } from './helpers';
 
 const API_BASE = 'http://localhost:9000/rf/api';
-const APP_PREFIX = '/rf/app';
+const APP_PREFIX = '';
 
 /**
  * Authorization E2E Tests

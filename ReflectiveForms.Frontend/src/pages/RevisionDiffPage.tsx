@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { useSchema, useEntity, useEntityHistory, useEntityList } from '../hooks/useEntity';
-import { RevisionEntry, FieldSchema, EntitySchema, EntityData, GroupRenderStyle } from '../types/schema';
+import { RevisionEntry, FieldSchema, EntitySchema, EntityData } from '../types/schema';
 import { sanitizeHtml } from '../lib/sanitize';
 import { evaluateCompoundCondition } from '../lib/conditionParser';
 import { ArrowLeft, ChevronDown, Search } from 'lucide-react';

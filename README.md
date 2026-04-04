@@ -171,7 +171,7 @@ config.Endpoints.SsoConfiguration = new SsoConfiguration {
 | `appName` | No | `"ReflectiveForms"` | Sidebar brand name |
 | `logo` | No | — | URL string or React component |
 | `primaryColor` | No | `"#2563eb"` | Theme color (sets `--rf-primary` CSS variable) |
-| `basePath` | No | `"/rf/app"` | Router base path |
+| `basePath` | No | `"/"` | Router base path |
 | `auth.mode` | No | `"local"` | `"local"` or `"sso"` |
 | `auth.ssoLoginUrl` | No | — | SSO redirect endpoint (required when mode is `"sso"`) |
 | `customPages` | No | `[]` | Extra sidebar pages with `path`, `label`, `icon`, `component`, `section` |
@@ -327,7 +327,7 @@ public List<SurveyChoiceModel>? Choices = null;
 cd ReflectiveForms.Sample1 && dotnet run   # http://localhost:9000
 
 # Frontend
-cd ReflectiveForms.Frontend && npm install && npm run dev   # http://localhost:3000/rf/app/
+cd ReflectiveForms.Frontend && npm install && npm run dev   # http://localhost:3000/
 
 # Login: admin@karasoftware.com / 123456
 ```
