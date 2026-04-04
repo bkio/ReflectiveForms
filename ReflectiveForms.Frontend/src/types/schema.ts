@@ -175,3 +175,16 @@ export interface PaginatedPeekResponse {
   next_page_token: string | null;
   total_count: number | null;
 }
+
+export interface RevisionEntry {
+  revision_number: number;
+  date: string;
+  date_gmt: string;
+  modified_by_email: string;
+  object: EntityData;
+}
+
+export interface EntityRevisionsResponse {
+  revisions_count: number;
+  revisions: RevisionEntry[];
+}

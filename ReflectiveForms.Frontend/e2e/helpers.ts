@@ -103,6 +103,24 @@ export class ApiHelper {
       await this.deleteEntity(entityName, e.id);
     }
   }
+
+  async getEntityHistory(entityName: string, id: number) {
+    const res = await this.request.post(
+      `${API_BASE}/crud?operation=HISTORY&type=${entityName}`,
+      { data: { id } },
+    );
+    expect(res.ok()).toBeTruthy();
+    return (await res.json()) as {
+      revisions_count: number;
+      revisions: Array<{
+        revision_number: number;
+        date: string;
+        date_gmt: string;
+        modified_by_email: string;
+        object: Record<string, unknown>;
+      }>;
+    };
+  }
 }
 
 // -----------------------------------------------------------------
@@ -142,6 +160,18 @@ export class UiHelper {
       undefined,
       { timeout: 15000 },
     );
+  }
+
+  /** Navigate to the entity view page for a given entity type and id. */
+  async gotoViewEntity(entityName: string, id: number) {
+    await this.page.goto(`${APP_PREFIX}/entities-view/${entityName}?id=${id}`);
+    await this.page.waitForSelector('h1', { timeout: 15000 });
+  }
+
+  /** Navigate to the revision diff page for a given entity type and id. */
+  async gotoRevisionDiff(entityName: string, id: number) {
+    await this.page.goto(`${APP_PREFIX}/entities-revisions/${entityName}?id=${id}`);
+    await this.page.waitForSelector('h1', { timeout: 15000 });
   }
 
   // --- title ---

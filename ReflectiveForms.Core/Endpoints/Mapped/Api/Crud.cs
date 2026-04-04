@@ -39,8 +39,13 @@ internal class Crud: BaseEndpoint
             return HttpStatusCode.BadRequest.ToResult("Unknown entity type.");
         var crudMethodInfo = config.CrudMethodInfo;
 
-        // Auth check — PEEK_ALL_PAGINATED uses same permissions as PEEK_ALL
-        var authOperation = operation == "PEEK_ALL_PAGINATED" ? "PEEK_ALL" : operation;
+        // Auth check — PEEK_ALL_PAGINATED uses same permissions as PEEK_ALL, HISTORY uses READ
+        var authOperation = operation switch
+        {
+            "PEEK_ALL_PAGINATED" => "PEEK_ALL",
+            "HISTORY" => "READ",
+            _ => operation
+        };
         var userFields = RequesterUser.NotNull().Fields;
         if (!userFields.CanUserDo(authOperation, entityName))
         {
@@ -58,6 +63,7 @@ internal class Crud: BaseEndpoint
             "CREATE" => await HandleCreate(entityName, crudMethodInfo, cancellationToken),
             "UPDATE" => await HandleUpdate(entityName, crudMethodInfo, uid, cancellationToken),
             "DELETE" => await HandleDelete(entityName, crudMethodInfo, cancellationToken),
+            "HISTORY" => await HandleHistory(entityName, cancellationToken),
             _ => HttpStatusCode.BadRequest.ToResult("Unknown operation.")
         };
     }
@@ -138,5 +144,14 @@ internal class Crud: BaseEndpoint
             cancellationToken]).NotNull();
         var result = await t.NotNull();
         return !result.IsSuccessful ? result.ErrorMessage.ToResult() : result.Data.ToResult();
+    }
+
+    private async Task<IResult> HandleHistory(string entityName, CancellationToken cancellationToken)
+    {
+        if (!RequestBodyJsonObject.NotNull().TryGetValue("id", out var idToken) || !int.TryParse(idToken.ToString(), out var id))
+            return HttpStatusCode.BadRequest.ToResult("Request body should contain -id- field.");
+
+        var result = await RfConfiguration.RepositoryService.GetEntityRevisionsAsync(entityName, id, cancellationToken);
+        return !result.IsSuccessful ? result.StatusCode.ToResult(result.ErrorMessage) : result.Data.ToResult();
     }
 }

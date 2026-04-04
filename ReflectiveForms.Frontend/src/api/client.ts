@@ -1,4 +1,4 @@
-import { EntitySchema, EntityData, PeekEntity, PaginatedPeekResponse, AllCapabilities } from '../types/schema';
+import { EntitySchema, EntityData, PeekEntity, PaginatedPeekResponse, AllCapabilities, EntityRevisionsResponse } from '../types/schema';
 
 let _apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:9000/rf/api';
 
@@ -192,5 +192,16 @@ export async function checkAuth(): Promise<boolean> {
 export async function fetchCapabilities(): Promise<ApiResponse<AllCapabilities>> {
   return fetchApi<AllCapabilities>('/capabilities', {
     method: 'POST',
+  });
+}
+
+// History/Revisions API
+export async function fetchEntityHistory(
+  entityName: string,
+  id: number
+): Promise<ApiResponse<EntityRevisionsResponse>> {
+  return fetchApi<EntityRevisionsResponse>(`/crud?operation=HISTORY&type=${encodeURIComponent(entityName)}`, {
+    method: 'POST',
+    body: JSON.stringify({ id }),
   });
 }

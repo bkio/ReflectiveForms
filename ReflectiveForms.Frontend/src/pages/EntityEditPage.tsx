@@ -1,6 +1,7 @@
-import { useParams, useSearchParams, Navigate, useNavigate } from 'react-router-dom';
-import { useSchema, useEntity, useCapabilities } from '../hooks/useEntity';
+import { useParams, useSearchParams, Navigate, useNavigate, Link } from 'react-router-dom';
+import { useSchema, useEntity, useCapabilities, useEntityHistory } from '../hooks/useEntity';
 import { DynamicForm } from '../components/form/DynamicForm';
+import { GitCompare } from 'lucide-react';
 
 export function EntityEditPage() {
   const { entityName } = useParams<{ entityName: string }>();
@@ -37,6 +38,10 @@ export function EntityEditPage() {
     isLoading: entityLoading,
     error: entityError,
   } = useEntity(entityName ?? '', sourceId);
+
+  // Fetch revision history for edit mode only (not new/clone)
+  const { data: historyData } = useEntityHistory(entityName ?? '', entityId);
+  const hasRevisions = (historyData?.revisions_count ?? 0) > 0;
 
   // Loading state
   if (schemaLoading) {
@@ -128,11 +133,24 @@ export function EntityEditPage() {
     <div>
       <div className="max-w-4xl mx-auto py-8 px-4">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">{pageTitle}</h1>
-          <p className="mt-1 text-gray-500">
-            {entityId ? `Editing ID: ${entityId}` : 'Creating new entry'}
-          </p>
+        <div className="mb-8 flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">{pageTitle}</h1>
+            <p className="mt-1 text-gray-500">
+              {entityId ? `Editing ID: ${entityId}` : 'Creating new entry'}
+            </p>
+          </div>
+          {entityId && hasRevisions && (
+            <Link
+              to={`/entities-revisions/${entityName}?id=${entityId}`}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+              title="Compare Revisions"
+              data-testid="compare-revisions-button"
+            >
+              <GitCompare className="w-4 h-4" />
+              Compare Revisions
+            </Link>
+          )}
         </div>
 
         {/* Form */}

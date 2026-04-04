@@ -10,8 +10,9 @@ import {
   deleteEntity,
   sanityCheck,
   fetchCapabilities,
+  fetchEntityHistory,
 } from '../api/client';
-import { EntityData, EntitySchema, PaginatedPeekResponse, AllCapabilities } from '../types/schema';
+import { EntityData, EntitySchema, PaginatedPeekResponse, AllCapabilities, EntityRevisionsResponse } from '../types/schema';
 
 // Schema hooks
 export function useSchema(entityName: string) {
@@ -141,5 +142,18 @@ export function useDeleteEntity(entityName: string) {
 export function useSanityCheck(entityName: string) {
   return useMutation({
     mutationFn: (data: Partial<EntityData>) => sanityCheck(entityName, data),
+  });
+}
+
+export function useEntityHistory(entityName: string, id: number | undefined) {
+  return useQuery({
+    queryKey: ['entity-history', entityName, id],
+    queryFn: async () => {
+      if (id === undefined) return null;
+      const result = await fetchEntityHistory(entityName, id);
+      if (result.error) throw new Error(result.error);
+      return result.data as EntityRevisionsResponse;
+    },
+    enabled: id !== undefined,
   });
 }

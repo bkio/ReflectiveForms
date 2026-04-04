@@ -708,6 +708,56 @@ public class EntityRepositoryService
                 : OperationResult<bool>.Success(true);
     }
 
+    public async Task<OperationResult<JObject>> GetEntityRevisionsAsync(
+        string entityName,
+        int id,
+        CancellationToken cancellationToken)
+    {
+        var getItemResult = await _db.GetItemAsync(
+            GetEntityHistoryTableName(entityName),
+            new DbKey(EntityModelAttributes.Id, id),
+            null,
+            cancellationToken);
+        if (!getItemResult.IsSuccessful)
+            return OperationResult<JObject>.Failure(
+                $"Error: EntityRepository->GetEntityRevisionsAsync: GetItem has failed. Id: {id} Entity Name: {entityName}", getItemResult.StatusCode);
+
+        var historyData = getItemResult.Data;
+        if (historyData == null)
+        {
+            // No history exists — entity has never been updated
+            return OperationResult<JObject>.Success(new JObject
+            {
+                ["revisions_count"] = 0,
+                ["revisions"] = new JArray()
+            });
+        }
+
+        var count = (int)(historyData[HistoryTableOldRevisionsCountAttributeName] ?? 0);
+        var revisions = new JArray();
+        for (var i = 1; i <= count; i++)
+        {
+            var revisionKey = $"{HistoryTableOldRevisionContainerAttributeNamePrefix}{i}";
+            var revisionContainer = historyData[revisionKey] as JObject;
+            if (revisionContainer == null) continue;
+
+            revisions.Add(new JObject
+            {
+                ["revision_number"] = i,
+                [EntityModelAttributes.Date] = revisionContainer[EntityModelAttributes.Date],
+                [EntityModelAttributes.DateGmt] = revisionContainer[EntityModelAttributes.DateGmt],
+                [HistoryTableOldRevisionInContainerModifiedByEmailAttributeName] = revisionContainer[HistoryTableOldRevisionInContainerModifiedByEmailAttributeName],
+                [HistoryTableOldRevisionInContainerObjectAttributeName] = revisionContainer[HistoryTableOldRevisionInContainerObjectAttributeName]
+            });
+        }
+
+        return OperationResult<JObject>.Success(new JObject
+        {
+            ["revisions_count"] = count,
+            ["revisions"] = revisions
+        });
+    }
+
     private async Task<OperationResult<bool>> FixTheUpdateForOthersThatHaveReferenceToThisAsync(string entityName, int id, JObject body, CancellationToken cancellationToken)
     {
         if (!body.TryGetTypedValue(EntityModelAttributes.Title, out JObject? titleObject)

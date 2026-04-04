@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
-import { useSchema, useEntity, useEntityList, useCapabilities } from '../hooks/useEntity';
+import { useSchema, useEntity, useEntityList, useCapabilities, useEntityHistory } from '../hooks/useEntity';
 import { FieldSchema, EntitySchema, PeekEntity, GroupRenderStyle } from '../types/schema';
 import { sanitizeHtml } from '../lib/sanitize';
 import { evaluateCompoundCondition } from '../lib/conditionParser';
-import { ArrowLeft, Edit, Tag, FolderTree, User, GitBranch } from 'lucide-react';
+import { ArrowLeft, Edit, Tag, FolderTree, User, GitBranch, GitCompare } from 'lucide-react';
 
 /** Recursively collect all unique relation entity names from the field schema tree. */
 function collectRelationEntityNames(fields: FieldSchema[]): string[] {
@@ -75,6 +75,9 @@ export function EntityViewPage() {
   const { data: categoriesList } = useEntityList(schema?.features.has_categories ? 'categories' : '');
   const { data: parentList } = useEntityList(schema?.features.has_parent_child ? (entityName ?? '') : '');
 
+  const { data: historyData } = useEntityHistory(entityName ?? '', entityId);
+  const hasRevisions = (historyData?.revisions_count ?? 0) > 0;
+
   if (schemaLoading || entityLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -127,16 +130,29 @@ export function EntityViewPage() {
               {schema.readable_name.singular} — ID: {entityId}
             </p>
           </div>
-          {schema.features.supports_frontend_edit && (capabilities?.[entityName!]?.can_update ?? true) && (
-            <Link
-              to={`/entities-admin/${entityName}?id=${entityId}`}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-              title="Edit"
-            >
-              <Edit className="w-4 h-4" />
-              Edit
-            </Link>
-          )}
+          <div className="flex items-center gap-2">
+            {hasRevisions && (
+              <Link
+                to={`/entities-revisions/${entityName}?id=${entityId}`}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+                title="Compare Revisions"
+                data-testid="compare-revisions-button"
+              >
+                <GitCompare className="w-4 h-4" />
+                Compare Revisions
+              </Link>
+            )}
+            {schema.features.supports_frontend_edit && (capabilities?.[entityName!]?.can_update ?? true) && (
+              <Link
+                to={`/entities-admin/${entityName}?id=${entityId}`}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                title="Edit"
+              >
+                <Edit className="w-4 h-4" />
+                Edit
+              </Link>
+            )}
+          </div>
         </div>
 
         {/* Metadata section */}
