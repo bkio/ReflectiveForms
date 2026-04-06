@@ -67,6 +67,7 @@ test.describe('Product CRUD', () => {
     await ui.fillNumber('Weight (kg)', '0.3');
 
     // Repeater — Variants (pre-populated from min_items=1)
+    await ui.expandRepeaterItem('Product Variants', 0);
     await ui.fillTextField('Variant Name', 'Black / Standard');
     await ui.fillTextField('SKU', 'HP-BLK-STD');
     await ui.fillNumber('Price (USD)', '299.99');
@@ -251,11 +252,17 @@ test.describe('Product CRUD', () => {
   // DELETE via UI
   // ──────────────────────────────────────
   test('delete product and verify removal', async ({ page, ui, api }) => {
+    // Ensure entity is unlocked from previous edit test
+    await api.unlockEntity(ENTITY, createdId);
+
     await ui.gotoEntityList(ENTITY);
     const countBefore = await ui.entityRowCount();
 
+    const deleteBtn = ui.entityRows().first().locator('button[title="Delete"]');
+    await deleteBtn.waitFor({ state: 'visible', timeout: 30000 });
+
     page.on('dialog', dialog => dialog.accept());
-    await ui.clickDeleteOnRow(0);
+    await deleteBtn.click();
     await page.waitForTimeout(2000);
 
     const entities = await api.peekAll(ENTITY);

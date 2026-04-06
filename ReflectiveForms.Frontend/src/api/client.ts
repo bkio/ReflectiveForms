@@ -1,4 +1,4 @@
-import { EntitySchema, EntityData, PeekEntity, PaginatedPeekResponse, AllCapabilities, EntityRevisionsResponse } from '../types/schema';
+import { EntitySchema, EntityData, PeekEntity, PaginatedPeekResponse, AllCapabilities, EntityRevisionsResponse, BulkReadSource, BulkReadResponse } from '../types/schema';
 
 let _apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:9000/rf/api';
 
@@ -27,6 +27,8 @@ async function fetchApi<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000);
   try {
     const response = await fetch(`${_apiBaseUrl}${endpoint}`, {
       credentials: 'include',
@@ -35,6 +37,7 @@ async function fetchApi<T>(
         ...options.headers,
       },
       ...options,
+      signal: options.signal ?? controller.signal,
     });
 
     if (!response.ok) {
@@ -49,7 +52,12 @@ async function fetchApi<T>(
     const data = await response.json();
     return { data };
   } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      return { error: 'Request timed out' };
+    }
     return { error: error instanceof Error ? error.message : 'Network error' };
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
@@ -160,7 +168,7 @@ export async function unlockEntity(
   id: number
 ): Promise<ApiResponse<void>> {
   return fetchApi<void>(
-    `/entity_lock_control?type=${encodeURIComponent(entityName)}&id=${id}&operation=unlock`,
+    `/entity_lock_control?type=${encodeURIComponent(entityName)}&id=${id}&operation=try_unlock`,
     { method: 'POST', body: '{}' }
   );
 }
@@ -226,5 +234,15 @@ export async function fetchEntityHistory(
   return fetchApi<EntityRevisionsResponse>(`/crud?operation=HISTORY&type=${encodeURIComponent(entityName)}`, {
     method: 'POST',
     body: JSON.stringify({ id }),
+  });
+}
+
+// Bulk Read API (RF Sheets)
+export async function bulkRead(
+  sources: BulkReadSource[]
+): Promise<ApiResponse<BulkReadResponse>> {
+  return fetchApi<BulkReadResponse>('/bulk_read', {
+    method: 'POST',
+    body: JSON.stringify({ sources }),
   });
 }

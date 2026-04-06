@@ -297,6 +297,7 @@ test.describe('Data Persistence: Product round-trip', () => {
     await ui.fillNumber('Weight (kg)', '2.5');
 
     // Add variant (pre-populated from min_items=1)
+    await ui.expandRepeaterItem('Product Variants', 0);
     await ui.fillTextField('Variant Name', 'Standard');
     await ui.fillTextField('SKU', `PERSIST-${TS()}`);
     await ui.fillNumber('Price (USD)', '599.99');
@@ -498,6 +499,7 @@ test.describe('Data Persistence: Objective round-trip', () => {
     await ui.fillTitle(`Persist OKR ${TS()}`);
     await ui.fillDate('Objective Work Planned Start Date', '2025-01-15');
     await ui.selectOption('Short-term or Long-term?', 'long_term');
+    await ui.selectOption('Objective Initiation Year', `${new Date().getFullYear()}`);
     await ui.fillTextField('Objective Documentation URL', 'https://docs.example.com/okr');
     await ui.fillTextArea('Root Cause', `Unique cause ${TS()}`);
 

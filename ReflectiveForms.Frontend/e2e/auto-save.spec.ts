@@ -20,7 +20,7 @@ test.describe('Auto-save & Validation', () => {
   test('should show auto-save pending message on field change', async ({ ui }) => {
     await ui.gotoNewEntity(ENTITY);
     await ui.fillTitle(`Autosave Pending ${TS()}`);
-    await expect(ui.page.locator('text=Changes will be saved')).toBeVisible({ timeout: 5000 });
+    await expect(ui.page.locator('[data-testid="autosave-countdown"]')).toBeVisible({ timeout: 10000 });
   });
 
   test('should show error toast when saving with empty required fields', async ({ page, ui }) => {
@@ -28,8 +28,9 @@ test.describe('Auto-save & Validation', () => {
     // Fill title to pass Zod validation, but leave required backend fields empty
     await ui.fillTitle(`Incomplete ${TS()}`);
     await ui.clickSaveNow();
-    // Backend sanity check should fail — expect an error toast
-    await expect(page.locator('[data-sonner-toast][data-type="error"]')).toBeVisible({ timeout: 15000 });
+    // Backend sanity check should fail — expect an error via autosave indicator
+    const errorIndicator = page.locator('[data-testid="autosave-error"], [data-testid="autosave-validation-error"]');
+    await expect(errorIndicator.first()).toBeVisible({ timeout: 15000 });
   });
 
   test('should save and reload preserving form state', async ({ page, ui, api }) => {

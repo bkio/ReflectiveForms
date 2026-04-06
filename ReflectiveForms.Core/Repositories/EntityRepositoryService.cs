@@ -1223,6 +1223,16 @@ public class EntityRepositoryService
             : OperationResult<JArray>.Success(ListOfJObjectToJArray(scanResult.Data.Items));
     }
 
+    public async Task<OperationResult<JArray>> FullReadAllAsync(string entityName, CancellationToken cancellationToken)
+    {
+        var scanResult = await _db.ScanTableAsync(
+            GetEntityTableName(entityName),
+            cancellationToken);
+        return !scanResult.IsSuccessful
+            ? OperationResult<JArray>.Failure($"Error: EntityRepository->FullReadAllAsync: ScanTableAsync has failed with: {scanResult.ErrorMessage}", scanResult.StatusCode)
+            : OperationResult<JArray>.Success(ListOfJObjectToJArray(scanResult.Data.Items));
+    }
+
     public async Task<OperationResult<JObject>> PeekAllPaginatedAsync(
         string entityName,
         int pageSize,

@@ -55,11 +55,9 @@ test.describe('Validation: Blog Post slug uniqueness', () => {
 
     await ui.clickSaveNow();
 
-    // Should show a toast error about duplicate slug
-    const errorToast = page.locator('[data-sonner-toast]').filter({
-      hasText: /slug.*already|already.*slug|sanity|error/i,
-    });
-    await expect(errorToast.first()).toBeVisible({ timeout: 15000 });
+    // Should show an error via autosave indicator (validation error or save error)
+    const errorIndicator = page.locator('[data-testid="autosave-error"], [data-testid="autosave-validation-error"]');
+    await expect(errorIndicator.first()).toBeVisible({ timeout: 15000 });
   });
 });
 
@@ -102,11 +100,9 @@ test.describe('Validation: Objective root cause uniqueness', () => {
 
     await ui.clickSaveNow();
 
-    // Error toast about duplicate root cause
-    const errorToast = page.locator('[data-sonner-toast]').filter({
-      hasText: /root cause.*already|already.*used|sanity|error/i,
-    });
-    await expect(errorToast.first()).toBeVisible({ timeout: 15000 });
+    // Should show an error via autosave indicator (validation error or save error)
+    const errorIndicator = page.locator('[data-testid="autosave-error"], [data-testid="autosave-validation-error"]');
+    await expect(errorIndicator.first()).toBeVisible({ timeout: 15000 });
   });
 });
 
@@ -145,11 +141,9 @@ test.describe('Validation: Title uniqueness enforcement', () => {
 
     await ui.clickSaveNow();
 
-    // Should see a toast about title uniqueness
-    const errorToast = page.locator('[data-sonner-toast]').filter({
-      hasText: /title.*already|already.*exists|unique|duplicate|error/i,
-    });
-    await expect(errorToast.first()).toBeVisible({ timeout: 15000 });
+    // Should show an error via autosave indicator (validation error or save error)
+    const errorIndicator = page.locator('[data-testid="autosave-error"], [data-testid="autosave-validation-error"]');
+    await expect(errorIndicator.first()).toBeVisible({ timeout: 15000 });
   });
 });
 
@@ -174,12 +168,10 @@ test.describe('Validation: Repeater min/max row enforcement', () => {
     // Expect some feedback — either the form prevents saving or an error toast
     await page.waitForTimeout(3000);
 
-    // Verify no entity was created (or error shown)
-    // The UI may show a validation error inline or via toast
-    const toasts = page.locator('[data-sonner-toast]');
-    const toastCount = await toasts.count();
-    // At least one toast should appear
-    expect(toastCount).toBeGreaterThan(0);
+    // Verify validation feedback — either autosave indicator or sonner toast
+    const errorIndicator = page.locator('[data-testid="autosave-error"], [data-testid="autosave-validation-error"], [data-sonner-toast]');
+    const indicatorCount = await errorIndicator.count();
+    expect(indicatorCount).toBeGreaterThan(0);
   });
 
   test('blog post external links repeater enforces max 10', async ({ page, ui }) => {

@@ -85,7 +85,10 @@ test.describe('Navigation: Complete lifecycle flow', () => {
     expect(await ui.entityRowCount()).toBeGreaterThanOrEqual(1);
   });
 
-  test('click entity title in list to open edit form', async ({ page, ui }) => {
+  test('click entity title in list to open edit form', async ({ page, ui, api }) => {
+    // Ensure entity is unlocked from previous test
+    await api.unlockEntity('blog-post', entityId);
+
     await ui.gotoEntityList('blog-post');
 
     // Click on the entity title link
@@ -145,13 +148,19 @@ test.describe('Navigation: Complete lifecycle flow', () => {
   });
 
   test('delete from list page, row disappears', async ({ page, ui, api }) => {
+    // Ensure entity is unlocked from previous test so Delete button renders
+    await api.unlockEntity('blog-post', entityId);
+
     await ui.gotoEntityList('blog-post');
 
     const countBefore = await ui.entityRowCount();
     expect(countBefore).toBeGreaterThanOrEqual(1);
 
+    const deleteBtn = ui.entityRows().first().locator('button[title="Delete"]');
+    await deleteBtn.waitFor({ state: 'visible', timeout: 30000 });
+
     page.on('dialog', d => d.accept());
-    await ui.clickDeleteOnRow(0);
+    await deleteBtn.click();
 
     await page.waitForTimeout(2000);
 
@@ -226,7 +235,7 @@ test.describe('Navigation: URL parameter handling', () => {
     blogId = result.id;
   });
 
-  test('?id=new shows create form', async ({ page }) => {
+  test('?id=new shows create form', async ({ page, ui }) => {
     await page.goto(`/entities-admin/blog-post?id=new`);
     await page.waitForSelector('form', { timeout: 15000 });
     await expect(page.locator('h1')).toContainText('New');

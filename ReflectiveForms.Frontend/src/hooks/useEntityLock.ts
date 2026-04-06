@@ -146,9 +146,12 @@ export function useEntityLock(
   useEffect(() => {
     const handleBeforeUnload = () => {
       if (isLockedRef.current && entityId && entityId > 0) {
-        // Use sendBeacon for reliable delivery on page unload
-        const url = `${getApiBaseUrl()}/entity_lock?type=${encodeURIComponent(entityName)}&id=${entityId}&action=unlock`;
-        navigator.sendBeacon(url);
+        // Use sendBeacon with form data for reliable delivery on page unload.
+        // sendBeacon with Blob sends as a simple CORS request (no preflight),
+        // and the URL includes all params so the body is just a placeholder.
+        const url = `${getApiBaseUrl()}/entity_lock_control?type=${encodeURIComponent(entityName)}&id=${entityId}&operation=try_unlock`;
+        const blob = new Blob(['{}'], { type: 'application/x-www-form-urlencoded' });
+        navigator.sendBeacon(url, blob);
       }
     };
 

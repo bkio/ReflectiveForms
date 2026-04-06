@@ -115,6 +115,8 @@ export function useAutoSave({
     setStatus(prev => ({ ...prev, status: 'checking', validationErrors: [], error: null }));
     try {
       const result = await onSanityCheck();
+      // If status was overridden while waiting (e.g. saveNow was called), abort
+      if (statusRef.current !== 'checking') return;
       if (result.passed) {
         startCountdown();
       } else {
@@ -125,6 +127,8 @@ export function useAutoSave({
         }));
       }
     } catch {
+      // If status was overridden while waiting, abort
+      if (statusRef.current !== 'checking') return;
       // Sanity check network error — still try to save (CRUD has its own validation)
       startCountdown();
     }

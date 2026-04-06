@@ -34,6 +34,7 @@ public static class RfEndpointMapper
     internal const string AuthCheckEndpoint = "auth_check";
     internal const string CapabilitiesEndpoint = "capabilities";
     internal const string SchemaEndpoint = "schema";
+    internal const string BulkReadEndpoint = "bulk_read";
 
     public static string PublicCrudEndpoint => RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + CrudEndpoint;
     public static string PublicSanityCheckEndpoint => RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + SanityCheckEndpoint;
@@ -57,6 +58,7 @@ public static class RfEndpointMapper
         MapEndpoint(group, LogoutEndpoint, new Logout());
         MapEndpoint(group, AuthCheckEndpoint, new AuthCheck());
         MapEndpoint(group, CapabilitiesEndpoint, new Capabilities());
+        MapEndpoint(group, BulkReadEndpoint, new BulkRead());
 
         return app;
     }

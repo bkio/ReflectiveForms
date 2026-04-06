@@ -104,6 +104,27 @@ export class ApiHelper {
     }
   }
 
+  /** Release an entity lock via API. Verifies the unlock succeeded. */
+  async unlockEntity(entityName: string, id: number) {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await this.request.post(
+        `${API_BASE}/entity_lock_control?type=${encodeURIComponent(entityName)}&id=${id}&operation=try_unlock`,
+        { data: {}, timeout: 5000 },
+      ).catch(() => {});
+      // Verify lock is released
+      const check = await this.request.post(
+        `${API_BASE}/entity_lock_control?type=${encodeURIComponent(entityName)}&id=${id}&operation=status_one`,
+        { data: {}, timeout: 5000 },
+      ).catch(() => null);
+      if (check) {
+        const body = await check.json().catch(() => null);
+        if (!body?.is_locked) return; // Successfully unlocked
+      }
+      // Wait longer between retries to let the server settle
+      await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
+    }
+  }
+
   async getEntityHistory(entityName: string, id: number) {
     const res = await this.request.post(
       `${API_BASE}/crud?operation=HISTORY&type=${entityName}`,
@@ -127,7 +148,13 @@ export class ApiHelper {
 // Page helpers – UI interaction utilities
 // -----------------------------------------------------------------
 export class UiHelper {
-  constructor(public page: Page) {}
+  private _request: import('@playwright/test').APIRequestContext;
+  /** Entities that were navigated to in edit mode during this test. */
+  private _editedEntities: Array<{ entity: string; id: number }> = [];
+
+  constructor(public page: Page, request: import('@playwright/test').APIRequestContext) {
+    this._request = request;
+  }
 
   /** Navigate to the dashboard. */
   async gotoDashboard() {
@@ -149,6 +176,7 @@ export class UiHelper {
 
   /** Navigate to the edit-entity form for a given entity type and id. */
   async gotoEditEntity(entityName: string, id: number) {
+    this._editedEntities.push({ entity: entityName, id });
     await this.page.goto(`${APP_PREFIX}/entities-admin/${entityName}?id=${id}`);
     await this.page.waitForSelector('form', { timeout: 15000 });
     // Wait for entity data to populate the title field (avoids race with async data loading)
@@ -331,7 +359,20 @@ export class UiHelper {
     const field = this.fieldWrapperByLabel(label);
     // Use the direct child combinator (>) from .space-y-4 to avoid matching
     // nested repeater items (e.g. questions inside sections).
-    return field.locator('> div > .space-y-4 > .border.border-gray-200.rounded-lg.overflow-hidden');
+    return field.locator('> div > .space-y-4 > .border.border-gray-200.rounded-lg.overflow-visible');
+  }
+
+  /** Expand a collapsed repeater accordion item (no-op if already expanded). */
+  async expandRepeaterItem(label: string, index: number = 0) {
+    const item = this.repeaterItems(label).nth(index);
+    // The accordion chevron rotates 90° when expanded
+    const chevron = item.locator('[data-testid^="accordion-chevron-"]');
+    const isExpanded = await chevron.evaluate(el => el.classList.contains('rotate-90')).catch(() => true);
+    if (!isExpanded) {
+      await item.locator('[data-testid^="repeater-header-"]').click();
+      // Wait for content to become visible
+      await item.locator('.p-4.grid').waitFor({ state: 'visible', timeout: 5000 });
+    }
   }
 
   // --- save ---
@@ -342,17 +383,14 @@ export class UiHelper {
 
   /** Wait until the "Saved!" indicator appears or throw on error indicator/toast. */
   async waitForSave(timeoutMs = 30000) {
-    // Wait for autosave-saved indicator or error indicator/toast
     const result = await this.page.waitForFunction(
       () => {
-        // Check new AutoSaveIndicator component
         const saved = document.querySelector('[data-testid="autosave-saved"]');
         if (saved) return { saved: true };
 
         const error = document.querySelector('[data-testid="autosave-error"]');
         if (error) return { error: error.textContent };
 
-        // Fallback: check sonner toasts for error
         const toasts = document.querySelectorAll('[data-sonner-toast]');
         for (const t of toasts) {
           if (t.getAttribute('data-type') === 'error') {
@@ -368,6 +406,18 @@ export class UiHelper {
     if (val && 'error' in val) {
       throw new Error(`Save failed: ${val.error}`);
     }
+
+    // After a successful save, track the entity for lock release
+    // (handles gotoNewEntity → save → URL now has the real entity ID)
+    try {
+      const url = this.page.url();
+      const m = url.match(/entities-admin\/([^?]+)\?id=(\d+)/);
+      if (m) {
+        const [, entity, id] = m;
+        const already = this._editedEntities.some(e => e.entity === entity && e.id === Number(id));
+        if (!already) this._editedEntities.push({ entity, id: Number(id) });
+      }
+    } catch { /* page may already be navigating */ }
   }
 
   // --- conditional visibility ---
@@ -403,6 +453,67 @@ export class UiHelper {
     const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     return this.page.locator('label', { hasText: new RegExp(`^\\s*${escaped}\\s*\\*?\\s*$`) }).nth(nth)
       .locator('xpath=ancestor::div[contains(@class,"field-wrapper")][1]');
+  }
+
+  /**
+   * Release all entity locks acquired during this test.
+   * Called from the fixture teardown to ensure locks don't leak between tests.
+   */
+  async releaseAllLocks() {
+    // Also check current URL in case gotoNewEntity led to a real entity ID after save
+    try {
+      const url = this.page.url();
+      const urlMatch = url.match(/entities-admin\/([^?]+)\?id=(\d+)/);
+      if (urlMatch) {
+        const [, entity, id] = urlMatch;
+        const already = this._editedEntities.some(e => e.entity === entity && e.id === Number(id));
+        if (!already) this._editedEntities.push({ entity, id: Number(id) });
+      }
+    } catch { /* page may already be closed */ }
+
+    if (this._editedEntities.length === 0) return;
+
+    const entitiesToUnlock = [...this._editedEntities];
+    this._editedEntities = [];
+
+    // 1. Clear all intervals in the browser to stop heartbeats from firing.
+    try {
+      await this.page.evaluate(() => {
+        const maxId = window.setInterval(() => {}, 100000);
+        for (let i = 1; i <= maxId; i++) window.clearInterval(i);
+      });
+    } catch { /* page may already be closed */ }
+
+    // 2. Navigate to dashboard to trigger proper React cleanup (releaseLock).
+    try {
+      await this.page.goto(`${APP_PREFIX}/`, { timeout: 5000, waitUntil: 'commit' });
+      await this.page.waitForTimeout(500);
+    } catch { /* page may already be closed */ }
+
+    // 3. Unlock via Playwright's authenticated request context as a backstop
+    for (const { entity, id } of entitiesToUnlock) {
+      await this._request.post(
+        `${API_BASE}/entity_lock_control?type=${encodeURIComponent(entity)}&id=${id}&operation=try_unlock`,
+        { data: {}, timeout: 3000 },
+      ).catch(() => {});
+    }
+
+    // 4. Verify lock is actually released; retry if still locked
+    for (const { entity, id } of entitiesToUnlock) {
+      const check = await this._request.post(
+        `${API_BASE}/entity_lock_control?type=${encodeURIComponent(entity)}&id=${id}&operation=status_one`,
+        { data: {}, timeout: 3000 },
+      ).catch(() => null);
+      if (check) {
+        const body = await check.json().catch(() => null);
+        if (body?.is_locked) {
+          await this._request.post(
+            `${API_BASE}/entity_lock_control?type=${encodeURIComponent(entity)}&id=${id}&operation=try_unlock`,
+            { data: {}, timeout: 3000 },
+          ).catch(() => {});
+        }
+      }
+    }
   }
 }
 
@@ -443,7 +554,10 @@ export const test = base.extend<Fixtures>({
         sameSite: 'Strict',
       }]);
     }
-    await use(new UiHelper(page));
+    const ui = new UiHelper(page, request);
+    await use(ui);
+    // Teardown: release any entity locks acquired during this test
+    await ui.releaseAllLocks();
   },
 });
 

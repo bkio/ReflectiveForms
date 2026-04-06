@@ -4,6 +4,7 @@
 using System.Net;
 using CrossCloudKit.Interfaces.Classes;
 using CrossCloudKit.Utilities.Common;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using ReflectiveForms.Core.Models;
 using ReflectiveForms.Core.Models.ReservedEntityTypes;
@@ -97,14 +98,14 @@ internal static class RootManager
                         updaterIdentity = EntityUpdaterIdentity.DuringHookCallUpdate();
                     }
 
-                    var updateResult = await RfConfiguration.RepositoryService.UpdateOneAsync<UserEntityFieldsModel>(
+                    var updateResult = await RfConfiguration.RepositoryService.UpdateOneAsync<IamRoleEntityFieldsModel>(
                         RfReservedEntities.IamRoleEntityName,
                         ownerRole.Id,
                         ownerRole.FromObjectWithPolymorphism(),
                         updaterIdentity,
                         cancellationToken);
                     if (!updateResult.IsSuccessful)
-                        throw new Exception($"Failed to update owner role with id {ownerRole.Id} with the new capabilities.");
+                        throw new Exception($"Failed to update owner role with id {ownerRole.Id} with the new capabilities. Reason: {updateResult.ErrorMessage} ({updateResult.StatusCode})");
                 }
             }
         }

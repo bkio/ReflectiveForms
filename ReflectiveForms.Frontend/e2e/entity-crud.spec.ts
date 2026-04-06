@@ -73,26 +73,31 @@ test.describe('Entity CRUD Operations', () => {
     // Verify via API
     const entity = await api.readEntity(ENTITY, createdId);
     expect(entity.title.rendered).toBe('Updated CRUD Test Entity');
+
+    // Navigate away to release the entity lock before next test
+    await ui.gotoDashboard();
   });
 
   test('should delete an entity', async ({ ui, api, page }) => {
     // Ensure we have an entity to delete
     const beforeList = await api.peekAll(ENTITY);
     const countBefore = beforeList.length;
+    expect(countBefore).toBeGreaterThan(0);
+
+    // Ensure entity is unlocked from previous edit test
+    await api.unlockEntity(ENTITY, createdId);
 
     await ui.gotoEntityList(ENTITY);
 
-    // Find the row and delete it
-    const rows = ui.entityRows();
-    const rowCount = await rows.count();
-    expect(rowCount).toBeGreaterThan(0);
+    const deleteBtn = ui.entityRows().first().locator('button[title="Delete"]');
+    await deleteBtn.waitFor({ state: 'visible', timeout: 30000 });
 
-    // Click delete on the first row and accept the confirm dialog
+    // Click delete and accept the confirm dialog
     page.on('dialog', dialog => dialog.accept());
-    await ui.clickDeleteOnRow(0);
+    await deleteBtn.click();
 
     // Wait for the deletion to complete
-    await ui.page.waitForTimeout(2000);
+    await page.waitForTimeout(2000);
 
     // Verify via API
     const afterList = await api.peekAll(ENTITY);

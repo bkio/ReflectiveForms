@@ -56,8 +56,9 @@ body {
   @apply opacity-0 transform scale-95 transition-all duration-200;
 }
 
-/* WYSIWYG editor placeholder */
-[contenteditable]:empty:before {
+/* WYSIWYG editor placeholder — scoped to .wysiwyg-editor to avoid
+   interfering with Univer's contenteditable cell editor */
+.wysiwyg-editor [contenteditable]:empty:before {
   content: attr(data-placeholder);
   color: #9ca3af;
   pointer-events: none;
@@ -65,7 +66,7 @@ body {
 }
 
 /* WYSIWYG editor focus styles */
-[contenteditable]:focus {
+.wysiwyg-editor [contenteditable]:focus {
   outline: none;
 }
 

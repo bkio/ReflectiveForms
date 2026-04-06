@@ -136,6 +136,7 @@ createReflectiveFormsApp({
 - **Custom pages** — Add sidebar pages grouped by section
 - **Revision diff** — Side-by-side comparison of entity revisions with field-level change highlighting
 - **SSO login** — Dedicated SSO login page with branding
+- **RF Sheets** — Built-in spreadsheet editor (Univer) with custom RF formulas, entity data sources, sharing (user/role/public), and Excel export
 
 ## Configuration Reference
 
@@ -188,6 +189,7 @@ config.Endpoints.SsoConfiguration = new SsoConfiguration {
 │  • TanStack Query v5        │     │  • JWT + Cookie auth + SSO  │
 │  • Tailwind CSS 3           │     │  • Entity locking           │
 │  • Configurable branding    │     │  • Sanity check pipeline    │
+│  • RF Sheets (spreadsheets) │     │  • Bulk read endpoint       │
 └─────────────────────────────┘     └─────────────────────────────┘
 ```
 
@@ -210,8 +212,8 @@ ReflectiveForms/
 │   │   ├── api/                      #   API client
 │   │   ├── components/               #   Fields, form, layout
 │   │   ├── hooks/                    #   useEntity, useSchema, useAutoSave, useLock
-│   │   ├── lib/                      #   createApp, RfConfigProvider, exports
-│   │   └── pages/                    #   Dashboard, List, Edit, View, RevisionDiff, Login, SSO
+│   │   ├── lib/                      #   createApp, RfConfigProvider, RF formulas, exports
+│   │   └── pages/                    #   Dashboard, List, Edit, View, RevisionDiff, Sheets, Login, SSO
 │   ├── e2e/                          #   Playwright E2E tests (30 suites)
 │   └── vite.config.lib.ts           #   Library build config
 │
@@ -240,6 +242,7 @@ ReflectiveForms/
 | `/rf/api/entity_lock_control?type={name}&id={id}&operation=try_lock` | POST | Lock |
 | `/rf/api/entity_lock_control?type={name}&id={id}&operation=try_unlock` | POST | Unlock |
 | `/rf/api/entity_lock_control?type={name}&id={id}&operation=heartbeat` | POST | Heartbeat |
+| `/rf/api/bulk_read` | POST | Fetch multiple entities with optional field filtering |
 | `/rf/api/login` | POST | Authenticate |
 | `/rf/api/logout` | POST | Logout |
 
@@ -249,14 +252,14 @@ ReflectiveForms/
 
 ```bash
 cd ReflectiveForms.Core.Tests
-dotnet test    # 190+ tests
+dotnet test    # 200+ tests
 ```
 
 ### Frontend Unit Tests
 
 ```bash
 cd ReflectiveForms.Frontend
-npm run test:run       # 278+ tests (Vitest)
+npm run test:run       # 290+ tests (Vitest)
 ```
 
 ### E2E Tests
@@ -264,7 +267,7 @@ npm run test:run       # 278+ tests (Vitest)
 ```bash
 cd ReflectiveForms.Frontend
 npx playwright install
-npm run test:e2e       # 30 suites (Playwright, Chromium)
+npm run test:e2e       # 343 tests across 30+ suites (Playwright, Chromium)
 ```
 
 ### CLI Scaffolder Tests

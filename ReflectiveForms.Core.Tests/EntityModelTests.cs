@@ -63,12 +63,13 @@ public class EntityModelTests
         RfReservedEntities.ReservedEntityNames.Should().Contain("tags");
         RfReservedEntities.ReservedEntityNames.Should().Contain("categories");
         RfReservedEntities.ReservedEntityNames.Should().Contain("media");
+        RfReservedEntities.ReservedEntityNames.Should().Contain("rf-sheets");
     }
 
     [Fact]
-    public void RfReservedEntities_ReservedNames_HasExactly5()
+    public void RfReservedEntities_ReservedNames_HasExactly6()
     {
-        RfReservedEntities.ReservedEntityNames.Should().HaveCount(5);
+        RfReservedEntities.ReservedEntityNames.Should().HaveCount(6);
     }
 
     [Fact]
@@ -87,12 +88,13 @@ public class EntityModelTests
         RfReservedEntities.TagsEntityName.Should().Be("tags");
         RfReservedEntities.CategoriesEntityName.Should().Be("categories");
         RfReservedEntities.MediaEntityName.Should().Be("media");
+        RfReservedEntities.SheetsEntityName.Should().Be("rf-sheets");
     }
 
     [Fact]
-    public void RfReservedEntities_ReservedEntityTypes_Has5Types()
+    public void RfReservedEntities_ReservedEntityTypes_Has6Types()
     {
-        RfReservedEntities.ReservedEntityTypes.Should().HaveCount(5);
+        RfReservedEntities.ReservedEntityTypes.Should().HaveCount(6);
     }
 
     [Fact]

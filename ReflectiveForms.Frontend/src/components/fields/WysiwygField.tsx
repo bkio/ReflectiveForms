@@ -118,7 +118,7 @@ function WysiwygEditor({ content, onChange, hasError, placeholder }: WysiwygEdit
   }, []);
 
   return (
-    <div className={`border rounded-lg overflow-hidden ${hasError ? 'border-red-500' : 'border-gray-300'}`}>
+    <div className={`wysiwyg-editor border rounded-lg overflow-hidden ${hasError ? 'border-red-500' : 'border-gray-300'}`}>
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-0.5 p-2 border-b border-gray-200 bg-gray-50">
         {TOOLBAR_ACTIONS.map((action, index) => {

@@ -28,6 +28,7 @@ public static class RfConfiguration
                 _categoryEntitiesCache = new CategoryEntitiesCache();
                 _iamRoleEntitiesCache = new IamRoleEntitiesCache(); //Iam cache must be initialized before user cache.
                 _userEntitiesCache = new UserEntitiesCache();
+                _sheetEntitiesCache = new SheetEntitiesCache();
             }
             catch (Exception e)
             {
@@ -56,6 +57,9 @@ public static class RfConfiguration
 
     public static UserEntitiesCache UserEntitiesCache => _userEntitiesCache ?? throw new InvalidOperationException("Not initialized");
     private static UserEntitiesCache? _userEntitiesCache;
+
+    public static SheetEntitiesCache SheetEntitiesCache => _sheetEntitiesCache ?? throw new InvalidOperationException("Not initialized");
+    private static SheetEntitiesCache? _sheetEntitiesCache;
 
     public static EntityRepositoryService RepositoryService => GetRepositoryService();
     public static EndpointConfiguration EndpointConfiguration => GetEndpointConfiguration();

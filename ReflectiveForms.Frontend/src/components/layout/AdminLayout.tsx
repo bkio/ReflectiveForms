@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, Outlet, useParams, useLocation } from 'react-router-dom';
-import { Menu, X, ChevronRight, Home, Sun, Moon, LogOut, FileText, Settings } from 'lucide-react';
+import { Menu, X, ChevronRight, Home, Sun, Moon, LogOut, FileText, Settings, FileSpreadsheet } from 'lucide-react';
 import { useAllSchemas, useCapabilities } from '../../hooks/useEntity';
 import { useRfConfig } from '../../lib/RfConfigProvider';
 import { useAuth } from '../../hooks/useAuth';
@@ -197,6 +197,32 @@ export function AdminLayout() {
               </ul>
             )}
           </div>
+
+          {/* Sheets Section */}
+          {(!capabilitiesLoaded || capabilities?.['rf-sheets']?.can_peek_all) && (
+            <div className="mt-6">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-3">
+                Sheets
+              </p>
+              <ul className="space-y-1">
+                <li>
+                  <Link
+                    to="/sheets"
+                    className={`
+                      flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors
+                      ${location.pathname.startsWith('/sheets')
+                        ? 'bg-primary-50 text-primary-700 font-medium'
+                        : 'text-gray-600 hover:bg-gray-100'
+                      }
+                    `}
+                  >
+                    <FileSpreadsheet className="w-5 h-5" />
+                    <span>All Sheets</span>
+                  </Link>
+                </li>
+              </ul>
+            </div>
+          )}
 
           {/* Custom Pages Sections */}
           {Object.entries(customPageSections).map(([section, pages]) => (

@@ -16,6 +16,7 @@ public sealed class UserEntitiesCache : EntitiesCacheBase<UserEntityFieldsModel>
 {
     public UserEntitiesCache() : base(RfReservedEntities.UsersEntityName) => RootManager.EnsureRootUserExistsAsync(this).GetAwaiter().GetResult();
 }
+public sealed class SheetEntitiesCache() : EntitiesCacheBase<RfSheetEntityFieldsModel>(RfReservedEntities.SheetsEntityName);
 
 public static class RfReservedEntities
 {
@@ -24,13 +25,15 @@ public static class RfReservedEntities
     public const string TagsEntityName = "tags";
     public const string CategoriesEntityName = "categories";
     public const string MediaEntityName = "media";
+    public const string SheetsEntityName = "rf-sheets";
     public static readonly IReadOnlySet<string> ReservedEntityNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         UsersEntityName,
         IamRoleEntityName,
         TagsEntityName,
         CategoriesEntityName,
-        MediaEntityName
+        MediaEntityName,
+        SheetsEntityName
     };
 
     public static readonly IReadOnlyList<EntityFinalConfigurationBase> ReservedEntityTypes = new List<EntityFinalConfigurationBase>
@@ -111,6 +114,19 @@ public static class RfReservedEntities
                 PostUpdateHook = async (p, ctx) => await MediaEntityHookOnChanged.OnMediaUpdated(p, ctx),
                 PostDeleteHook = async (p, ctx) => await MediaEntityHookOnChanged.OnMediaDeleted(p, ctx)
             }
+        }),
+        new EntityFinalConfiguration<RfSheetEntityFieldsModel>(new EntityConfigurationBuilder<RfSheetEntityFieldsModel>
+        {
+            EntityName = SheetsEntityName,
+            EntityReadableNameSingular = "Sheet",
+            EntityReadableNamePlural = "Sheets",
+            SupportsFrontendEdit = false,
+            HasAuthor = true,
+            HasTags = false,
+            HasCategories = false,
+            HasParentChildRelationship = false,
+            RequireGlobalTitleUniqueness = false,
+            OptionalTitleSanityCheck = null
         })
     };
 }

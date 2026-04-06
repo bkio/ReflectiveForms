@@ -12,6 +12,7 @@ import {
   unlockEntity,
   setApiBaseUrl,
   getApiBaseUrl,
+  bulkRead,
 } from '../../api/client';
 
 // Mock fetch globally
@@ -309,6 +310,166 @@ describe('API Client', () => {
           credentials: 'include',
         })
       );
+    });
+  });
+
+  describe('bulkRead', () => {
+    it('should send POST request to /bulk_read', async () => {
+      const mockResponse = {
+        results: [{ entity: 'employee', total_count: 2, rows: [{ id: 1 }, { id: 2 }] }],
+        unauthorized: [],
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const result = await bulkRead([{ entity: 'employee' }]);
+
+      expect(result.data).toEqual(mockResponse);
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/bulk_read'),
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ sources: [{ entity: 'employee' }] }),
+        })
+      );
+    });
+
+    it('should send multiple sources', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ results: [], unauthorized: [] }),
+      });
+
+      await bulkRead([
+        { entity: 'employee', fields: ['name', 'email'] },
+        { entity: 'department' },
+      ]);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          body: JSON.stringify({
+            sources: [
+              { entity: 'employee', fields: ['name', 'email'] },
+              { entity: 'department' },
+            ],
+          }),
+        })
+      );
+    });
+
+    it('should handle unauthorized entities in response', async () => {
+      const mockResponse = {
+        results: [{ entity: 'employee', total_count: 1, rows: [{ id: 1, fields: { name: 'Alice' } }] }],
+        unauthorized: ['salary_band', 'payroll'],
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const result = await bulkRead([
+        { entity: 'employee' },
+        { entity: 'salary_band' },
+        { entity: 'payroll' },
+      ]);
+
+      expect(result.data?.results).toHaveLength(1);
+      expect(result.data?.unauthorized).toEqual(['salary_band', 'payroll']);
+    });
+
+    it('should handle empty sources', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ results: [], unauthorized: [] }),
+      });
+
+      const result = await bulkRead([]);
+
+      expect(result.data?.results).toEqual([]);
+      expect(result.data?.unauthorized).toEqual([]);
+    });
+
+    it('should handle server errors', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: () => Promise.resolve({ message: 'Internal server error' }),
+      });
+
+      const result = await bulkRead([{ entity: 'employee' }]);
+
+      expect(result.error).toBeDefined();
+    });
+
+    it('should handle network errors', async () => {
+      mockFetch.mockRejectedValueOnce(new Error('Connection refused'));
+
+      const result = await bulkRead([{ entity: 'employee' }]);
+
+      expect(result.error).toBe('Connection refused');
+    });
+
+    it('should handle response with entity that has no rows', async () => {
+      const mockResponse = {
+        results: [{ entity: 'empty-entity', total_count: 0, rows: [] }],
+        unauthorized: [],
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const result = await bulkRead([{ entity: 'empty-entity' }]);
+
+      expect(result.data?.results[0].total_count).toBe(0);
+      expect(result.data?.results[0].rows).toEqual([]);
+    });
+
+    it('should handle response with all entities unauthorized', async () => {
+      const mockResponse = {
+        results: [],
+        unauthorized: ['employee', 'department', 'salary_band'],
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const result = await bulkRead([
+        { entity: 'employee' },
+        { entity: 'department' },
+        { entity: 'salary_band' },
+      ]);
+
+      expect(result.data?.results).toEqual([]);
+      expect(result.data?.unauthorized).toHaveLength(3);
+    });
+
+    it('should handle response with large row counts', async () => {
+      const rows = Array.from({ length: 500 }, (_, i) => ({
+        id: i + 1,
+        fields: { name: `Employee ${i + 1}` },
+      }));
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          results: [{ entity: 'employee', total_count: 500, rows }],
+          unauthorized: [],
+        }),
+      });
+
+      const result = await bulkRead([{ entity: 'employee' }]);
+
+      expect(result.data?.results[0].total_count).toBe(500);
+      expect(result.data?.results[0].rows).toHaveLength(500);
     });
   });
 });

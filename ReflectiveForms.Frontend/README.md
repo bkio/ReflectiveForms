@@ -159,7 +159,7 @@ The library exports:
 - **Provider:** `RfConfigProvider`, `useRfConfig`
 - **Layout:** `AdminLayout`
 - **Routes:** `RfRoutes`
-- **Pages:** `LoginPage`, `SsoLoginPage`, `DashboardPage`, `EntityListPage`, `EntityEditPage`, `EntityViewPage`, `RevisionDiffPage`
+- **Pages:** `LoginPage`, `SsoLoginPage`, `DashboardPage`, `EntityListPage`, `EntityEditPage`, `EntityViewPage`, `RevisionDiffPage`, `RfSheetListPage`, `RfSheetPage`
 - **Hooks:** `useSchema`, `useEntity`, `useEntityLock`, `useAutoSave`
 - **Types:** `RfConfig`, `CustomPage`, `EntitySchema`, `FieldSchema`
 - **Utilities:** `schemaToZod`, `conditionParser`, `sanitize`, `formUtils`
@@ -172,18 +172,20 @@ src/
 ├── components/
 │   ├── fields/                    # TextField, SelectField, RepeaterField, etc.
 │   ├── form/                      # DynamicForm, SearchableSelect
-│   └── layout/AdminLayout.tsx     # Config-driven sidebar layout
+│   ├── layout/AdminLayout.tsx     # Config-driven sidebar layout
+│   └── sheets/                    # EntitySourcePanel, SheetSharingDialog, RepeaterDropDialog
 ├── hooks/                         # useEntity, useSchema, useAutoSave, useEntityLock
 ├── lib/
 │   ├── createApp.tsx              # createReflectiveFormsApp()
 │   ├── RfConfigProvider.tsx       # React context for config
-│   ├── RfRoutes.tsx               # Pre-wired entity routes
+│   ├── RfRoutes.tsx               # Pre-wired entity + sheet routes
 │   ├── types.ts                   # RfConfig, CustomPage interfaces
 │   ├── index.ts                   # Library barrel exports
 │   ├── schemaToZod.ts             # Schema → Zod conversion
 │   ├── conditionParser.ts         # Display condition evaluator
-│   └── sanitize.ts                # HTML sanitization
-├── pages/                         # Login, SSO, Dashboard, List, Edit, View, RevisionDiff
+│   ├── sanitize.ts                # HTML sanitization
+│   └── rf-sheet-functions.ts      # Custom RF formulas (RF.FIELD, RF.SUM, RF.FILTER, etc.)
+├── pages/                         # Login, SSO, Dashboard, List, Edit, View, RevisionDiff, Sheets
 └── types/schema.ts                # TypeScript schema types
 ```
 
@@ -192,7 +194,7 @@ src/
 ### Unit Tests (Vitest)
 
 ```bash
-npm run test:run       # 278+ tests
+npm run test:run       # 290+ tests
 npm run test:coverage  # With coverage report
 ```
 
@@ -202,7 +204,7 @@ Requires the sample backend running at `localhost:9000`.
 
 ```bash
 npx playwright install
-npm run test:e2e       # 30 suites (Chromium)
+npm run test:e2e       # 343 tests across 30+ suites (Chromium)
 npm run test:e2e:ui    # Interactive mode
 ```
 
@@ -287,6 +289,7 @@ E2E test suites:
 - **authorization.spec.ts** - Role-based access control and IAM
 - **list-sort-filter.spec.ts** - Entity list search, sorting, and filtering
 - **revision-diff.spec.ts** - Revision diff comparison page
+- **rf-sheets-sharing.spec.ts** - RF Sheets spreadsheet sharing and access control
 
 ### Running All Tests
 

@@ -4,6 +4,7 @@ import { checkAuth as apiCheckAuth, logout as apiLogout, onUnauthorized } from '
 const USER_STORAGE_KEY = 'rf_user';
 
 export interface UserInfo {
+  id: number;
   name: string;
   email: string;
 }
@@ -20,6 +21,7 @@ function parseJwtPayload(token: string): UserInfo | null {
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
     return {
+      id: Number(payload.sub) || 0,
       name: payload.name || payload.unique_name || '',
       email: payload.email || '',
     };

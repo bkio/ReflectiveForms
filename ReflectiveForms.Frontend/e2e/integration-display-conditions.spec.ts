@@ -217,6 +217,7 @@ test.describe('DisplayCondition: Product digital → weight', () => {
     await ui.setCheckbox('Published', true);
 
     // Add required variant (already pre-populated from min_items=1)
+    await ui.expandRepeaterItem('Product Variants', 0);
     await ui.fillTextField('Variant Name', 'Download');
     await ui.fillTextField('SKU', `DIG-${TS()}`);
     await ui.fillNumber('Price (USD)', '29.99');

@@ -60,6 +60,7 @@ A comprehensive sample application demonstrating every feature of the **Reflecti
 │  - Read-only entity view with relation resolution            │
 │  - Searchable selects and entity list search/sort/filter     │
 │  - Depth-aware nested field rendering (no cards-in-cards)    │
+│  - RF Sheets: spreadsheets with entity data + RF formulas    │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -109,7 +110,7 @@ Open http://localhost:3000 in your browser and log in with:
 
 ## Entity Types in This Sample
 
-This sample registers **6 custom entity types** plus the **5 built-in reserved entities**, covering every feature of the framework:
+This sample registers **6 custom entity types** plus the **6 built-in reserved entities**, covering every feature of the framework:
 
 ### 1. Objectives (OKR System)
 > `EntityName: "objective"` — The original example model demonstrating core features.
@@ -321,6 +322,7 @@ All endpoints are served under `/rf/api/`. The framework automatically generates
 | `/rf/api/entity_lock_control?type={entity}&id={id}&operation=heartbeat` | POST | Refresh lock |
 | `/rf/api/entity_lock_control?type={entity}&operation=all_locked` | GET | List all locked entities |
 | `/rf/api/sanity_check?type={entity}` | POST | Validate entity data |
+| `/rf/api/bulk_read` | POST | Fetch multiple entities with optional field filtering |
 | `/rf/api/media` | POST | Upload media files |
 | `/rf/api/login` | POST | Authenticate and receive JWT |
 | `/rf/api/logout` | POST | Invalidate session |
@@ -350,6 +352,7 @@ The frontend is a React single-page application that dynamically renders forms b
 - **Entity locking** — Pessimistic locking with auto-refresh heartbeat
 - **Auto-save** — Debounced auto-save with visual feedback and toast notifications
 - **Depth-aware nesting** — Nested fields inside repeaters and groups render cleanly without redundant card wrappers
+- **RF Sheets** — Built-in spreadsheet editor at `/sheets` with entity data sources, custom RF formulas (RF.FIELD, RF.SUM, RF.FILTER, etc.), sharing (user/role/public), and Excel export
 
 ### Running the Frontend
 
@@ -726,6 +729,7 @@ ReflectiveForms automatically creates and manages these system entities:
 | **Tags** | `tags` | Flat taxonomy for tagging entities |
 | **Categories** | `categories` | Flat taxonomy for categorizing entities |
 | **Media** | `media` | Media library with automatic image resizing (150, 300, 600, 1024px) |
+| **RF Sheets** | `rf-sheets` | Built-in spreadsheet editor with RF formulas, entity data sources, sharing, and Excel export |
 
 These are always available and do not need to be registered in `EntityTypes`.
 

@@ -60,6 +60,7 @@ test.describe('Relations: Product Manager workflow', () => {
     await ui.setCheckbox('Published', true);
 
     // Add required variant (pre-populated from min_items=1)
+    await ui.expandRepeaterItem('Product Variants', 0);
     await ui.fillTextField('Variant Name', 'Base');
     await ui.fillTextField('SKU', `REL-PM-${TS()}`);
     await ui.fillNumber('Price (USD)', '199');

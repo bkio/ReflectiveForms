@@ -8,6 +8,7 @@ using CrossCloudKit.Utilities.Common;
 using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json.Linq;
 using ReflectiveForms.Core.Endpoints.Enums;
+using ReflectiveForms.Core.Models;
 using ReflectiveForms.Core.Models.ReservedEntityTypes;
 using ReflectiveForms.Core.Repositories;
 
@@ -74,17 +75,32 @@ internal class Crud: BaseEndpoint
             return HttpStatusCode.BadRequest.ToResult("Request body should contain -id- field.");
 
         var result = await RfConfiguration.RepositoryService.GetOneAsync(entityName, id, cancellationToken);
-        return !result.IsSuccessful ? result.ErrorMessage.ToResult() : result.Data.ToResult();
+        if (!result.IsSuccessful) return result.ErrorMessage.ToResult();
+
+        if (entityName == RfReservedEntities.SheetsEntityName)
+        {
+            var access = GetSheetAccessLevel(result.Data.NotNull(), RequesterUser.NotNull());
+            if (access == SheetAccessLevel.None)
+                return HttpStatusCode.Forbidden.ToResult("You do not have access to this sheet.");
+        }
+
+        return result.Data.ToResult();
     }
 
-    private static async Task<IResult> HandlePeekAll(string entityName, CancellationToken cancellationToken)
+    private async Task<IResult> HandlePeekAll(string entityName, CancellationToken cancellationToken)
     {
+        if (entityName == RfReservedEntities.SheetsEntityName)
+            return await HandlePeekAllSheets(cancellationToken);
+
         var result = await RfConfiguration.RepositoryService.PeekAllAsync(entityName, cancellationToken);
         return !result.IsSuccessful ? result.ErrorMessage.ToResult() : result.Data.ToResult();
     }
 
-    private static async Task<IResult> HandlePeekAllPaginated(HttpRequest request, string entityName, CancellationToken cancellationToken)
+    private async Task<IResult> HandlePeekAllPaginated(HttpRequest request, string entityName, CancellationToken cancellationToken)
     {
+        if (entityName == RfReservedEntities.SheetsEntityName)
+            return await HandlePeekAllSheets(cancellationToken);
+
         var pageSize = 20;
         if (request.Query.TryGetValue("page_size", out var pageSizeValues)
             && int.TryParse(pageSizeValues.ToString(), out var parsedPageSize)
@@ -123,6 +139,28 @@ internal class Crud: BaseEndpoint
         if (!RequestBodyJsonObject.NotNull().TryGetValue("id", out var idToken) || !int.TryParse(idToken.ToString(), out var id))
             return HttpStatusCode.BadRequest.ToResult("Request body should contain -id- field.");
 
+        if (entityName == RfReservedEntities.SheetsEntityName)
+        {
+            var existing = await RfConfiguration.RepositoryService.GetOneAsync(entityName, id, cancellationToken);
+            if (!existing.IsSuccessful) return existing.StatusCode.ToResult(existing.ErrorMessage);
+
+            var access = GetSheetAccessLevel(existing.Data.NotNull(), RequesterUser.NotNull());
+            if (access < SheetAccessLevel.Edit)
+                return HttpStatusCode.Forbidden.ToResult("You do not have edit access to this sheet.");
+
+            // Only the owner can change sharing settings
+            if (access != SheetAccessLevel.Owner)
+            {
+                var body = RequestBodyJsonObject.NotNull();
+                if (body.TryGetValue("fields", out var fieldsToken) && fieldsToken is JObject fieldsObj)
+                {
+                    fieldsObj.Remove("is_public");
+                    fieldsObj.Remove("shared_users");
+                    fieldsObj.Remove("shared_roles");
+                }
+            }
+        }
+
         var t = (Task<OperationResult<JObject>>)crudMethodInfo.UpdateOneAsyncMethodInfo.Invoke(RfConfiguration.RepositoryService, [
             entityName,
             id,
@@ -137,6 +175,16 @@ internal class Crud: BaseEndpoint
     {
         if (!RequestBodyJsonObject.NotNull().TryGetValue("id", out var idToken) || !int.TryParse(idToken.ToString(), out var id))
             return HttpStatusCode.BadRequest.ToResult("Request body should contain -id- field.");
+
+        if (entityName == RfReservedEntities.SheetsEntityName)
+        {
+            var existing = await RfConfiguration.RepositoryService.GetOneAsync(entityName, id, cancellationToken);
+            if (!existing.IsSuccessful) return existing.StatusCode.ToResult(existing.ErrorMessage);
+
+            var access = GetSheetAccessLevel(existing.Data.NotNull(), RequesterUser.NotNull());
+            if (access != SheetAccessLevel.Owner)
+                return HttpStatusCode.Forbidden.ToResult("Only the sheet owner can delete this sheet.");
+        }
 
         var t = (Task<OperationResult<JObject>>)crudMethodInfo.DeleteOneAsyncMethodInfo.Invoke(RfConfiguration.RepositoryService, [
             entityName,
@@ -154,5 +202,128 @@ internal class Crud: BaseEndpoint
 
         var result = await RfConfiguration.RepositoryService.GetEntityRevisionsAsync(entityName, id, cancellationToken);
         return !result.IsSuccessful ? result.StatusCode.ToResult(result.ErrorMessage) : result.Data.ToResult();
+    }
+
+    // ── Sheet access control ─────────────────────────────────────────
+
+    private enum SheetAccessLevel { None, View, Edit, Owner }
+
+    /// <summary>
+    /// Determines the access level the given user has on a sheet entity.
+    /// Priority: owner > shared user (edit/view) > shared role (edit/view) > public > none.
+    /// </summary>
+    private static SheetAccessLevel GetSheetAccessLevel(JObject sheetEntity, EntityModel<UserEntityFieldsModel> user)
+    {
+        // Owner always has full access
+        if (sheetEntity.TryGetValue(EntityModelAttributes.Author, out var authorToken)
+            && authorToken.Type == JTokenType.Integer
+            && authorToken.Value<int>() == user.Id)
+        {
+            return SheetAccessLevel.Owner;
+        }
+
+        var fields = sheetEntity[EntityModelAttributes.Fields] as JObject;
+
+        // Check shared_users
+        if (fields?["shared_users"] is JArray sharedUsers)
+        {
+            foreach (var entry in sharedUsers)
+            {
+                if (entry is JObject su
+                    && su.TryGetValue("user", out var userIdToken)
+                    && userIdToken.Type == JTokenType.Integer
+                    && userIdToken.Value<int>() == user.Id)
+                {
+                    var perm = su["permission"]?.Value<string>() ?? "view";
+                    return perm == "edit" ? SheetAccessLevel.Edit : SheetAccessLevel.View;
+                }
+            }
+        }
+
+        // Check shared_roles
+        if (fields?["shared_roles"] is JArray sharedRoles && sharedRoles.Count > 0)
+        {
+            var userRoleIds = new HashSet<int>(user.Fields.Roles.Select(r => r.RoleId));
+            var bestRoleAccess = SheetAccessLevel.None;
+            foreach (var entry in sharedRoles)
+            {
+                if (entry is JObject sr
+                    && sr.TryGetValue("role", out var roleIdToken)
+                    && roleIdToken.Type == JTokenType.Integer
+                    && userRoleIds.Contains(roleIdToken.Value<int>()))
+                {
+                    var perm = sr["permission"]?.Value<string>() ?? "view";
+                    var level = perm == "edit" ? SheetAccessLevel.Edit : SheetAccessLevel.View;
+                    if (level > bestRoleAccess) bestRoleAccess = level;
+                }
+            }
+            if (bestRoleAccess > SheetAccessLevel.None) return bestRoleAccess;
+        }
+
+        // Public sheets: anyone with PEEK_ALL permission on rf-sheets can view
+        if (fields?["is_public"]?.Value<bool>() == true)
+        {
+            return SheetAccessLevel.View;
+        }
+
+        return SheetAccessLevel.None;
+    }
+
+    /// <summary>
+    /// Fetches all sheets from the full entity table, filters by the current
+    /// user's access, and returns them as a peek-overview JArray.
+    /// Used for both PEEK_ALL and PEEK_ALL_PAGINATED of rf-sheets.
+    /// </summary>
+    private async Task<IResult> HandlePeekAllSheets(CancellationToken cancellationToken)
+    {
+        var user = RequesterUser.NotNull();
+        var accessible = new JArray();
+
+        await foreach (var item in RfConfiguration.RepositoryService.GetAllAsync(RfReservedEntities.SheetsEntityName, cancellationToken: cancellationToken))
+        {
+            if (!item.IsSuccessful) continue;
+            var entity = item.Data.NotNull();
+
+            var access = GetSheetAccessLevel(entity, user);
+            if (access == SheetAccessLevel.None) continue;
+
+            // Build lean peek overview object
+            var peek = new JObject { [EntityModelAttributes.Id] = entity[EntityModelAttributes.Id] };
+
+            if (entity.TryGetValue(EntityModelAttributes.Title, out var titleToken))
+            {
+                // Flatten title: {rendered: "..."} → "..."
+                if (titleToken is JObject titleObj
+                    && titleObj.TryGetValue(EntityModelAttributes.TitleRendered, out var renderedToken)
+                    && renderedToken.Type == JTokenType.String)
+                    peek[EntityModelAttributes.Title] = renderedToken.Value<string>();
+                else
+                    peek[EntityModelAttributes.Title] = titleToken;
+            }
+            if (entity.TryGetValue(EntityModelAttributes.Modified, out var modToken))
+                peek[EntityModelAttributes.Modified] = modToken;
+            if (entity.TryGetValue(EntityModelAttributes.ModifiedGmt, out var modGmtToken))
+                peek[EntityModelAttributes.ModifiedGmt] = modGmtToken;
+            if (entity.TryGetValue(EntityModelAttributes.Date, out var dateToken))
+                peek[EntityModelAttributes.Date] = dateToken;
+            if (entity.TryGetValue(EntityModelAttributes.DateGmt, out var dateGmtToken))
+                peek[EntityModelAttributes.DateGmt] = dateGmtToken;
+
+            // Resolve author display name
+            if (entity.TryGetValue(EntityModelAttributes.Author, out var authorToken) && authorToken.Type == JTokenType.Integer)
+            {
+                var authorId = authorToken.Value<int>();
+                peek[$"{EntityModelAttributes.Author}_{EntityModelAttributes.Id}"] = authorId;
+                var authorUser = RfConfiguration.UserEntitiesCache.GetEntityCopy(authorId);
+                peek[EntityModelAttributes.Author] = authorUser != null ? authorUser.Title.Text : $"User: {authorId}";
+            }
+
+            // Include access level so the frontend knows the user's permission
+            peek["access_level"] = access.ToString().ToLowerInvariant();
+
+            accessible.Add(peek);
+        }
+
+        return accessible.ToResult();
     }
 }

@@ -341,6 +341,9 @@ test.describe('Survey Display Conditions: section level (scoring)', () => {
   }) => {
     await ui.gotoNewEntity(ENTITY);
 
+    // Expand the pre-populated section accordion
+    await ui.expandRepeaterItem('Sections', 0);
+
     // The form pre-populates one section (min_items = 1).
     // Scoring fields should be hidden (has_scoring default = false)
     expect(await ui.fieldIsVisible('Passing Score')).toBe(false);
@@ -359,6 +362,9 @@ test.describe('Survey Display Conditions: section level (scoring)', () => {
     ui,
   }) => {
     await ui.gotoNewEntity(ENTITY);
+
+    // Expand section accordion
+    await ui.expandRepeaterItem('Sections', 0);
 
     // Enable scoring first
     await ui.setCheckbox('Enable Scoring', true);
@@ -383,6 +389,10 @@ test.describe('Survey Display Conditions: question level', () => {
   test('help_text appears when is_required is checked', async ({ page, ui }) => {
     await ui.gotoNewEntity(ENTITY);
 
+    // Expand section and question accordions
+    await ui.expandRepeaterItem('Sections', 0);
+    await ui.expandRepeaterItem('Questions', 0);
+
     // The first section has one pre-populated question (min_items = 1).
     // is_required is unchecked by default → help_text hidden
     expect(await ui.fieldIsVisible('Help Text')).toBe(false);
@@ -398,6 +408,10 @@ test.describe('Survey Display Conditions: question level', () => {
 
   test('rating fields appear when question_type is rating', async ({ page, ui }) => {
     await ui.gotoNewEntity(ENTITY);
+
+    // Expand section and question accordions
+    await ui.expandRepeaterItem('Sections', 0);
+    await ui.expandRepeaterItem('Questions', 0);
 
     // Default question type is "text" → rating fields hidden
     expect(await ui.fieldIsVisible('Min Rating')).toBe(false);
@@ -417,6 +431,10 @@ test.describe('Survey Display Conditions: question level', () => {
 
   test('choices repeater appears when question_type is choice', async ({ page, ui }) => {
     await ui.gotoNewEntity(ENTITY);
+
+    // Expand section and question accordions
+    await ui.expandRepeaterItem('Sections', 0);
+    await ui.expandRepeaterItem('Questions', 0);
 
     // Default is "text" → choices repeater hidden
     expect(await ui.fieldIsVisible('Choices')).toBe(false);
@@ -478,12 +496,18 @@ test.describe('Survey Repeater: add/remove questions (level 2)', () => {
   test('section starts with 1 pre-populated question (min_items=1)', async ({ ui }) => {
     await ui.gotoNewEntity(ENTITY);
 
+    // Expand the section to see questions inside
+    await ui.expandRepeaterItem('Sections', 0);
+
     const items = ui.repeaterItems('Questions');
     await expect(items).toHaveCount(1);
   });
 
   test('can add multiple questions and remove them', async ({ ui }) => {
     await ui.gotoNewEntity(ENTITY);
+
+    // Expand the section to see questions
+    await ui.expandRepeaterItem('Sections', 0);
 
     // Add 2 more questions (total 3)
     await ui.addRepeaterItem('Questions');
@@ -504,6 +528,10 @@ test.describe('Survey Repeater: add/remove choices (level 3)', () => {
   }) => {
     await ui.gotoNewEntity(ENTITY);
 
+    // Expand section and question to access Question Type
+    await ui.expandRepeaterItem('Sections', 0);
+    await ui.expandRepeaterItem('Questions', 0);
+
     // Switch question type to "choice" to reveal choices
     await ui.selectOption('Question Type', 'choice');
     await page.waitForTimeout(500);
@@ -514,6 +542,10 @@ test.describe('Survey Repeater: add/remove choices (level 3)', () => {
 
   test('can add choices up to max (8) and add button disappears', async ({ page, ui }) => {
     await ui.gotoNewEntity(ENTITY);
+
+    // Expand section and question to access Question Type
+    await ui.expandRepeaterItem('Sections', 0);
+    await ui.expandRepeaterItem('Questions', 0);
 
     await ui.selectOption('Question Type', 'choice');
     await page.waitForTimeout(500);
@@ -535,6 +567,10 @@ test.describe('Survey Repeater: add/remove choices (level 3)', () => {
 
   test('can remove choices but not below min (2)', async ({ page, ui }) => {
     await ui.gotoNewEntity(ENTITY);
+
+    // Expand section and question to access Question Type
+    await ui.expandRepeaterItem('Sections', 0);
+    await ui.expandRepeaterItem('Questions', 0);
 
     await ui.selectOption('Question Type', 'choice');
     await page.waitForTimeout(500);
@@ -585,6 +621,7 @@ test.describe('Survey Full Round-Trip', () => {
     await ui.selectOption('Survey Status', 'active');
 
     // ── Section 1 is pre-populated ──
+    await ui.expandRepeaterItem('Sections', 0);
     await ui.fillTextField('Section Title', 'General');
     await ui.fillTextArea('Section Description', 'General questions.');
 
@@ -595,6 +632,7 @@ test.describe('Survey Full Round-Trip', () => {
     await ui.selectOption('Scoring Mode', 'simple');
 
     // Question 1 in section 1 is pre-populated
+    await ui.expandRepeaterItem('Questions', 0);
     await ui.fillTextArea('Question Text', 'How did you hear about us?');
     await ui.selectOption('Question Type', 'choice');
     await page.waitForTimeout(500);
@@ -681,6 +719,9 @@ test.describe('Survey Full Round-Trip', () => {
     // Verify in the UI
     await ui.gotoEditEntity(ENTITY, createdId);
     await expect(ui.repeaterItems('Sections')).toHaveCount(2);
+
+    // Expand the second section to access its fields
+    await ui.expandRepeaterItem('Sections', 1);
 
     // The second section should have "Satisfaction" as its title
     const secondSection = ui.repeaterItems('Sections').nth(1);

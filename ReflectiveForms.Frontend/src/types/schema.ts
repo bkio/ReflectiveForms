@@ -160,6 +160,7 @@ export interface PeekEntity {
   title?: string;
   name?: string;
   author?: string;
+  author_id?: number;
   modified?: string;
   modified_gmt?: string;
   date?: string;
@@ -168,6 +169,7 @@ export interface PeekEntity {
   tags?: string[];
   parent?: string;
   parent_id?: number;
+  access_level?: 'owner' | 'edit' | 'view';
 }
 
 export interface PaginatedPeekResponse {
@@ -187,4 +189,27 @@ export interface RevisionEntry {
 export interface EntityRevisionsResponse {
   revisions_count: number;
   revisions: RevisionEntry[];
+}
+
+// Bulk Read types (RF Sheets)
+export interface BulkReadSource {
+  entity: string;
+  fields?: string[];
+}
+
+export interface BulkReadResultRow {
+  id: number;
+  fields: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface BulkReadResult {
+  entity: string;
+  total_count: number;
+  rows: BulkReadResultRow[];
+}
+
+export interface BulkReadResponse {
+  results: BulkReadResult[];
+  unauthorized: string[];
 }

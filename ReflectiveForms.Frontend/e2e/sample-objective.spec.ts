@@ -46,6 +46,9 @@ test.describe('Objective CRUD', () => {
     // Select (static) — Short-term or Long-term
     await ui.selectOption('Short-term or Long-term?', 'long_term');
 
+    // Select (dynamic) — Objective Initiation Year
+    await ui.selectOption('Objective Initiation Year', `${new Date().getFullYear()}`);
+
     // Url — Documentation URL
     await ui.fillTextField('Objective Documentation URL', 'https://docs.example.com/okr');
 
@@ -118,6 +121,9 @@ test.describe('Objective CRUD', () => {
   test('update objective: mark key result as achieved', async ({ ui, api }) => {
     await ui.gotoEditEntity(ENTITY, createdId);
 
+    // Expand the key result item (accordion mode)
+    await ui.expandRepeaterItem('Key Results', 0);
+
     // Check the "Is it achieved?" checkbox of the first key result
     await ui.setCheckbox('Is it achieved?', true);
 
@@ -137,6 +143,9 @@ test.describe('Objective CRUD', () => {
   // ──────────────────────────────────────
   test('add comment inside key result (nested repeater)', async ({ ui, api }) => {
     await ui.gotoEditEntity(ENTITY, createdId);
+
+    // Expand the key result item to access nested Key Result Comments
+    await ui.expandRepeaterItem('Key Results', 0);
 
     // Add comment to first key result (uses SampleCommentModel with mandatory Author)
     await ui.addRepeaterItem('Key Result Comments');
@@ -231,11 +240,16 @@ test.describe('Objective CRUD', () => {
   // DELETE
   // ──────────────────────────────────────
   test('delete objective via UI and verify removal', async ({ page, ui, api }) => {
+    // Ensure entity is unlocked from previous edit test
+    await api.unlockEntity(ENTITY, createdId);
+
     await ui.gotoEntityList(ENTITY);
     const countBefore = await ui.entityRowCount();
 
+    const deleteBtn = ui.entityRows().first().locator('button[title="Delete"]');
+    await deleteBtn.waitFor({ state: 'visible', timeout: 30000 });
     page.on('dialog', dialog => dialog.accept());
-    await ui.clickDeleteOnRow(0);
+    await deleteBtn.click();
     await page.waitForTimeout(2000);
 
     const entities = await api.peekAll(ENTITY);
