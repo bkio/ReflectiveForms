@@ -50,10 +50,61 @@ public class EntityOperationState
               for (let i = 0; i < hierarchy.length - 1; i++) {
                   parentPart += hierarchy[i] + '.';
               }
-              try {
-                  eval('if (test_object.' + parentPart + condition + ') {} else visibility_check_map.set("test_object.' + path_including_this + '", false);');
+              if (!evaluate_compound(parentPart, condition)) {
+                  visibility_check_map.set('test_object.' + path_including_this, false);
               }
-              catch (e) {}
+              }
+
+              function evaluate_compound(parentPart, condition) {
+                  if (condition.indexOf('||') !== -1) {
+                      var parts = condition.split('||');
+                      for (var i = 0; i < parts.length; i++) {
+                          if (evaluate_compound(parentPart, parts[i].trim())) return true;
+                      }
+                      return false;
+                  }
+                  if (condition.indexOf('&&') !== -1) {
+                      var parts = condition.split('&&');
+                      for (var i = 0; i < parts.length; i++) {
+                          if (!evaluate_compound(parentPart, parts[i].trim())) return false;
+                      }
+                      return true;
+                  }
+                  return evaluate_single(parentPart, condition);
+              }
+
+              function evaluate_single(parentPart, condition) {
+                  var match = condition.match(/^([\w.]+)\s*(==|!=|>=?|<=?)\s*(.+)$/);
+                  if (!match) return true;
+                  var fieldPath = match[1];
+                  var operator = match[2];
+                  var rawValue = match[3].trim();
+
+                  var actualValue;
+                  try { actualValue = eval('test_object.' + parentPart + fieldPath); }
+                  catch(e) { return true; }
+
+                  var expectedValue;
+                  if (rawValue === 'true') expectedValue = true;
+                  else if (rawValue === 'false') expectedValue = false;
+                  else if (rawValue === 'null' || rawValue === 'undefined') expectedValue = null;
+                  else if (/^['"].*['"]$/.test(rawValue)) expectedValue = rawValue.slice(1, -1);
+                  else if (rawValue !== '' && !isNaN(Number(rawValue))) expectedValue = Number(rawValue);
+                  else expectedValue = rawValue;
+
+                  if (actualValue === undefined || actualValue === null) {
+                      actualValue = (expectedValue === true || expectedValue === false) ? false : '';
+                  }
+
+                  switch(operator) {
+                      case '==': return actualValue == expectedValue;
+                      case '!=': return actualValue != expectedValue;
+                      case '>': return Number(actualValue) > Number(expectedValue);
+                      case '<': return Number(actualValue) < Number(expectedValue);
+                      case '>=': return Number(actualValue) >= Number(expectedValue);
+                      case '<=': return Number(actualValue) <= Number(expectedValue);
+                      default: return true;
+                  }
               }
 
               function remove_invisible(path_including_this) {

@@ -32,7 +32,13 @@ public sealed class UserEntityFieldsModel : EntityFieldsModel
     public string EmailAddress { get; set; } = "";
     public Task<string?> EmailAddress___LogicSanityCheckAsync(int entityId, EntityOperationState operationState, JObject parentJObject, CancellationToken cancellationToken)
     {
-        var users = RfConfiguration.UserEntitiesCache.FindEntitiesAndGetCopies();
+        // During first startup the UserEntitiesCache is still being constructed
+        // when the root user is created — skip the uniqueness check in that case.
+        EntitiesCacheBase<UserEntityFieldsModel> usersCache;
+        try { usersCache = RfConfiguration.UserEntitiesCache; }
+        catch (InvalidOperationException) { return Task.FromResult<string?>(null); }
+
+        var users = usersCache.FindEntitiesAndGetCopies();
         return Task.FromResult(users
             .Where(user => user.Id != entityId)
             .Any(user => user.Fields.EmailAddress == EmailAddress)

@@ -1,0 +1,117 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --rf-primary: #2563eb;
+}
+
+/* Dark mode overrides for cards, inputs, and borders */
+.dark .bg-white { background-color: #1f2937; }
+.dark .border-gray-200 { border-color: #374151; }
+.dark .border-gray-300 { border-color: #4b5563; }
+.dark .text-gray-900 { color: #f3f4f6; }
+.dark .text-gray-700 { color: #d1d5db; }
+.dark .text-gray-600 { color: #9ca3af; }
+.dark .text-gray-500 { color: #9ca3af; }
+.dark .bg-gray-50 { background-color: #111827; }
+.dark .bg-gray-100 { background-color: #1f2937; }
+.dark input, .dark textarea, .dark select {
+  background-color: #374151;
+  border-color: #4b5563;
+  color: #f3f4f6;
+}
+.dark input::placeholder, .dark textarea::placeholder {
+  color: #6b7280;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Field transitions */
+.field-wrapper {
+  @apply transition-all duration-200 ease-in-out;
+}
+
+/* Repeater animations */
+.repeater-item-enter {
+  @apply opacity-0 transform scale-95;
+}
+
+.repeater-item-enter-active {
+  @apply opacity-100 transform scale-100 transition-all duration-200;
+}
+
+.repeater-item-exit {
+  @apply opacity-100 transform scale-100;
+}
+
+.repeater-item-exit-active {
+  @apply opacity-0 transform scale-95 transition-all duration-200;
+}
+
+/* WYSIWYG editor placeholder — scoped to .wysiwyg-editor to avoid
+   interfering with Univer's contenteditable cell editor */
+.wysiwyg-editor [contenteditable]:empty:before {
+  content: attr(data-placeholder);
+  color: #9ca3af;
+  pointer-events: none;
+  display: block;
+}
+
+/* WYSIWYG editor focus styles */
+.wysiwyg-editor [contenteditable]:focus {
+  outline: none;
+}
+
+/* Prose styles for WYSIWYG */
+.prose h1 {
+  @apply text-2xl font-bold mt-4 mb-2;
+}
+
+.prose h2 {
+  @apply text-xl font-bold mt-3 mb-2;
+}
+
+.prose h3 {
+  @apply text-lg font-semibold mt-2 mb-1;
+}
+
+.prose p {
+  @apply mb-3;
+}
+
+.prose ul, .prose ol {
+  @apply ml-6 mb-3;
+}
+
+.prose ul {
+  @apply list-disc;
+}
+
+.prose ol {
+  @apply list-decimal;
+}
+
+.prose blockquote {
+  @apply border-l-4 border-gray-300 pl-4 italic text-gray-600 my-3;
+}
+
+.prose pre {
+  @apply bg-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto my-3;
+}
+
+.prose a {
+  @apply text-blue-600 underline;
+}
+
+/* Drag and drop highlight */
+.drag-over {
+  @apply border-blue-500 bg-blue-50;
+}

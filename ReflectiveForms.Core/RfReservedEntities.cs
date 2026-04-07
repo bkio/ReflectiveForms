@@ -16,6 +16,7 @@ public sealed class UserEntitiesCache : EntitiesCacheBase<UserEntityFieldsModel>
 {
     public UserEntitiesCache() : base(RfReservedEntities.UsersEntityName) => RootManager.EnsureRootUserExistsAsync(this).GetAwaiter().GetResult();
 }
+public sealed class SheetEntitiesCache() : EntitiesCacheBase<RfSheetEntityFieldsModel>(RfReservedEntities.SheetsEntityName);
 
 public static class RfReservedEntities
 {
@@ -24,13 +25,15 @@ public static class RfReservedEntities
     public const string TagsEntityName = "tags";
     public const string CategoriesEntityName = "categories";
     public const string MediaEntityName = "media";
+    public const string SheetsEntityName = "rf-sheets";
     public static readonly IReadOnlySet<string> ReservedEntityNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         UsersEntityName,
         IamRoleEntityName,
         TagsEntityName,
         CategoriesEntityName,
-        MediaEntityName
+        MediaEntityName,
+        SheetsEntityName
     };
 
     public static readonly IReadOnlyList<EntityFinalConfigurationBase> ReservedEntityTypes = new List<EntityFinalConfigurationBase>
@@ -40,7 +43,7 @@ public static class RfReservedEntities
             EntityName = UsersEntityName,
             EntityReadableNameSingular = "User",
             EntityReadableNamePlural = "Users",
-            ShallSupportFrontendEdit = SupportsFrontendEdit.ForAllAuthorized,
+            SupportsFrontendEdit = true,
             HasAuthor = false,
             HasTags = false,
             HasCategories = false,
@@ -59,7 +62,7 @@ public static class RfReservedEntities
             EntityName = IamRoleEntityName,
             EntityReadableNameSingular = "IAM Role",
             EntityReadableNamePlural = "IAM Roles",
-            ShallSupportFrontendEdit = SupportsFrontendEdit.ForAllAuthorized,
+            SupportsFrontendEdit = true,
             HasAuthor = false,
             HasTags = false,
             HasCategories = false,
@@ -72,7 +75,7 @@ public static class RfReservedEntities
             EntityName = TagsEntityName,
             EntityReadableNameSingular = "Tag",
             EntityReadableNamePlural = "Tags",
-            ShallSupportFrontendEdit = SupportsFrontendEdit.ForSuperAdminOnly,
+            SupportsFrontendEdit = true,
             HasAuthor = false,
             HasTags = false,
             HasCategories = false,
@@ -85,7 +88,7 @@ public static class RfReservedEntities
             EntityName = CategoriesEntityName,
             EntityReadableNameSingular = "Category",
             EntityReadableNamePlural = "Categories",
-            ShallSupportFrontendEdit = SupportsFrontendEdit.ForSuperAdminOnly,
+            SupportsFrontendEdit = true,
             HasAuthor = false,
             HasTags = false,
             HasCategories = false,
@@ -98,7 +101,7 @@ public static class RfReservedEntities
             EntityName = MediaEntityName,
             EntityReadableNameSingular = "Media",
             EntityReadableNamePlural = "Media",
-            ShallSupportFrontendEdit = SupportsFrontendEdit.ForAllAuthorized,
+            SupportsFrontendEdit = true,
             HasAuthor = true,
             HasTags = true,
             HasCategories = true,
@@ -111,6 +114,19 @@ public static class RfReservedEntities
                 PostUpdateHook = async (p, ctx) => await MediaEntityHookOnChanged.OnMediaUpdated(p, ctx),
                 PostDeleteHook = async (p, ctx) => await MediaEntityHookOnChanged.OnMediaDeleted(p, ctx)
             }
+        }),
+        new EntityFinalConfiguration<RfSheetEntityFieldsModel>(new EntityConfigurationBuilder<RfSheetEntityFieldsModel>
+        {
+            EntityName = SheetsEntityName,
+            EntityReadableNameSingular = "Sheet",
+            EntityReadableNamePlural = "Sheets",
+            SupportsFrontendEdit = false,
+            HasAuthor = true,
+            HasTags = false,
+            HasCategories = false,
+            HasParentChildRelationship = false,
+            RequireGlobalTitleUniqueness = false,
+            OptionalTitleSanityCheck = null
         })
     };
 }

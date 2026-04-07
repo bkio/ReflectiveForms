@@ -64,20 +64,23 @@ public sealed class DatePicker : Field
         {
             return Task.FromResult(!_mandatory
                 ? OperationResult<bool>.Success(true)
-                : OperationResult<bool>.Failure($"Field {jNeedleFieldName} is mandatory and missing.", HttpStatusCode.BadRequest));
+                : OperationResult<bool>.Failure($"{Label} is mandatory and missing.", HttpStatusCode.BadRequest));
         }
 
         if (!_mandatory && value.Type == JTokenType.Null)
             return Task.FromResult(OperationResult<bool>.Success(true));
 
+        if (!_mandatory && value.Type == JTokenType.String && string.IsNullOrEmpty(value.Value<string>()))
+            return Task.FromResult(OperationResult<bool>.Success(true));
+
         if (haystack[jNeedleFieldName] is not { Type: JTokenType.String })
         {
-            return Task.FromResult(OperationResult<bool>.Failure($"Field {jNeedleFieldName}: Type is incorrect.", HttpStatusCode.BadRequest));
+            return Task.FromResult(OperationResult<bool>.Failure($"{Label}: Type is incorrect.", HttpStatusCode.BadRequest));
         }
 
         var casted = haystack[jNeedleFieldName]?.Value<string>();
         return Task.FromResult(!DateTime.TryParseExact(casted, _dateFormat, null, DateTimeStyles.None, out _)
-            ? OperationResult<bool>.Failure($"Field {jNeedleFieldName}: Should represent a time with format {_dateFormat}.", HttpStatusCode.BadRequest) :
+            ? OperationResult<bool>.Failure($"{Label}: Should represent a time with format {_dateFormat}.", HttpStatusCode.BadRequest) :
             OperationResult<bool>.Success(true));
     }
 
@@ -161,31 +164,7 @@ public sealed class DatePicker : Field
                 optionElement.SetAttribute("selected", "");
         }
 
-        var onChangeScript = $$"""
-
-                               let day_and_year = [];
-                               let day_element = null;
-                               let month_no = null;
-                               for (let i = 0; i < this.parentElement.childNodes.length; i++) {
-                                   let child = this.parentElement.childNodes[i];
-                                   if (child instanceof HTMLInputElement) {
-                                       day_and_year.push(Number(child.value));
-                                       if (day_and_year.length === 1) {
-                                           day_element = child;
-                                       }
-                                   }
-                                   else if (child instanceof HTMLSelectElement) {
-                                       month_no = Number(child.value);
-                                   }
-                               }
-                               let m_res = moment([day_and_year[1], month_no - 1, day_and_year[0]]).format('{{_dateFormat.ToUpper()}}');
-                               if ('Invalid date' === m_res) {
-                                   let new_m_obj = moment([day_and_year[1], month_no - 1, 15]).endOf('month');
-                                   day_element.value = new_m_obj.format('DD');
-                                   m_res = new_m_obj.format('{{_dateFormat.ToUpper()}}');
-                               }
-                               window.current_fields_state{{jsObjectPathIncludingThis}} = m_res;
-                               """;
+        var onChangeScript = $"RF.FormState.setDateValue('{jsObjectPathIncludingThis}', this.parentElement, '{_dateFormat.ToUpper()}');";
         elementDay.SetAttribute("onchange", onChangeScript);
         elementMonth.SetAttribute("onchange", onChangeScript);
         elementYear.SetAttribute("onchange", onChangeScript);

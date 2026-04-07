@@ -13,6 +13,7 @@ using CrossCloudKit.Utilities.Common;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using ReflectiveForms.Core.Models;
+using ReflectiveForms.Core.Operation;
 using ReflectiveForms.Core.Utilities;
 
 namespace ReflectiveForms.Core.Repositories;
@@ -310,7 +311,7 @@ public class EntityRepositoryService
             var idKey = new DbKey(EntityModelAttributes.Id, newId);
 
             body[EntityModelAttributes.Id] = newId;
-            body[EntityModelAttributes.Link] = $"{RfConfiguration.EndpointConfiguration.FinalEntitiesBaseRoute}?type={entityName}&id={newId}";
+            body[EntityModelAttributes.Link] = RfConfiguration.EndpointConfiguration.GetEntityUrl(entityName, newId);
 
             var configuration = RfConfiguration.EntityNameToConfiguration[entityName];
 
@@ -365,18 +366,32 @@ public class EntityRepositoryService
                             $"FATAL ERROR: EntityRepository->PutOneAsync: DeleteItemAsync has failed. (Failed: Remove back {entityName}->{newId}) ({deleteResult.StatusCode})" +
                             $"{Environment.NewLine}{error}", HttpStatusCode.InternalServerError);
                     }
+                    success = false;
                     return OperationResult<JObject>.Failure(error, HttpStatusCode.InternalServerError);
                 }
             }
 
-            await PostCreateHook<T>(entityName, newId, result, cancellationToken);
-
+            // Do NOT run the hook inside the mutex — it may call UpdateOneAsync
+            // on the same entity, which would deadlock on the same mutex.
             break;
         }
         if (!success)
         {
             return OperationResult<JObject>.Failure($"EntityRepository->PutOneAsync: PutItemAsync has failed for entity type {entityName}.", HttpStatusCode.InternalServerError);
         }
+
+        // Run the post-create hook OUTSIDE the mutex to avoid deadlock
+        // when the hook calls UpdateOneAsync on the same entity.
+        await PostCreateHook<T>(entityName, newId, result.NotNull(), cancellationToken);
+
+        // Re-read the entity after the hook in case it was modified (e.g. password hashing)
+        var postHookRead = await _db.GetItemAsync(
+            GetEntityTableName(entityName),
+            new DbKey(EntityModelAttributes.Id, newId),
+            null,
+            cancellationToken);
+        if (postHookRead.IsSuccessful && postHookRead.Data != null)
+            result = postHookRead.Data;
 
         await PublishEntityChangedAsync<T>(
             entityName,
@@ -398,6 +413,13 @@ public class EntityRepositoryService
         CancellationToken cancellationToken) where T : EntityFieldsModel, new()
     {
         // Note: If parameters of this method change, remember to update Crud.cs as well. Reflection is used there.
+
+        if (!entityUpdaterIdentity.IsDuringHookUpdate && entityUpdaterIdentity.UserId > 0)
+        {
+            var lockCheckResult = await CheckEntityNotLockedByAnotherUserAsync(entityName, id, entityUpdaterIdentity.UserId, cancellationToken);
+            if (!lockCheckResult.IsSuccessful)
+                return OperationResult<JObject>.Failure(lockCheckResult.ErrorMessage, lockCheckResult.StatusCode);
+        }
 
         body[EntityModelAttributes.Id] = id;
 
@@ -465,7 +487,7 @@ public class EntityRepositoryService
                 key,
                 newBody,
                 DbReturnItemBehavior.ReturnNewValues,
-                _db.AttributeEquals(EntityModelAttributes.Id, key.Value.AsInteger),
+                null,
                 cancellationToken);
             if (!updateResult.IsSuccessful)
             {
@@ -658,9 +680,11 @@ public class EntityRepositoryService
                             .ErrorMessage))
                         .ErrorMessage);
             }
-
-            await PostUpdateHook<T>(entityName, id, oldObject, result.NotNull(), cancellationToken);
         }
+
+        // Run the post-update hook OUTSIDE the mutex to avoid deadlock
+        // when the hook calls UpdateOneAsync on the same entity.
+        await PostUpdateHook<T>(entityName, id, oldObject, result.NotNull(), cancellationToken);
 
         await PublishEntityChangedAsync<T>(
             entityName,
@@ -690,6 +714,56 @@ public class EntityRepositoryService
             : getItemResult.Data == null
                 ? OperationResult<bool>.Failure($"Entity not found. Id: {id} Entity Name: {entityName}", HttpStatusCode.NotFound)
                 : OperationResult<bool>.Success(true);
+    }
+
+    public async Task<OperationResult<JObject>> GetEntityRevisionsAsync(
+        string entityName,
+        int id,
+        CancellationToken cancellationToken)
+    {
+        var getItemResult = await _db.GetItemAsync(
+            GetEntityHistoryTableName(entityName),
+            new DbKey(EntityModelAttributes.Id, id),
+            null,
+            cancellationToken);
+        if (!getItemResult.IsSuccessful)
+            return OperationResult<JObject>.Failure(
+                $"Error: EntityRepository->GetEntityRevisionsAsync: GetItem has failed. Id: {id} Entity Name: {entityName}", getItemResult.StatusCode);
+
+        var historyData = getItemResult.Data;
+        if (historyData == null)
+        {
+            // No history exists — entity has never been updated
+            return OperationResult<JObject>.Success(new JObject
+            {
+                ["revisions_count"] = 0,
+                ["revisions"] = new JArray()
+            });
+        }
+
+        var count = (int)(historyData[HistoryTableOldRevisionsCountAttributeName] ?? 0);
+        var revisions = new JArray();
+        for (var i = 1; i <= count; i++)
+        {
+            var revisionKey = $"{HistoryTableOldRevisionContainerAttributeNamePrefix}{i}";
+            var revisionContainer = historyData[revisionKey] as JObject;
+            if (revisionContainer == null) continue;
+
+            revisions.Add(new JObject
+            {
+                ["revision_number"] = i,
+                [EntityModelAttributes.Date] = revisionContainer[EntityModelAttributes.Date],
+                [EntityModelAttributes.DateGmt] = revisionContainer[EntityModelAttributes.DateGmt],
+                [HistoryTableOldRevisionInContainerModifiedByEmailAttributeName] = revisionContainer[HistoryTableOldRevisionInContainerModifiedByEmailAttributeName],
+                [HistoryTableOldRevisionInContainerObjectAttributeName] = revisionContainer[HistoryTableOldRevisionInContainerObjectAttributeName]
+            });
+        }
+
+        return OperationResult<JObject>.Success(new JObject
+        {
+            ["revisions_count"] = count,
+            ["revisions"] = revisions
+        });
     }
 
     private async Task<OperationResult<bool>> FixTheUpdateForOthersThatHaveReferenceToThisAsync(string entityName, int id, JObject body, CancellationToken cancellationToken)
@@ -1007,7 +1081,7 @@ public class EntityRepositoryService
         }
         else
         {
-            body[EntityModelAttributes.Link] = $"{RfConfiguration.EndpointConfiguration.FinalEntitiesBaseRoute}?type={entityName}&id={bodyId}";
+            body[EntityModelAttributes.Link] = RfConfiguration.EndpointConfiguration.GetEntityUrl(entityName, bodyId);
         }
 
         var gmtNowTimeString = DateUtility.DateTimeToDesiredString(DateTime.UtcNow);
@@ -1056,9 +1130,16 @@ public class EntityRepositoryService
     }
 
     private const string DeleteOneAsyncMethodName = "DeleteOneAsync";
-    public async Task<OperationResult<JObject>> DeleteOneAsync<T>(string entityName, int id, CancellationToken cancellationToken) where T : EntityFieldsModel, new()
+    public async Task<OperationResult<JObject>> DeleteOneAsync<T>(string entityName, int id, int requestingUserId, CancellationToken cancellationToken) where T : EntityFieldsModel, new()
     {
         // Note: If parameters of this method change, remember to update Crud.cs as well. Reflection is used there.
+
+        if (requestingUserId > 0)
+        {
+            var lockCheckResult = await CheckEntityNotLockedByAnotherUserAsync(entityName, id, requestingUserId, cancellationToken);
+            if (!lockCheckResult.IsSuccessful)
+                return OperationResult<JObject>.Failure(lockCheckResult.ErrorMessage, lockCheckResult.StatusCode);
+        }
 
         var key = new DbKey(EntityModelAttributes.Id, id);
 
@@ -1115,9 +1196,11 @@ public class EntityRepositoryService
             {
                 return OperationResult<JObject>.Failure($"Warning: EntityRepository->DeleteOneAsync: FixTheDelete_ForOthersThatHaveReferenceToThis has failed. Id: {id} Entity: {entityName}", fixOthersResult.StatusCode);
             }
-
-            await PostDeleteHook<T>(entityName, id, lastBody.NotNull(), cancellationToken);
         }
+
+        // Run the post-delete hook OUTSIDE the mutex to avoid deadlock
+        // when the hook calls UpdateOneAsync/DeleteOneAsync on the same entity.
+        await PostDeleteHook<T>(entityName, id, lastBody.NotNull(), cancellationToken);
 
         await PublishEntityChangedAsync<T>(
             entityName,
@@ -1138,6 +1221,42 @@ public class EntityRepositoryService
         return !scanResult.IsSuccessful
             ? OperationResult<JArray>.Failure($"Error: EntityRepository->PeekAllAsync: ScanTableAsync has failed with: {scanResult.ErrorMessage}", scanResult.StatusCode)
             : OperationResult<JArray>.Success(ListOfJObjectToJArray(scanResult.Data.Items));
+    }
+
+    public async Task<OperationResult<JArray>> FullReadAllAsync(string entityName, CancellationToken cancellationToken)
+    {
+        var scanResult = await _db.ScanTableAsync(
+            GetEntityTableName(entityName),
+            cancellationToken);
+        return !scanResult.IsSuccessful
+            ? OperationResult<JArray>.Failure($"Error: EntityRepository->FullReadAllAsync: ScanTableAsync has failed with: {scanResult.ErrorMessage}", scanResult.StatusCode)
+            : OperationResult<JArray>.Success(ListOfJObjectToJArray(scanResult.Data.Items));
+    }
+
+    public async Task<OperationResult<JObject>> PeekAllPaginatedAsync(
+        string entityName,
+        int pageSize,
+        string? pageToken,
+        CancellationToken cancellationToken)
+    {
+        var scanResult = await _db.ScanTablePaginatedAsync(
+            GetEntityPeekOverviewTableName(entityName),
+            pageSize,
+            pageToken,
+            cancellationToken);
+
+        if (!scanResult.IsSuccessful)
+            return OperationResult<JObject>.Failure(
+                $"Error: EntityRepository->PeekAllPaginatedAsync: ScanTablePaginatedAsync has failed with: {scanResult.ErrorMessage}",
+                scanResult.StatusCode);
+
+        var result = new JObject
+        {
+            ["items"] = ListOfJObjectToJArray(scanResult.Data.Items),
+            ["next_page_token"] = scanResult.Data.NextPageToken,
+            ["total_count"] = scanResult.Data.TotalCount
+        };
+        return OperationResult<JObject>.Success(result);
     }
 
     private async Task<OperationResult<JObject>> TryExtractingPeekOverviewFromBodyAsync(string entityName, JObject? body, CancellationToken cancellationToken)
@@ -1335,6 +1454,25 @@ public class EntityRepositoryService
             .GetMethod(
                 DeleteOneAsyncMethodName,
                 BindingFlags.Public | BindingFlags.Instance).NotNull();
+
+    /// <summary>
+    /// Checks if the entity is locked by a different user. Returns success if not locked or locked by the same user.
+    /// </summary>
+    private static async Task<OperationResult<bool>> CheckEntityNotLockedByAnotherUserAsync(
+        string entityName, int entityId, int requestingUserId, CancellationToken cancellationToken)
+    {
+        var lockStatus = await EntityLockController.GetLockStatusAsync(entityName, entityId, cancellationToken);
+        if (!lockStatus.IsSuccessful)
+            return OperationResult<bool>.Success(true); // If we can't check, don't block the operation
+
+        var state = lockStatus.Data;
+        if (state != null && state.LockedByUserId != requestingUserId)
+            return OperationResult<bool>.Failure(
+                $"Entity is currently being edited by {state.LockedByUserName ?? "another user"}.",
+                HttpStatusCode.Conflict);
+
+        return OperationResult<bool>.Success(true);
+    }
 }
 
 public enum EntityChangedEventType

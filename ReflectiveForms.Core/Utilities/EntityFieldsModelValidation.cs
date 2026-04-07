@@ -42,7 +42,7 @@ internal static class EntityFieldsModelValidation
 
             var fieldType = field.FieldType;
 
-            if (IsCollection(field, out var isList, out var elementType))
+            if (IsCollection(fieldType, out var isList, out var elementType))
             {
                 if (!isList)
                 {
@@ -62,32 +62,57 @@ internal static class EntityFieldsModelValidation
             }
         }
 
+        var properties = type.GetProperties(BindingFlags.Instance | BindingFlags.Public);
+        foreach (var prop in properties)
+        {
+            if (!Attribute.IsDefined(prop, typeof(Field), true)) continue;
+
+            var propType = prop.PropertyType;
+
+            if (IsCollection(propType, out var isList, out var elementType))
+            {
+                if (!isList)
+                {
+                    error = $"Type {type.FullName}->{prop.Name} must be a -List- type.";
+                    return false;
+                }
+
+                if (!ValidateType(elementType.NotNull(), out error))
+                    return false;
+            }
+            else if (propType.IsClass && propType != typeof(string))
+            {
+                if (!ValidateType(propType, out error))
+                    return false;
+            }
+        }
+
         error = null;
         return true;
     }
     private static readonly HashSet<Type> VisitedTypesForFieldValidation = [];
 
-    private static bool IsCollection(FieldInfo field, out bool isList, out Type? elementType)
+    private static bool IsCollection(Type memberType, out bool isList, out Type? elementType)
     {
         isList = false;
         elementType = null;
 
         // Arrays
-        if (field.FieldType.IsArray)
+        if (memberType.IsArray)
         {
-            elementType = field.FieldType.GetElementType();
+            elementType = memberType.GetElementType();
             return true;
         }
 
         // Generic types
-        if (!field.FieldType.IsGenericType) return false;
+        if (!memberType.IsGenericType) return false;
 
-        var genericDef = field.FieldType.GetGenericTypeDefinition();
+        var genericDef = memberType.GetGenericTypeDefinition();
 
         // Check for List<T>
         if (genericDef == typeof(List<>))
         {
-            elementType = field.FieldType.GetGenericArguments()[0];
+            elementType = memberType.GetGenericArguments()[0];
             isList = true;
             return true;
         }
@@ -95,7 +120,7 @@ internal static class EntityFieldsModelValidation
         // Check for ICollection<T> or IEnumerable<T>
         if (genericDef != typeof(ICollection<>) && genericDef != typeof(IEnumerable<>)) return false;
 
-        elementType = field.FieldType.GetGenericArguments()[0];
+        elementType = memberType.GetGenericArguments()[0];
         return true;
     }
 

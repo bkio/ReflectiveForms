@@ -12,9 +12,6 @@ public class LoginInputModel
 
     [JsonProperty("password")]
     public string Password = "";
-
-    [JsonProperty("captcha_answer")]
-    public int? CaptchaAnswer { get; set; }
 }
 
 public class LoginOutputModel

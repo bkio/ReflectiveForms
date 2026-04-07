@@ -3,46 +3,54 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - ReflectiveForms.Sample1</title>
+    <title>@ViewData["Title"] - ReflectiveForms</title>
     <script type="importmap"></script>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/ReflectiveForms.Sample1.styles.css" asp-append-version="true" />
 </head>
-<body>
+<body class="d-flex flex-column min-vh-100">
     <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
+        <nav class="navbar navbar-expand-md navbar-dark bg-dark shadow-sm">
             <div class="container">
-                <a class="navbar-brand" asp-area="" asp-page="/Index">ReflectiveForms.Sample1</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
+                <a class="navbar-brand d-flex align-items-center gap-2 fw-semibold" asp-area="" asp-page="/Index">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    ReflectiveForms
+                </a>
+                <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav"
                         aria-expanded="false" aria-label="Toggle navigation">
                     <span class="navbar-toggler-icon"></span>
                 </button>
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
-                    <ul class="navbar-nav flex-grow-1">
+                <div class="collapse navbar-collapse" id="mainNav">
+                    <ul class="navbar-nav me-auto">
                         <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-page="/Index">Home</a>
+                            <a class="nav-link" asp-area="" asp-page="/Index">Home</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-page="/Privacy">Privacy</a>
+                            <a class="nav-link" asp-area="" asp-page="/Privacy">Privacy</a>
                         </li>
                     </ul>
-                    <ul class="navbar-nav">
+                    <ul class="navbar-nav ms-auto">
                         @if (User.Identity?.IsAuthenticated == true)
                         {
                             <li class="nav-item dropdown">
-                                <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                    @(User.Identity.Name ?? "User")
+                                <a class="nav-link dropdown-toggle d-flex align-items-center gap-2" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <span class="d-inline-flex align-items-center justify-content-center rounded-circle bg-primary text-white" style="width:28px;height:28px;font-size:0.75rem;">
+                                        @(User.Identity.Name?.Substring(0, 1).ToUpper() ?? "U")
+                                    </span>
+                                    <span class="d-none d-md-inline">@(User.Identity.Name ?? "User")</span>
                                 </a>
-                                <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
-                                    <li><a class="dropdown-item" href="#" onclick="logout(); return false;">Logout</a></li>
+                                <ul class="dropdown-menu dropdown-menu-end shadow-sm" aria-labelledby="navbarDropdown">
+                                    <li><a class="dropdown-item" href="#" onclick="logout(); return false;">Sign out</a></li>
                                 </ul>
                             </li>
                         }
                         else
                         {
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-area="" asp-page="/Login">Login</a>
+                                <a class="nav-link" asp-area="" asp-page="/Login">Sign in</a>
                             </li>
                         }
                     </ul>
@@ -50,34 +58,26 @@
             </div>
         </nav>
     </header>
-    <div class="container">
-        <main role="main" class="pb-3">
+
+    <div class="container flex-grow-1">
+        <main role="main" class="py-4">
             @RenderBody()
         </main>
     </div>
 
-    <footer class="border-top footer text-muted">
-        <div class="container">
-            &copy; 2025 - ReflectiveForms.Sample1 - <a asp-area="" asp-page="/Privacy">Privacy</a>
+    <footer class="border-top bg-light py-3 mt-auto">
+        <div class="container text-center text-muted small">
+            &copy; @DateTime.Now.Year ReflectiveForms &middot; <a asp-area="" asp-page="/Privacy" class="text-decoration-none">Privacy</a>
         </div>
     </footer>
 
-    <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
 
     <script>
     function logout() {
-        // Show loading state
-        const dropdownItem = event.target;
-        dropdownItem.textContent = 'Logging out...';
-        dropdownItem.style.opacity = '0.6';
-
-        // Clear any stored tokens
         localStorage.removeItem('authToken');
         sessionStorage.removeItem('authToken');
-
-        // Redirect to logout page
         window.location.href = '/Logout';
     }
     </script>

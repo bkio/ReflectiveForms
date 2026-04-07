@@ -75,15 +75,20 @@ public sealed class Select : Field
 
         if (value.Type != JTokenType.String)
         {
-            return Task.FromResult(OperationResult<bool>.Failure($"Field {jNeedleFieldName}: Type is incorrect.", HttpStatusCode.BadRequest));
+            return Task.FromResult(OperationResult<bool>.Failure($"{Label}: Type is incorrect.", HttpStatusCode.BadRequest));
         }
 
         var casted = (haystack[jNeedleFieldName]?.Value<string>()).NotNull();
         if (!_choicesDb.Contains(casted))
         {
+            // Skip validation for DynamicChoicesRuntimeAsync fields whose choices
+            // are resolved at runtime via JavaScript — __choicesDb is empty for these.
+            if (_internalRuntimeChoiceJsFunction != null)
+                return Task.FromResult(OperationResult<bool>.Success(true));
+
             return Task.FromResult(OperationResult<bool>.Failure(casted.Length == 0
-                ? $"Field {jNeedleFieldName}: Mandatory to choose an option."
-                : $"Field {jNeedleFieldName}: Unexpected choice {casted}.", HttpStatusCode.BadRequest));
+                ? $"{Label}: Mandatory to choose an option."
+                : $"{Label}: Unexpected choice {casted}.", HttpStatusCode.BadRequest));
         }
 
         return Task.FromResult(OperationResult<bool>.Success(true));
@@ -145,7 +150,7 @@ public sealed class Select : Field
             element.SetAttribute("dynamic-options-input-path", jsObjectPathIncludingThis.TrimEnd($"{jFieldName}").Trim('.'));
         }
 
-        element.SetAttribute("onchange", $"window.current_fields_state{jsObjectPathIncludingThis} = this.value;");
+        element.SetAttribute("onchange", $"RF.FormState.setFieldValue('{jsObjectPathIncludingThis}', this.value);");
         //No need for oninput, it is a select element
 
         return Task.CompletedTask;

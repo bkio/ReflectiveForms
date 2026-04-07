@@ -1,48 +1,59 @@
-﻿/* Please see documentation at https://learn.microsoft.com/aspnet/core/client-side/bundling-and-minification
-for details on configuring this project to bundle and minify static web assets. */
+﻿/* Modern layout styles for ReflectiveForms */
 
 a.navbar-brand {
-  white-space: normal;
-  text-align: center;
-  word-break: break-all;
+  white-space: nowrap;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 a {
-  color: #0077cc;
+  color: #667eea;
+  transition: color 0.15s;
+}
+
+a:hover {
+  color: #764ba2;
 }
 
 .btn-primary {
   color: #fff;
-  background-color: #1b6ec2;
-  border-color: #1861ac;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
 }
 
-.nav-pills .nav-link.active, .nav-pills .show > .nav-link {
+.btn-primary:hover {
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.35);
+}
+
+.nav-pills .nav-link.active,
+.nav-pills .show > .nav-link {
   color: #fff;
-  background-color: #1b6ec2;
-  border-color: #1861ac;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
 }
 
-.border-top {
-  border-top: 1px solid #e5e5e5;
-}
-.border-bottom {
-  border-bottom: 1px solid #e5e5e5;
+.shadow-sm {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
 }
 
-.box-shadow {
-  box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .05);
+/* Smooth transitions on interactive elements */
+.nav-link,
+.dropdown-item,
+.btn {
+  transition: all 0.15s ease;
 }
 
-button.accept-policy {
-  font-size: 1rem;
-  line-height: inherit;
+.dropdown-menu {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  padding: 0.25rem;
 }
 
-.footer {
-  position: absolute;
-  bottom: 0;
-  width: 100%;
-  white-space: nowrap;
-  line-height: 60px;
+.dropdown-item {
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+}
+
+.dropdown-item:hover {
+  background: #f3f4f6;
 }

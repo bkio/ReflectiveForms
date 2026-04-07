@@ -2,7 +2,6 @@
 // See LICENSE file in the project root for full license information.
 
 using System.Net;
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using AngleSharp.Html.Dom;
 using CrossCloudKit.Interfaces.Classes;
@@ -55,7 +54,7 @@ public sealed class Group : Field
 
         if (haystack[jNeedleFieldName] is not { Type: JTokenType.Object })
         {
-            return OperationResult<bool>.Failure($"Field {jNeedleFieldName}: Type is incorrect.", HttpStatusCode.BadRequest);
+            return OperationResult<bool>.Failure($"{Label}: Type is incorrect.", HttpStatusCode.BadRequest);
         }
 
         var casted = haystack[jNeedleFieldName]?.Value<JObject>();
@@ -89,14 +88,15 @@ public sealed class Group : Field
                 EntityModelDefaultsBuilder.IterativelyChangeUniqueFieldIdsWithRandomIds(groupObject.NotNull());
             }
 
+            // SelectToken above returns null when the group's path cannot be resolved in the
+            // default entity structure. This happens when the group lives inside a repeater or
+            // parent whose default serialisation omits the key entirely — e.g. a repeater field
+            // declared with NullValueHandling.Ignore and a null/empty default, or a repeater
+            // with minimumRows: 0 producing an empty array so that [0].child_group has no match.
+            // In these cases there is no default to populate, so we silently skip rendering.
             if (groupObject == null)
             {
-                RfConfiguration.LogError(new Exception($"DEBUG! Came here! {isForReserveParentElement} {jFieldName} {jsObjectPathIncludingThis}"));
-                RfConfiguration.LogError(new Exception($"DEBUG! FullDefaultReflectiveField: {fullDefaultReflectiveField.ToString(Formatting.None)}"));
-                RfConfiguration.LogError(new Exception($"DEBUG! Stack Trace! {new System.Diagnostics.StackTrace()}"));
                 return;
-                //Not tested properly! There used to be "_GroupObject = new JObject();" instead. Then it turned that quick_edit in Model_Employee triggered here.
-                //Quick Edit coming here makes sense as it is not serialized always. Let's see if it comes here other than quick_edit.
             }
 
             if (!parentObjectOfCurrentValueJToken.ContainsKey(jFieldName))

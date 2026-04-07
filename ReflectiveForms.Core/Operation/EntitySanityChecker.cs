@@ -41,11 +41,13 @@ internal static class EntitySanityChecker
             groupObject[BaseModel.UniqueFieldIdPropertyName] = StringUtilities.GenerateRandomString(16, DigitOptions.OnlyCharacters, CaseOptions.FullUppercase);
         }
 
-        var fieldToFieldNameMap = new Dictionary<FieldInfo, string>();
+        var fieldToFieldNameMap = new Dictionary<MemberInfo, string>();
 
         //The first pass for conditions and removing invisible
-        var fields = groupFor.GetFields(BindingFlags.Instance | BindingFlags.Public);
-        foreach (var field in fields)
+        var members = groupFor.GetFields(BindingFlags.Instance | BindingFlags.Public)
+            .Cast<MemberInfo>()
+            .Concat(groupFor.GetProperties(BindingFlags.Instance | BindingFlags.Public));
+        foreach (var field in members)
         {
             if (!Attribute.IsDefined(field, typeof(Field), true)) continue;
 
@@ -93,6 +95,12 @@ internal static class EntitySanityChecker
 
                     select.Choices = await dynamicChoicesCTimeTask;
                 }
+
+                var dynamicChoicesFunctionRuntime = groupFor.GetMethod($"{field.Name}___DynamicChoicesRuntimeAsync");
+                if (dynamicChoicesFunctionRuntime != null)
+                {
+                    select.RuntimeChoiceJsFunction = "runtime";
+                }
             }
 
 
@@ -134,17 +142,17 @@ internal static class EntitySanityChecker
     {
         if (!obj.TryGetTypedValue(EntityModelAttributes.Title, out JObject? title))
         {
-            titleFieldSanityCheckError = $"Field -{EntityModelAttributes.Title}- is missing or incorrect. (1)";
+            titleFieldSanityCheckError = "Title is missing or incorrect.";
             return false;
         }
         if (!title.NotNull().TryGetTypedValue(EntityModelAttributes.TitleRendered, out string? rendered))
         {
-            titleFieldSanityCheckError = $"Field -{EntityModelAttributes.Title} (->{EntityModelAttributes.TitleRendered})- is missing or incorrect. (2) {title}";
+            titleFieldSanityCheckError = "Title is missing or incorrect.";
             return false;
         }
         if (rendered.NotNull().Length == 0 || rendered.NotNull().Length > 256)
         {
-            titleFieldSanityCheckError = $"Field -{EntityModelAttributes.Title} (->{EntityModelAttributes.TitleRendered})- has to be in length between 1 and 256. Field value: {rendered}";
+            titleFieldSanityCheckError = "Title must be between 1 and 256 characters.";
             return false;
         }
 
@@ -159,7 +167,7 @@ internal static class EntitySanityChecker
         if (!obj.TryGetTypedValue(EntityModelAttributes.Title, out JObject? titleJObject)
                 || !titleJObject.NotNull().TryGetTypedValue(EntityModelAttributes.TitleRendered, out string? titleRenderedNullable))
         {
-            return OperationResult<bool>.Failure($"-{EntityModelAttributes.Title}- cannot be empty.", HttpStatusCode.BadRequest);
+            return OperationResult<bool>.Failure("Title cannot be empty.", HttpStatusCode.BadRequest);
         }
         var titleRendered = titleRenderedNullable.NotNull();
 
@@ -172,7 +180,7 @@ internal static class EntitySanityChecker
         {
             return !itemResult.IsSuccessful
                 ? OperationResult<bool>.Failure($"GetByFilterAsync operation for entities has failed with {itemResult.ErrorMessage}", itemResult.StatusCode)
-                : OperationResult<bool>.Failure($"-{EntityModelAttributes.Title}- of the entity must be globally unique.", HttpStatusCode.BadRequest);
+                : OperationResult<bool>.Failure("Title of the entity must be globally unique.", HttpStatusCode.BadRequest);
         }
         return OperationResult<bool>.Success(true);
     }
@@ -186,7 +194,7 @@ internal static class EntitySanityChecker
             || !obj.ContainsKey(EntityModelAttributes.Modified)
             || !obj.ContainsKey(EntityModelAttributes.ModifiedGmt))
         {
-            failureMessage = $"Fields -{EntityModelAttributes.Date}- -{EntityModelAttributes.DateGmt}- -{EntityModelAttributes.Modified}- -{EntityModelAttributes.ModifiedGmt}- are mandatory.";
+            failureMessage = "Fields Date, Date GMT, Modified and Modified GMT are mandatory.";
             return false;
         }
 
@@ -221,7 +229,7 @@ internal static class EntitySanityChecker
     {
         if (!obj.TryGetTypedValue(EntityModelAttributes.Id, out int entityId))
         {
-            return OperationResult<bool>.Failure($"Field -{EntityModelAttributes.Id}- is missing.", HttpStatusCode.BadRequest);
+            return OperationResult<bool>.Failure("Id is missing.", HttpStatusCode.BadRequest);
         }
 
         if (!obj.TryGetTypedValue(EntityModelAttributes.Fields, out JObject? fieldsObj))
@@ -251,7 +259,7 @@ internal static class EntitySanityChecker
     {
         if (!obj.TryGetTypedValue(EntityModelAttributes.Author, out int _))
         {
-            failureMessage = $"Field -{EntityModelAttributes.Author}- is missing.";
+            failureMessage = "Author is missing.";
             return false;
         }
         failureMessage = "";
@@ -313,7 +321,6 @@ internal static class EntitySanityChecker
                 attr = EntityModelAttributes.Tags;
                 entityName = RfReservedEntities.TagsEntityName;
                 break;
-            //if (_What == InternalVariousFieldSanityCheck.Categories)
             case InternalVariousFieldSanityCheck.Categories:
             default:
                 attr = EntityModelAttributes.Categories;

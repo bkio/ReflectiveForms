@@ -63,7 +63,7 @@ public sealed class Text : Field
         {
             return Task.FromResult(!_mandatory
                 ? OperationResult<bool>.Success(true)
-                : OperationResult<bool>.Failure($"Field {jNeedleFieldName} is mandatory and missing.", HttpStatusCode.BadRequest));
+                : OperationResult<bool>.Failure($"{Label} is mandatory and missing.", HttpStatusCode.BadRequest));
         }
 
         if (!_mandatory && value.Type == JTokenType.Null)
@@ -71,13 +71,13 @@ public sealed class Text : Field
 
         if (haystack[jNeedleFieldName] is not { Type: JTokenType.String })
         {
-            return Task.FromResult(OperationResult<bool>.Failure($"Field {jNeedleFieldName}: Type is incorrect.", HttpStatusCode.BadRequest));
+            return Task.FromResult(OperationResult<bool>.Failure($"{Label}: Type is incorrect.", HttpStatusCode.BadRequest));
         }
 
         var casted = (haystack[jNeedleFieldName]?.Value<string>()).NotNull();
         if (_mandatory && casted.Length == 0)
         {
-            return Task.FromResult(OperationResult<bool>.Failure($"Field {jNeedleFieldName}: Should have at least one character.", HttpStatusCode.BadRequest));
+            return Task.FromResult(OperationResult<bool>.Failure($"{Label}: Should have at least one character.", HttpStatusCode.BadRequest));
         }
 
         return Task.FromResult(OperationResult<bool>.Success(true));
@@ -121,7 +121,7 @@ public sealed class Text : Field
         else
             parentObjectOfCurrentValueJToken[jFieldName] = element.DefaultValue;
 
-        element.SetAttribute("onchange", $"window.current_fields_state{jsObjectPathIncludingThis} = this.value;");
+        element.SetAttribute("onchange", $"RF.FormState.setFieldValue('{jsObjectPathIncludingThis}', this.value);");
         element.SetAttribute("oninput", "window.global_oninput(this);");
         return Task.CompletedTask;
     }

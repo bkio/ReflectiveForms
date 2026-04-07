@@ -35,8 +35,10 @@ public abstract class EntityConfigurationBuilderBase
 
     /// <summary>
     /// Should this entity type support frontend editing?
+    /// When false the frontend should display the entity in read-only / view mode.
+    /// Access-control for individual CRUD operations is handled by the IAM role system.
     /// </summary>
-    public required SupportsFrontendEdit ShallSupportFrontendEdit { get; init; }
+    public required bool SupportsFrontendEdit { get; init; }
 
     /// <summary>
     /// Should this entity type have a parent-child relationship?

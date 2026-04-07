@@ -50,11 +50,11 @@ internal static class RequestQueryExtensions
             return false;
         }
         parameterValue = opValues.ToString().ToUpperInvariant();
-        if (parameterValue is not ("CREATE" or "READ" or "PEEK_ALL" or "UPDATE" or "DELETE"))
+        if (parameterValue is not ("CREATE" or "READ" or "PEEK_ALL" or "PEEK_ALL_PAGINATED" or "UPDATE" or "DELETE" or "HISTORY"))
         {
             failedResult = onFailureJsonResponse
-                ? HttpStatusCode.BadRequest.ToResult("Url parameter -operation- must be one of: CREATE,READ,PEEK_ALL,UPDATE,DELETE")
-                : Results.BadRequest("Url parameter -operation- must be one of: CREATE,READ,PEEK_ALL,UPDATE,DELETE");
+                ? HttpStatusCode.BadRequest.ToResult("Url parameter -operation- must be one of: CREATE,READ,PEEK_ALL,PEEK_ALL_PAGINATED,UPDATE,DELETE,HISTORY")
+                : Results.BadRequest("Url parameter -operation- must be one of: CREATE,READ,PEEK_ALL,PEEK_ALL_PAGINATED,UPDATE,DELETE,HISTORY");
             return false;
         }
         failedResult = null;

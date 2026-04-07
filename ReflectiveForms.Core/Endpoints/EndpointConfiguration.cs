@@ -11,30 +11,36 @@ namespace ReflectiveForms.Core.Endpoints;
 public sealed class EndpointConfiguration
 {
     /// <summary>
-    /// The URL path prefix for all ReflectiveForms API and frontend endpoints on the ASP.NET backend.
-    /// Defaults to "/rf", hosting endpoints under "/rf/...".
+    /// The URL path prefix for all ReflectiveForms API endpoints on the ASP.NET backend.
+    /// Defaults to "/rf", hosting endpoints under "/rf/api/...".
     ///
     /// Best practice: Keep the prefix short and consistent across your application.
     /// </summary>
     public required string RootPath = "/rf";
 
     /// <summary>
-    /// The public-facing url path root for frontend routes (e.g., /entities, /entities-admin).
-    /// As we are generating frontend code, we need to know the public url of endpoints.
-    /// Typically, this application is served behind a reverse proxy.
-    /// <b>This public url must be mapped (via reverse proxy) to:</b>
-    /// <b>{{<see cref="RootPath"/>}}/frontend</b>
-    /// </summary>
-    public required string PublicUrlRootForFrontend { get; init; } = "http://localhost:9000/rf/frontend/";
-
-    /// <summary>
     /// The public-facing url path root for API routes.
-    /// As we are generating frontend code, we need to know the public url of endpoints.
+    /// The React SPA frontend uses this to make API calls.
     /// Typically, this application is served behind a reverse proxy.
     /// <b>This public url must be mapped (via reverse proxy) to:</b>
     /// <b>{{<see cref="RootPath"/>}}/api</b>
     /// </summary>
     public required string PublicUrlRootForApi { get; init; } = "http://localhost:9000/rf/api/";
+
+    /// <summary>
+    /// The public-facing URL for the React SPA frontend.
+    /// Used for generating entity links in API responses.
+    /// Must be explicitly set by the consumer.
+    /// Example: "http://localhost:3000" for development, "https://school.edu" for production.
+    /// </summary>
+    public required string PublicFrontendBaseUrl { get; init; }
+
+    /// <summary>
+    /// Optional SSO configuration. When set, the backend registers OIDC authentication
+    /// and exposes SSO login/callback endpoints alongside the standard login endpoint.
+    /// When null, only username/password authentication is available.
+    /// </summary>
+    public SsoConfiguration? SsoConfiguration { get; init; }
 
     /// <summary>
     /// The secret key used for signing and validating JSON Web Tokens (JWT) within the application.
@@ -61,6 +67,9 @@ public sealed class EndpointConfiguration
     internal readonly string? JwtAudience;
     internal readonly string? AuthCookieName;
 
-    internal string FinalEntitiesAdminBaseRoute => PublicUrlRootForFrontend + RfEndpointMapper.EntitiesAdminEndpoint;
-    internal string FinalEntitiesBaseRoute => PublicUrlRootForFrontend + RfEndpointMapper.EntitiesEndpoint;
+    /// <summary>
+    /// Gets the full URL for viewing/editing an entity in the React SPA frontend.
+    /// </summary>
+    internal string GetEntityUrl(string entityType, int entityId) =>
+        $"{PublicFrontendBaseUrl}/entities/{entityType}/edit?id={entityId}";
 }

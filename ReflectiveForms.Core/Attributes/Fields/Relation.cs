@@ -68,7 +68,7 @@ public sealed class Relation : Field
         {
             return !_mandatory
                 ? OperationResult<bool>.Success(true)
-                : OperationResult<bool>.Failure($"Field -{jNeedleFieldName}- is mandatory, but missing.", HttpStatusCode.BadRequest);
+                : OperationResult<bool>.Failure($"{Label} is mandatory, but missing.", HttpStatusCode.BadRequest);
         }
 
         if (!_mandatory && value.Type == JTokenType.Null)
@@ -82,7 +82,7 @@ public sealed class Relation : Field
             }
             else
             {
-                return OperationResult<bool>.Failure($"Field -{jNeedleFieldName}-: Type is incorrect: {haystack[jNeedleFieldName].NotNull().Type}", HttpStatusCode.BadRequest);
+                return OperationResult<bool>.Failure($"{Label}: Type is incorrect: {haystack[jNeedleFieldName].NotNull().Type}", HttpStatusCode.BadRequest);
             }
         }
 
@@ -91,7 +91,7 @@ public sealed class Relation : Field
         {
             return !_mandatory
                 ? OperationResult<bool>.Success(true)
-                : OperationResult<bool>.Failure($"Field -{jNeedleFieldName}- is mandatory, but missing.", HttpStatusCode.BadRequest);
+                : OperationResult<bool>.Failure($"{Label} is mandatory, but missing.", HttpStatusCode.BadRequest);
         }
 
         if (_isRelationEntityNotExistsOk)
@@ -106,10 +106,10 @@ public sealed class Relation : Field
         if (getResult.IsSuccessful) return OperationResult<bool>.Success(true);
 
         return getResult.StatusCode == HttpStatusCode.NotFound
-            ? OperationResult<bool>.Failure($"Field {jNeedleFieldName}: Entity type {_relationEntityName} with an {EntityModelAttributes.Id} of {casted} does not exist.", getResult.StatusCode)
+            ? OperationResult<bool>.Failure($"{Label}: Entity type {_relationEntityName} with an {EntityModelAttributes.Id} of {casted} does not exist.", getResult.StatusCode)
             : OperationResult<bool>.Failure(getResult.StatusCode == HttpStatusCode.BadRequest
-                ? $"Field {jNeedleFieldName}: Error occured during checking existence of post type {_relationEntityName} with an {EntityModelAttributes.Id} of {casted}. Failure code: 400"
-                : $"Field {jNeedleFieldName}: Error occured during checking existence of post type {_relationEntityName} with an {EntityModelAttributes.Id} of {casted}. Failure: {getResult.ErrorMessage}", getResult.StatusCode);
+                ? $"{Label}: Error occured during checking existence of post type {_relationEntityName} with an {EntityModelAttributes.Id} of {casted}. Failure code: 400"
+                : $"{Label}: Error occured during checking existence of post type {_relationEntityName} with an {EntityModelAttributes.Id} of {casted}. Failure: {getResult.ErrorMessage}", getResult.StatusCode);
     }
 
     public override async Task GenerateAdminEditHtmlElementAsync(
@@ -222,7 +222,7 @@ public sealed class Relation : Field
             }
         }
 
-        element.SetAttribute("onchange", $"window.current_fields_state{jsObjectPathIncludingThis} = Number(this.value);");
+        element.SetAttribute("onchange", $"RF.FormState.setNumberValue('{jsObjectPathIncludingThis}', this);");
         //No need for oninput, it is a select element
     }
 
@@ -265,7 +265,7 @@ public sealed class Relation : Field
                     }
 
                     element.InnerHtml =
-                        $"<a href='{RfConfiguration.EndpointConfiguration.FinalEntitiesBaseRoute}?type={_relationEntityName}&id={entityId}'>{titleRendered}</a>";
+                        $"<a href='{RfConfiguration.EndpointConfiguration.GetEntityUrl(_relationEntityName, entityId)}'>{titleRendered}</a>";
                     return;
                 }
             }

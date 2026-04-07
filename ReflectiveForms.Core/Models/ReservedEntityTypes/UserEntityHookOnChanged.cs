@@ -9,7 +9,7 @@ namespace ReflectiveForms.Core.Models.ReservedEntityTypes;
 
 internal static class UserEntityHookOnChanged
 {
-    private static async Task OnUserUpsert(int id, EntityModel<UserEntityFieldsModel> newEntity, CancellationToken cancellationToken)
+    private static async Task OnUserUpsert(int id, EntityModel<UserEntityFieldsModel> newEntity, bool isCreate, CancellationToken cancellationToken)
     {
         var isUpdateNeeded = false;
 
@@ -41,24 +41,29 @@ internal static class UserEntityHookOnChanged
             fields.EmailAddress = loweredEmail;
         }
 
-        var relevantEntityTypes
-            = RfConfiguration.EntityNameToConfiguration.Keys.Where(eName => eName is not
-                (RfReservedEntities.CategoriesEntityName
-                or RfReservedEntities.TagsEntityName
-                or RfReservedEntities.UsersEntityName)).ToList();
-
-        var fixRelevantTypesResult = await RfConfiguration.RepositoryService.FixTheUpdateForRelevantPostTypesAsync(
-            relevantEntityTypes,
-            $"{EntityModelAttributes.Author}_{EntityModelAttributes.Id}",
-            false,
-            id,
-            EntityModelAttributes.Author,
-            newEntity.Title.Text,
-            cancellationToken);
-        if (!fixRelevantTypesResult.IsSuccessful)
+        // Only fix author references across entity types on UPDATE —
+        // a brand-new user cannot be referenced by any existing entity.
+        if (!isCreate)
         {
-            RfConfiguration.LogError(new Exception($"HookOnUserEntityChanged: FixTheUpdateForRelevantPostTypesAsync failed: {fixRelevantTypesResult.ErrorMessage}"));
-            return;
+            var relevantEntityTypes
+                = RfConfiguration.EntityNameToConfiguration.Keys.Where(eName => eName is not
+                    (RfReservedEntities.CategoriesEntityName
+                    or RfReservedEntities.TagsEntityName
+                    or RfReservedEntities.UsersEntityName)).ToList();
+
+            var fixRelevantTypesResult = await RfConfiguration.RepositoryService.FixTheUpdateForRelevantPostTypesAsync(
+                relevantEntityTypes,
+                $"{EntityModelAttributes.Author}_{EntityModelAttributes.Id}",
+                false,
+                id,
+                EntityModelAttributes.Author,
+                newEntity.Title.Text,
+                cancellationToken);
+            if (!fixRelevantTypesResult.IsSuccessful)
+            {
+                RfConfiguration.LogError(new Exception($"HookOnUserEntityChanged: FixTheUpdateForRelevantPostTypesAsync failed: {fixRelevantTypesResult.ErrorMessage}"));
+                return;
+            }
         }
 
         if (isUpdateNeeded)
@@ -98,6 +103,6 @@ internal static class UserEntityHookOnChanged
         }
     }
 
-    internal static async Task OnUserUpdated(PostUpdateHookModel<UserEntityFieldsModel> hookModel, CancellationToken cancellationToken) => await OnUserUpsert(hookModel.Id, hookModel.NewFinalBody, cancellationToken);
-    internal static async Task OnUserCreated(PostCreateHookModel<UserEntityFieldsModel> hookModel, CancellationToken cancellationToken) => await OnUserUpsert(hookModel.NewId, hookModel.FinalBody, cancellationToken);
+    internal static async Task OnUserUpdated(PostUpdateHookModel<UserEntityFieldsModel> hookModel, CancellationToken cancellationToken) => await OnUserUpsert(hookModel.Id, hookModel.NewFinalBody, false, cancellationToken);
+    internal static async Task OnUserCreated(PostCreateHookModel<UserEntityFieldsModel> hookModel, CancellationToken cancellationToken) => await OnUserUpsert(hookModel.NewId, hookModel.FinalBody, true, cancellationToken);
 }

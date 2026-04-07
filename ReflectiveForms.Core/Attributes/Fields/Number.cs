@@ -143,7 +143,7 @@ public sealed class Number : Field
         {
             return Task.FromResult(!_mandatory
                 ? OperationResult<bool>.Success(true)
-                : OperationResult<bool>.Failure($"Field {jNeedleFieldName} is mandatory and missing.", HttpStatusCode.BadRequest));
+                : OperationResult<bool>.Failure($"{Label} is mandatory and missing.", HttpStatusCode.BadRequest));
         }
 
         if (!_mandatory && value.Type == JTokenType.Null)
@@ -152,15 +152,15 @@ public sealed class Number : Field
         if (haystack[jNeedleFieldName] is not { Type: JTokenType.Float }
             && haystack[jNeedleFieldName] is not { Type: JTokenType.Integer })
         {
-            return Task.FromResult(OperationResult<bool>.Failure($"Field {jNeedleFieldName}: Type is incorrect.", HttpStatusCode.BadRequest));
+            return Task.FromResult(OperationResult<bool>.Failure($"{Label}: Type is incorrect.", HttpStatusCode.BadRequest));
         }
 
         var casted = (double)haystack[jNeedleFieldName].NotNull();
 
         return casted < _minimumValue
-            ? Task.FromResult(OperationResult<bool>.Failure($"Field {jNeedleFieldName}: Value given is {casted}. Must be >= {_minimumValue}", HttpStatusCode.BadRequest))
+            ? Task.FromResult(OperationResult<bool>.Failure($"{Label}: Value given is {casted}. Must be >= {_minimumValue}", HttpStatusCode.BadRequest))
             : Task.FromResult(casted > _maximumValue
-                ? OperationResult<bool>.Failure($"Field {jNeedleFieldName}: Value given is {casted}. Must be <= {_maximumValue}", HttpStatusCode.BadRequest)
+                ? OperationResult<bool>.Failure($"{Label}: Value given is {casted}. Must be <= {_maximumValue}", HttpStatusCode.BadRequest)
                 : OperationResult<bool>.Success(true));
     }
 
@@ -214,7 +214,7 @@ public sealed class Number : Field
             element.DefaultValue = "";
         }
 
-        element.SetAttribute("onchange", $"window.current_fields_state{jsObjectPathIncludingThis} = Number(this.value);");
+        element.SetAttribute("onchange", $"RF.FormState.setNumberValue('{jsObjectPathIncludingThis}', this);");
         element.SetAttribute("oninput", "window.global_oninput(this);");
         return Task.CompletedTask;
     }

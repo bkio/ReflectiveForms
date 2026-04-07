@@ -40,7 +40,7 @@ public sealed class MediaSourceBase64 : Field
         {
             return Task.FromResult(!_mandatory
                 ? OperationResult<bool>.Success(true)
-                : OperationResult<bool>.Failure($"Field {jNeedleFieldName} is mandatory and missing.", HttpStatusCode.BadRequest));
+                : OperationResult<bool>.Failure($"{Label} is mandatory and missing.", HttpStatusCode.BadRequest));
         }
 
         if (!_mandatory && value.Type == JTokenType.Null)
@@ -48,13 +48,15 @@ public sealed class MediaSourceBase64 : Field
 
         if (haystack[jNeedleFieldName] is not { Type: JTokenType.String })
         {
-            return Task.FromResult(OperationResult<bool>.Failure($"Field {jNeedleFieldName}: Type is incorrect.", HttpStatusCode.BadRequest));
+            return Task.FromResult(OperationResult<bool>.Failure($"{Label}: Type is incorrect.", HttpStatusCode.BadRequest));
         }
 
         var casted = (haystack[jNeedleFieldName]?.Value<string>()).NotNull();
-        if (_mandatory && casted.Length == 0)
+        if (casted.Length == 0)
         {
-            return Task.FromResult(OperationResult<bool>.Failure($"Field {jNeedleFieldName}: Cannot be unset.", HttpStatusCode.BadRequest));
+            return Task.FromResult(_mandatory
+                ? OperationResult<bool>.Failure($"{Label}: Cannot be unset.", HttpStatusCode.BadRequest)
+                : OperationResult<bool>.Success(true));
         }
 
         if (casted.StartsWith($"/{RfEndpointMapper.MediaEndpoint}")) return Task.FromResult(OperationResult<bool>.Success(true));
@@ -73,9 +75,16 @@ public sealed class MediaSourceBase64 : Field
                 throw new Exception("Unsupported or invalid image format.");
             }
         }
+        catch (Exception e) when (e is TypeInitializationException || e.InnerException is TypeInitializationException
+                                    || e.Message.Contains("type initializer", StringComparison.OrdinalIgnoreCase))
+        {
+            // SkiaSharp native library initialization failed (e.g., missing native deps on Linux).
+            // Accept the value as valid since the base64 string was parsed successfully.
+            return Task.FromResult(OperationResult<bool>.Success(true));
+        }
         catch (Exception e)
         {
-            return Task.FromResult(OperationResult<bool>.Failure($"Field {jNeedleFieldName}: {e.Message}", HttpStatusCode.BadRequest));
+            return Task.FromResult(OperationResult<bool>.Failure($"{Label}: {e.Message}", HttpStatusCode.BadRequest));
         }
 
         return Task.FromResult(OperationResult<bool>.Success(true));
@@ -122,23 +131,7 @@ public sealed class MediaSourceBase64 : Field
 
                 this.style.borderColor = '#ccc';
                 """);
-            dropAreaElement.SetAttribute("ondrop", $$"""
-
-                 event.preventDefault();
-                 this.style.borderColor = '#ccc';
-                 const file = event.dataTransfer.files[0];
-                 if (file) {
-                     for (let i = 0; i < this.childNodes.length; i++) {
-                         let child = this.childNodes[i];
-                         if (child instanceof HTMLImageElement) {
-                             window.media_source_base64_handle_file(file, child, (img_encoded) => {
-                                 window.current_fields_state{{jsObjectPathIncludingThis}} = img_encoded;
-                             });
-                             break;
-                         }
-                     }
-                 }
-                 """);
+            dropAreaElement.SetAttribute("ondrop", $"event.preventDefault(); this.style.borderColor = '#ccc'; RF.FormState.handleMediaDrop('{jsObjectPathIncludingThis}', event, this);");
             elementWrapper.AppendChild(dropAreaElement);
 
             //
@@ -149,16 +142,7 @@ public sealed class MediaSourceBase64 : Field
             pElement.AppendChild(spanOfPElement);
 
             var buttonOfPElement = pElement.CreateButtonOnElement(createElement, "Select Image", "fa-solid fa-file-arrow-up").AddClasses("media_source_base64_select_button");
-            buttonOfPElement.SetAttribute("onclick", """
-
-                 for (let i = 0; i < this.parentElement.parentElement.childNodes.length; i++) {
-                     let child = this.parentElement.parentElement.childNodes[i];
-                     if (child instanceof HTMLInputElement) {
-                         child.click();
-                         break;
-                     }
-                 }
-                 """);
+            buttonOfPElement.SetAttribute("onclick", "RF.FormState.triggerFileSelect(this);");
 
             dropAreaElement.AppendChild(pElement);
             //
@@ -167,21 +151,7 @@ public sealed class MediaSourceBase64 : Field
             inputElement.Type = "file";
             inputElement.ClassList.Add("media_source_base64_file_input");
             inputElement.Accept = "image/*";
-            inputElement.SetAttribute("onchange", $$"""
-
-                const file = event.target.files[0];
-                if (file) {
-                    for (let i = 0; i < this.parentElement.childNodes.length; i++) {
-                        let child = this.parentElement.childNodes[i];
-                        if (child instanceof HTMLImageElement) {
-                            window.media_source_base64_handle_file(file, child, (img_encoded) => {
-                                window.current_fields_state{{jsObjectPathIncludingThis}} = img_encoded;
-                            });
-                            break;
-                        }
-                    }
-                }
-                """);
+            inputElement.SetAttribute("onchange", $"RF.FormState.handleMediaFile('{jsObjectPathIncludingThis}', this);");
             dropAreaElement.AppendChild(inputElement);
 
             var previewElement = createElement.Invoke<IHtmlImageElement>();

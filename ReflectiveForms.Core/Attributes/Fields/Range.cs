@@ -79,7 +79,7 @@ public sealed class Range : Field
         {
             return Task.FromResult(!_mandatory
                 ? OperationResult<bool>.Success(true)
-                : OperationResult<bool>.Failure($"Field {jNeedleFieldName} is mandatory and missing.", HttpStatusCode.BadRequest));
+                : OperationResult<bool>.Failure($"{Label} is mandatory and missing.", HttpStatusCode.BadRequest));
         }
 
         if (!_mandatory && value.Type == JTokenType.Null)
@@ -88,15 +88,15 @@ public sealed class Range : Field
         if (haystack[jNeedleFieldName] is not { Type: JTokenType.Float }
             && haystack[jNeedleFieldName] is not { Type: JTokenType.Integer })
         {
-            return Task.FromResult(OperationResult<bool>.Failure($"Field {jNeedleFieldName}: Type is incorrect.", HttpStatusCode.BadRequest));
+            return Task.FromResult(OperationResult<bool>.Failure($"{Label}: Type is incorrect.", HttpStatusCode.BadRequest));
         }
 
         var casted = (double)haystack[jNeedleFieldName].NotNull();
 
         return casted < _minimumValue
-            ? Task.FromResult(OperationResult<bool>.Failure($"Field {jNeedleFieldName}: Value given is {casted}. Must be >= {_minimumValue}", HttpStatusCode.BadRequest))
+            ? Task.FromResult(OperationResult<bool>.Failure($"{Label}: Value given is {casted}. Must be >= {_minimumValue}", HttpStatusCode.BadRequest))
             : Task.FromResult(casted > _maximumValue
-                ? OperationResult<bool>.Failure($"Field {jNeedleFieldName}: Value given is {casted}. Must be <= {_minimumValue}", HttpStatusCode.BadRequest)
+                ? OperationResult<bool>.Failure($"{Label}: Value given is {casted}. Must be <= {_minimumValue}", HttpStatusCode.BadRequest)
                 : OperationResult<bool>.Success(true));
     }
 
@@ -114,10 +114,10 @@ public sealed class Range : Field
         CancellationToken cancellationToken)
     {
         var decrementButtonElement = elementWrapper.CreateButtonOnElement(createElement, "", "fa-solid fa-minus");
-        decrementButtonElement.SetAttribute("onclick", $"window.increment_sibling_input_range_by(this, {this._stepSize * -1}, {this._minimumValue}, {this._maximumValue});");
+        decrementButtonElement.SetAttribute("onclick", $"RF.FormState.incrementRange(this, {this._stepSize * -1}, {this._minimumValue}, {this._maximumValue});");
 
         var incrementButtonElement = elementWrapper.CreateButtonOnElement(createElement, "", "fa-solid fa-plus");
-        incrementButtonElement.SetAttribute("onclick", $"window.increment_sibling_input_range_by(this, {this._stepSize}, {this._minimumValue}, {this._maximumValue});");
+        incrementButtonElement.SetAttribute("onclick", $"RF.FormState.incrementRange(this, {this._stepSize}, {this._minimumValue}, {this._maximumValue});");
 
         var element = createElement.Invoke<IHtmlInputElement>();
         elementWrapper.AppendChild(element);
@@ -153,17 +153,7 @@ public sealed class Range : Field
             numberShowElement.InnerHtml = element.DefaultValue;
         }
 
-        element.SetAttribute("onchange", $$"""
-
-           window.current_fields_state{{jsObjectPathIncludingThis}} = Number(this.value);
-               for (let i = 0; i < this.parentElement.childNodes.length; i++) {
-               let child = this.parentElement.childNodes[i];
-               if (child instanceof HTMLSpanElement) {
-                   child.innerHTML = this.value;
-                   break;
-               }
-           }
-           """);
+        element.SetAttribute("onchange", $"RF.FormState.setRangeValue('{jsObjectPathIncludingThis}', this);");
         element.SetAttribute("oninput", "window.global_oninput(this);");
         return Task.CompletedTask;
     }
