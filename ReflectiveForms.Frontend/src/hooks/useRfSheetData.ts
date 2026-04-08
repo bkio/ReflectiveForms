@@ -62,8 +62,19 @@ export function useRfSheetData(
           const rowMap = new Map<number, Record<string, unknown>>();
           const fieldSet = new Set<string>();
           for (const row of entityResult.rows) {
-            rowMap.set(row.id, row.fields);
-            for (const key of Object.keys(row.fields)) {
+            // Inject the entity title into the fields map so RF.TITLE can find it.
+            // The bulk_read response includes the entity title at the root level
+            // (as { rendered: "..." }) but user-defined fields are in row.fields.
+            // RF.TITLE looks up row.fields['title'], so we merge the title in here.
+            const enrichedFields: Record<string, unknown> = { ...row.fields };
+            const rootTitle = row['title'] as { rendered?: string } | string | undefined;
+            if (typeof rootTitle === 'string') {
+              enrichedFields.title = rootTitle;
+            } else if (rootTitle && typeof rootTitle.rendered === 'string') {
+              enrichedFields.title = rootTitle.rendered;
+            }
+            rowMap.set(row.id, enrichedFields);
+            for (const key of Object.keys(enrichedFields)) {
               fieldSet.add(key);
             }
           }

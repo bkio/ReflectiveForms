@@ -92,6 +92,20 @@ internal class BulkRead : BaseEndpoint
                             if (requestedFields.Contains(fp.Name))
                                 filteredFields.Add(fp.Name, fp.Value.DeepClone());
                         }
+
+                        // 'title' is a root-level entity attribute, not a user-defined field.
+                        // Inject it into the filtered fields object so RF.TITLE can access it.
+                        if (requestedFields.Contains("title") && rowObj.TryGetValue("title", out var titleToken))
+                        {
+                            string? renderedTitle = null;
+                            if (titleToken is JObject titleObj && titleObj.TryGetValue("rendered", out var renderedToken))
+                                renderedTitle = renderedToken.Value<string>();
+                            else if (titleToken.Type == JTokenType.String)
+                                renderedTitle = titleToken.Value<string>();
+                            if (renderedTitle != null)
+                                filteredFields["title"] = renderedTitle;
+                        }
+
                         filteredRow["fields"] = filteredFields;
                     }
 

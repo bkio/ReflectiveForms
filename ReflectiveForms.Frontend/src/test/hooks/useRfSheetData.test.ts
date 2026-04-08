@@ -333,6 +333,75 @@ describe('useRfSheetData', () => {
     expect(fetched!.has('salary')).toBe(true);
   });
 
+  // ── Title Injection for RF.TITLE ──────────────────────────────────────
+
+  it('injects title from root title.rendered into fields so RF.TITLE can access it', async () => {
+    vi.mocked(bulkRead).mockResolvedValue({
+      data: {
+        results: [
+          { entity: 'objective', total_count: 1, rows: [
+            { id: 1, fields: { status: 'active' }, title: { rendered: 'Grow Revenue' } } as unknown as { id: number; fields: Record<string, unknown> },
+          ]},
+        ],
+        unauthorized: [],
+      },
+    });
+
+    const { result } = renderHook(() =>
+      useRfSheetData([{ entity: 'objective' }], 0),
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    // RF.TITLE reads row.fields['title'] — it must be injected from the root attribute
+    expect(result.current.getEntityField('objective', 1, 'title')).toBe('Grow Revenue');
+    // The original field should still be accessible
+    expect(result.current.getEntityField('objective', 1, 'status')).toBe('active');
+  });
+
+  it('injects title from root plain string title into fields', async () => {
+    vi.mocked(bulkRead).mockResolvedValue({
+      data: {
+        results: [
+          { entity: 'note', total_count: 1, rows: [
+            { id: 7, fields: {}, title: 'Plain Title' } as unknown as { id: number; fields: Record<string, unknown> },
+          ]},
+        ],
+        unauthorized: [],
+      },
+    });
+
+    const { result } = renderHook(() =>
+      useRfSheetData([{ entity: 'note' }], 0),
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.getEntityField('note', 7, 'title')).toBe('Plain Title');
+  });
+
+  it('title injected by backend field-filter appears in fields map', async () => {
+    // Simulates BulkRead with field filtering active: backend injects title into fields
+    vi.mocked(bulkRead).mockResolvedValue({
+      data: {
+        results: [
+          { entity: 'objective', total_count: 1, rows: [
+            { id: 3, fields: { title: 'Injected Title', status: 'done' } },
+          ]},
+        ],
+        unauthorized: [],
+      },
+    });
+
+    const { result } = renderHook(() =>
+      useRfSheetData([{ entity: 'objective', fields: ['title', 'status'] }], 0),
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.getEntityField('objective', 3, 'title')).toBe('Injected Title');
+  });
+
   it('refetches when fields in sources change', async () => {
     let sourceFields: string[] | undefined = ['name'];
     vi.mocked(bulkRead).mockResolvedValue({

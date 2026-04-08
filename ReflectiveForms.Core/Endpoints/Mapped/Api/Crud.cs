@@ -231,6 +231,11 @@ internal class Crud: BaseEndpoint
 
         var fields = sheetEntity[EntityModelAttributes.Fields] as JObject;
 
+        // Accumulate the best access level from both shared_users and shared_roles,
+        // so a user gains the highest permission across all access vectors.
+        // (e.g. shared as "view" directly but "edit" via a role → should receive "edit")
+        var bestAccess = SheetAccessLevel.None;
+
         // Check shared_users
         if (fields?["shared_users"] is JArray sharedUsers)
         {
@@ -242,7 +247,8 @@ internal class Crud: BaseEndpoint
                     && userIdToken.Value<int>() == user.Id)
                 {
                     var perm = su["permission"]?.Value<string>() ?? "view";
-                    return perm == "edit" ? SheetAccessLevel.Edit : SheetAccessLevel.View;
+                    var level = perm == "edit" ? SheetAccessLevel.Edit : SheetAccessLevel.View;
+                    if (level > bestAccess) bestAccess = level;
                 }
             }
         }
@@ -251,7 +257,6 @@ internal class Crud: BaseEndpoint
         if (fields?["shared_roles"] is JArray sharedRoles && sharedRoles.Count > 0)
         {
             var userRoleIds = new HashSet<int>(user.Fields.Roles.Select(r => r.RoleId));
-            var bestRoleAccess = SheetAccessLevel.None;
             foreach (var entry in sharedRoles)
             {
                 if (entry is JObject sr
@@ -261,11 +266,12 @@ internal class Crud: BaseEndpoint
                 {
                     var perm = sr["permission"]?.Value<string>() ?? "view";
                     var level = perm == "edit" ? SheetAccessLevel.Edit : SheetAccessLevel.View;
-                    if (level > bestRoleAccess) bestRoleAccess = level;
+                    if (level > bestAccess) bestAccess = level;
                 }
             }
-            if (bestRoleAccess > SheetAccessLevel.None) return bestRoleAccess;
         }
+
+        if (bestAccess > SheetAccessLevel.None) return bestAccess;
 
         // Public sheets: anyone with PEEK_ALL permission on rf-sheets can view
         if (fields?["is_public"]?.Value<bool>() == true)

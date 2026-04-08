@@ -1016,4 +1016,313 @@ public class RfSheetTests
 
         filteredFields.Properties().Should().BeEmpty();
     }
+
+    // ── BulkRead Title Injection ──────────────────────────────────────────
+
+    [Fact]
+    public void BulkReadTitleInjection_TitleObject_InjectedAsRenderedString()
+    {
+        // Row has root-level 'title' as {rendered: "..."} (the normal entity shape)
+        var row = JObject.Parse(@"{
+            ""id"": 1,
+            ""title"": { ""rendered"": ""My Entity Title"" },
+            ""fields"": { ""name"": ""Alice"" }
+        }");
+        var requestedFields = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "id", "name", "title" };
+
+        var filteredFields = BuildFilteredFields(row, requestedFields);
+
+        filteredFields["title"]!.Value<string>().Should().Be("My Entity Title");
+        filteredFields["name"]!.Value<string>().Should().Be("Alice");
+    }
+
+    [Fact]
+    public void BulkReadTitleInjection_PlainStringTitle_InjectedDirectly()
+    {
+        // Row has root-level 'title' as a plain string
+        var row = JObject.Parse(@"{
+            ""id"": 7,
+            ""title"": ""Plain Title"",
+            ""fields"": {}
+        }");
+        var requestedFields = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "id", "title" };
+
+        var filteredFields = BuildFilteredFields(row, requestedFields);
+
+        filteredFields["title"]!.Value<string>().Should().Be("Plain Title");
+    }
+
+    [Fact]
+    public void BulkReadTitleInjection_TitleNotRequested_NotInjected()
+    {
+        // When 'title' is not in requestedFields, it must not be injected
+        var row = JObject.Parse(@"{
+            ""id"": 1,
+            ""title"": { ""rendered"": ""My Entity Title"" },
+            ""fields"": { ""name"": ""Alice"" }
+        }");
+        var requestedFields = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "id", "name" };
+
+        var filteredFields = BuildFilteredFields(row, requestedFields);
+
+        filteredFields["title"].Should().BeNull();
+        filteredFields["name"]!.Value<string>().Should().Be("Alice");
+    }
+
+    [Fact]
+    public void BulkReadTitleInjection_TitleMissingFromRow_NoInjection()
+    {
+        // Row has no 'title' property at all — filteredFields must not get a title key
+        var row = JObject.Parse(@"{ ""id"": 1, ""fields"": { ""name"": ""Alice"" } }");
+        var requestedFields = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "id", "name", "title" };
+
+        var filteredFields = BuildFilteredFields(row, requestedFields);
+
+        filteredFields["title"].Should().BeNull();
+    }
+
+    [Fact]
+    public void BulkReadTitleInjection_PreservesOtherFilteredFields()
+    {
+        var row = JObject.Parse(@"{
+            ""id"": 3,
+            ""title"": { ""rendered"": ""Revenue Goal"" },
+            ""fields"": { ""status"": ""active"", ""priority"": ""high"", ""notes"": ""secret"" }
+        }");
+        var requestedFields = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "id", "status", "title" };
+
+        var filteredFields = BuildFilteredFields(row, requestedFields);
+
+        filteredFields["title"]!.Value<string>().Should().Be("Revenue Goal");
+        filteredFields["status"]!.Value<string>().Should().Be("active");
+        filteredFields["priority"].Should().BeNull();
+        filteredFields["notes"].Should().BeNull();
+    }
+
+    // ── Sheet Access Control (GetSheetAccessLevel logic) ─────────────────
+
+    [Fact]
+    public void SheetAccessControl_ViewUserAndEditRole_AccumulatesToEdit()
+    {
+        // User is shared directly with "view" but has "edit" via a role.
+        // The highest permission across all vectors must win.
+        var userId = 5;
+        var roleId = 10;
+        var sheetFields = JObject.Parse($@"{{
+            ""shared_users"": [{{ ""user"": {userId}, ""permission"": ""view"" }}],
+            ""shared_roles"": [{{ ""role"": {roleId}, ""permission"": ""edit"" }}],
+            ""is_public"": false
+        }}");
+
+        var bestAccess = ComputeBestAccessLevel(sheetFields, userId, [roleId]);
+
+        bestAccess.Should().Be("edit");
+    }
+
+    [Fact]
+    public void SheetAccessControl_EditUserAndViewRole_RemainsEdit()
+    {
+        var userId = 5;
+        var roleId = 10;
+        var sheetFields = JObject.Parse($@"{{
+            ""shared_users"": [{{ ""user"": {userId}, ""permission"": ""edit"" }}],
+            ""shared_roles"": [{{ ""role"": {roleId}, ""permission"": ""view"" }}],
+            ""is_public"": false
+        }}");
+
+        var bestAccess = ComputeBestAccessLevel(sheetFields, userId, [roleId]);
+
+        bestAccess.Should().Be("edit");
+    }
+
+    [Fact]
+    public void SheetAccessControl_OnlyDirectViewShare_ReturnsView()
+    {
+        var userId = 5;
+        var sheetFields = JObject.Parse($@"{{
+            ""shared_users"": [{{ ""user"": {userId}, ""permission"": ""view"" }}],
+            ""shared_roles"": [],
+            ""is_public"": false
+        }}");
+
+        var bestAccess = ComputeBestAccessLevel(sheetFields, userId, []);
+
+        bestAccess.Should().Be("view");
+    }
+
+    [Fact]
+    public void SheetAccessControl_OnlyRoleEdit_ReturnsEdit()
+    {
+        var userId = 5;
+        var roleId = 99;
+        var sheetFields = JObject.Parse($@"{{
+            ""shared_users"": [],
+            ""shared_roles"": [{{ ""role"": {roleId}, ""permission"": ""edit"" }}],
+            ""is_public"": false
+        }}");
+
+        var bestAccess = ComputeBestAccessLevel(sheetFields, userId, [roleId]);
+
+        bestAccess.Should().Be("edit");
+    }
+
+    [Fact]
+    public void SheetAccessControl_NoShare_NotPublic_ReturnsNone()
+    {
+        var userId = 5;
+        var sheetFields = JObject.Parse(@"{
+            ""shared_users"": [],
+            ""shared_roles"": [],
+            ""is_public"": false
+        }");
+
+        var bestAccess = ComputeBestAccessLevel(sheetFields, userId, []);
+
+        bestAccess.Should().Be("none");
+    }
+
+    [Fact]
+    public void SheetAccessControl_PublicSheet_UnsharedUserGetsView()
+    {
+        var userId = 99;
+        var sheetFields = JObject.Parse(@"{
+            ""shared_users"": [],
+            ""shared_roles"": [],
+            ""is_public"": true
+        }");
+
+        var bestAccess = ComputeBestAccessLevel(sheetFields, userId, []);
+
+        bestAccess.Should().Be("view");
+    }
+
+    [Fact]
+    public void SheetAccessControl_DifferentUserInSharedList_ReturnsNone()
+    {
+        // User 7 is in shared_users, but we're checking for user 5
+        var sheetFields = JObject.Parse(@"{
+            ""shared_users"": [{ ""user"": 7, ""permission"": ""edit"" }],
+            ""shared_roles"": [],
+            ""is_public"": false
+        }");
+
+        var bestAccess = ComputeBestAccessLevel(sheetFields, 5, []);
+
+        bestAccess.Should().Be("none");
+    }
+
+    [Fact]
+    public void SheetAccessControl_UserRoleNotInSharedRoles_ReturnsNone()
+    {
+        var sheetFields = JObject.Parse(@"{
+            ""shared_users"": [],
+            ""shared_roles"": [{ ""role"": 10, ""permission"": ""edit"" }],
+            ""is_public"": false
+        }");
+
+        // User has role 20, but sheet shares role 10
+        var bestAccess = ComputeBestAccessLevel(sheetFields, 5, [20]);
+
+        bestAccess.Should().Be("none");
+    }
+
+    [Fact]
+    public void SheetAccessControl_MultipleRoles_HighestPermissionWins()
+    {
+        var sheetFields = JObject.Parse(@"{
+            ""shared_users"": [],
+            ""shared_roles"": [
+                { ""role"": 10, ""permission"": ""view"" },
+                { ""role"": 20, ""permission"": ""edit"" }
+            ],
+            ""is_public"": false
+        }");
+
+        // User belongs to both role 10 (view) and role 20 (edit)
+        var bestAccess = ComputeBestAccessLevel(sheetFields, 5, [10, 20]);
+
+        bestAccess.Should().Be("edit");
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Replicates the BulkRead.cs field-filtering + title-injection logic.
+    /// </summary>
+    private static JObject BuildFilteredFields(JObject row, HashSet<string> requestedFields)
+    {
+        var filteredFields = new JObject();
+
+        if (row.TryGetValue("fields", out var fieldsVal) && fieldsVal is JObject fieldsObj)
+        {
+            foreach (var fp in fieldsObj.Properties())
+            {
+                if (requestedFields.Contains(fp.Name))
+                    filteredFields.Add(fp.Name, fp.Value.DeepClone());
+            }
+
+            if (requestedFields.Contains("title") && row.TryGetValue("title", out var titleToken))
+            {
+                string? renderedTitle = null;
+                if (titleToken is JObject titleObj && titleObj.TryGetValue("rendered", out var renderedToken))
+                    renderedTitle = renderedToken.Value<string>();
+                else if (titleToken.Type == JTokenType.String)
+                    renderedTitle = titleToken.Value<string>();
+                if (renderedTitle != null)
+                    filteredFields["title"] = renderedTitle;
+            }
+        }
+
+        return filteredFields;
+    }
+
+    /// <summary>
+    /// Replicates the Crud.cs GetSheetAccessLevel logic for the
+    /// shared_users / shared_roles / is_public accumulation path.
+    /// Does not cover the admin-role or author paths (those require full entity setup).
+    /// </summary>
+    private static string ComputeBestAccessLevel(JObject sheetFields, int userId, IEnumerable<int> userRoleIds)
+    {
+        var roleSet = new HashSet<int>(userRoleIds);
+        var best = 0; // 0=none, 1=view, 2=edit
+
+        if (sheetFields["shared_users"] is JArray sharedUsers)
+        {
+            foreach (var entry in sharedUsers)
+            {
+                if (entry is JObject su
+                    && su.TryGetValue("user", out var userIdToken)
+                    && userIdToken.Type == JTokenType.Integer
+                    && userIdToken.Value<int>() == userId)
+                {
+                    var perm = su["permission"]?.Value<string>() ?? "view";
+                    var level = perm == "edit" ? 2 : 1;
+                    if (level > best) best = level;
+                }
+            }
+        }
+
+        if (sheetFields["shared_roles"] is JArray sharedRoles)
+        {
+            foreach (var entry in sharedRoles)
+            {
+                if (entry is JObject sr
+                    && sr.TryGetValue("role", out var roleIdToken)
+                    && roleIdToken.Type == JTokenType.Integer
+                    && roleSet.Contains(roleIdToken.Value<int>()))
+                {
+                    var perm = sr["permission"]?.Value<string>() ?? "view";
+                    var level = perm == "edit" ? 2 : 1;
+                    if (level > best) best = level;
+                }
+            }
+        }
+
+        if (best > 0) return best == 2 ? "edit" : "view";
+
+        if (sheetFields["is_public"]?.Value<bool>() == true)
+            return "view";
+
+        return "none";
+    }
 }
