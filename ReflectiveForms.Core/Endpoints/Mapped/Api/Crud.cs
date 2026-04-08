@@ -210,10 +210,17 @@ internal class Crud: BaseEndpoint
 
     /// <summary>
     /// Determines the access level the given user has on a sheet entity.
-    /// Priority: owner > shared user (edit/view) > shared role (edit/view) > public > none.
+    /// Priority: admin > owner > shared user (edit/view) > shared role (edit/view) > public > none.
     /// </summary>
     private static SheetAccessLevel GetSheetAccessLevel(JObject sheetEntity, EntityModel<UserEntityFieldsModel> user)
     {
+        // Users with the Owner role (system admin) always get full access to all sheets
+        var ownerRoleId = RootManager.OwnerRoleId;
+        if (ownerRoleId > 0 && user.Fields.Roles.Any(r => r.RoleId == ownerRoleId))
+        {
+            return SheetAccessLevel.Owner;
+        }
+
         // Owner always has full access
         if (sheetEntity.TryGetValue(EntityModelAttributes.Author, out var authorToken)
             && authorToken.Type == JTokenType.Integer

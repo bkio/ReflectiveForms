@@ -22,6 +22,7 @@ internal static class RootManager
     internal static string RootUserTitle { get; private set; } = RootUserTitleConstant;
 
     private static int _ownerRoleId = -1;
+    internal static int OwnerRoleId => _ownerRoleId;
 
     public static async Task EnsureOwnerRoleExistAsync(IamRoleEntitiesCache iamRoleEntitiesCache, CancellationToken cancellationToken = default)
     {

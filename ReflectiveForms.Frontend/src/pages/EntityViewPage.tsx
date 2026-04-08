@@ -122,7 +122,7 @@ export function EntityViewPage() {
               >
                 <ArrowLeft className="w-5 h-5" />
               </Link>
-              <h1 className="text-2xl font-bold text-gray-900">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                 {title?.rendered || 'Untitled'}
               </h1>
             </div>
@@ -134,7 +134,7 @@ export function EntityViewPage() {
             {hasRevisions && (
               <Link
                 to={`/entities-revisions/${entityName}?id=${entityId}`}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                 title="Compare Revisions"
                 data-testid="compare-revisions-button"
               >
@@ -206,7 +206,7 @@ function ReadOnlyField({ fieldSchema, value, allFields, schema, depth = 0, relat
   return (
     <div className={`field-view field-type-${fieldSchema.type.toLowerCase()}`}>
       {isTopLevel ? (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
           <div className="mb-1">
             <span className="text-sm font-medium text-gray-500">
               {fieldSchema.label}
@@ -263,26 +263,26 @@ function ReadOnlyValue({ fieldSchema, value, schema, depth = 0, relationLookup =
           </a>
         );
       }
-      return <span className="text-gray-900">{String(value)}</span>;
+      return <span className="text-gray-900 dark:text-gray-100">{String(value)}</span>;
 
     case 'TextArea':
-      return <p className="text-gray-900 whitespace-pre-wrap">{String(value)}</p>;
+      return <p className="text-gray-900 dark:text-gray-100 whitespace-pre-wrap">{String(value)}</p>;
 
     case 'WysiwygEditor':
       return (
         <div
-          className="prose prose-sm max-w-none text-gray-900"
+          className="prose prose-sm max-w-none text-gray-900 dark:text-gray-100 dark:prose-invert"
           dangerouslySetInnerHTML={{ __html: sanitizeHtml(String(value)) }}
         />
       );
 
     case 'Number':
     case 'Range':
-      return <span className="text-gray-900 font-mono">{String(value)}</span>;
+      return <span className="text-gray-900 dark:text-gray-100 font-mono">{String(value)}</span>;
 
     case 'Checkbox':
       return (
-        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${value ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${value ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'}`}>
           {value ? 'Yes' : 'No'}
         </span>
       );
@@ -291,16 +291,16 @@ function ReadOnlyValue({ fieldSchema, value, schema, depth = 0, relationLookup =
       const dateStr = String(value);
       // Format yyyyMMdd to yyyy-MM-dd
       if (/^\d{8}$/.test(dateStr)) {
-        return <span className="text-gray-900">{`${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`}</span>;
+        return <span className="text-gray-900 dark:text-gray-100">{`${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`}</span>;
       }
-      return <span className="text-gray-900">{dateStr}</span>;
+      return <span className="text-gray-900 dark:text-gray-100">{dateStr}</span>;
     }
 
     case 'Select': {
       const strVal = String(value);
       const choice = fieldSchema.select_options?.choices?.find(c => c.value === strVal);
       return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">
           {choice?.label ?? strVal}
         </span>
       );
@@ -321,7 +321,7 @@ function ReadOnlyValue({ fieldSchema, value, schema, depth = 0, relationLookup =
           </Link>
         );
       }
-      return <span className="text-gray-900">ID: {relVal}</span>;
+      return <span className="text-gray-900 dark:text-gray-100">ID: {relVal}</span>;
     }
 
     case 'MediaSourceBase64': {
@@ -332,7 +332,7 @@ function ReadOnlyValue({ fieldSchema, value, schema, depth = 0, relationLookup =
           <img
             src={mediaVal.startsWith('data:') ? mediaVal : mediaVal}
             alt={fieldSchema.label}
-            className="max-w-xs max-h-48 object-contain rounded border border-gray-200"
+            className="max-w-xs max-h-48 object-contain rounded border border-gray-200 dark:border-gray-700"
           />
         </div>
       );
@@ -372,9 +372,9 @@ function ReadOnlyValue({ fieldSchema, value, schema, depth = 0, relationLookup =
           {items.map((item, idx) => {
             const itemObj = (item && typeof item === 'object') ? item as Record<string, unknown> : {};
             return (
-              <div key={idx} className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="bg-gray-100 px-3 py-2 border-b border-gray-200">
-                  <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+              <div key={idx} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                <div className="bg-gray-100 dark:bg-gray-700 px-3 py-2 border-b border-gray-200 dark:border-gray-700">
+                  <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                     {fieldSchema.label} #{idx + 1}
                   </span>
                 </div>
@@ -399,7 +399,7 @@ function ReadOnlyValue({ fieldSchema, value, schema, depth = 0, relationLookup =
     }
 
     default:
-      return <span className="text-gray-900">{JSON.stringify(value)}</span>;
+      return <span className="text-gray-900 dark:text-gray-100">{JSON.stringify(value)}</span>;
   }
 }
 
@@ -426,8 +426,8 @@ function MetadataSection({ schema, entityData, usersList, tagsList, categoriesLi
   if (!has_author && !has_tags && !has_categories && !has_parent_child) return null;
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4" data-testid="metadata-section">
-      <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Metadata</h2>
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-4" data-testid="metadata-section">
+      <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Metadata</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {has_author && (
           <div data-testid="metadata-author">
@@ -435,7 +435,7 @@ function MetadataSection({ schema, entityData, usersList, tagsList, categoriesLi
               <User className="w-3.5 h-3.5" />
               Author
             </div>
-            <span className="text-gray-900 text-sm">
+            <span className="text-gray-900 dark:text-gray-100 text-sm">
               {entityData.author != null && entityData.author > 0
                 ? resolveEntityName(usersList, entityData.author)
                 : <span className="text-gray-400 italic">Not set</span>}
@@ -445,11 +445,11 @@ function MetadataSection({ schema, entityData, usersList, tagsList, categoriesLi
 
         {has_parent_child && (
           <div data-testid="metadata-parent">
-            <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
               <GitBranch className="w-3.5 h-3.5" />
               Parent
             </div>
-            <span className="text-gray-900 text-sm">
+            <span className="text-gray-900 dark:text-gray-100 text-sm">
               {entityData.parent != null && entityData.parent > 0
                 ? (
                   <Link
@@ -473,7 +473,7 @@ function MetadataSection({ schema, entityData, usersList, tagsList, categoriesLi
             <div className="flex flex-wrap gap-1.5">
               {entityData.tags && entityData.tags.length > 0
                 ? entityData.tags.map(tagId => (
-                    <span key={tagId} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    <span key={tagId} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">
                       {resolveEntityName(tagsList, tagId)}
                     </span>
                   ))
@@ -491,7 +491,7 @@ function MetadataSection({ schema, entityData, usersList, tagsList, categoriesLi
             <div className="flex flex-wrap gap-1.5">
               {entityData.categories && entityData.categories.length > 0
                 ? entityData.categories.map(catId => (
-                    <span key={catId} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    <span key={catId} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">
                       {resolveEntityName(categoriesList, catId)}
                     </span>
                   ))

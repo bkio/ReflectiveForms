@@ -1,12 +1,33 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, FileSpreadsheet } from 'lucide-react';
+import { Plus, FileSpreadsheet, Trash2 } from 'lucide-react';
 import { useEntityList, useCapabilities } from '../hooks/useEntity';
+import { deleteEntity } from '../api/client';
+import { toast } from 'sonner';
 
 export function RfSheetListPage() {
-  const { data: sheets, isLoading, error } = useEntityList('rf-sheets');
+  const { data: sheets, isLoading, error, refetch } = useEntityList('rf-sheets');
   const { data: capabilities } = useCapabilities();
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const canCreate = capabilities?.['rf-sheets']?.can_create ?? false;
+  const canDeleteAll = capabilities?.['rf-sheets']?.can_delete ?? false;
+
+  const handleDelete = async (id: number, title: string) => {
+    if (!confirm(`Delete "${title || `Sheet #${id}`}"?`)) return;
+    setDeletingId(id);
+    try {
+      const result = await deleteEntity('rf-sheets', id);
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        toast.success('Sheet deleted');
+        refetch();
+      }
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -69,15 +90,18 @@ export function RfSheetListPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Last Modified
                 </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {sheets.map((sheet) => (
-                <tr key={sheet.id} className="hover:bg-gray-50 dark:hover:bg-gray-750">
+                <tr key={sheet.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                   <td className="px-6 py-4">
                     <Link
                       to={`/sheets/${sheet.id}`}
-                      className="text-primary-600 hover:text-primary-700 font-medium"
+                      className="text-primary-600 hover:text-primary-700 dark:hover:text-white font-medium"
                     >
                       {sheet.title || `Sheet #${sheet.id}`}
                     </Link>
@@ -87,7 +111,7 @@ export function RfSheetListPage() {
                   </td>
                   <td className="px-6 py-4 text-sm">
                     {sheet.access_level === 'owner' && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-300">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
                         Owner
                       </span>
                     )}
@@ -97,13 +121,25 @@ export function RfSheetListPage() {
                       </span>
                     )}
                     {sheet.access_level === 'view' && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
                         View Only
                       </span>
                     )}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
                     {sheet.modified ? new Date(sheet.modified).toLocaleString() : '—'}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    {(sheet.access_level === 'owner' || canDeleteAll) && (
+                      <button
+                        onClick={() => handleDelete(sheet.id, sheet.title)}
+                        disabled={deletingId === sheet.id}
+                        className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors disabled:opacity-50"
+                        title="Delete sheet"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

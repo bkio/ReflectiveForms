@@ -96,7 +96,7 @@ export function AdminLayout() {
   }, []);
 
   const entityTypes = Object.values(schemas ?? {}).filter(
-    (s) => !capabilitiesLoaded || capabilities?.[s.entity_name]?.can_peek_all
+    (s) => s.entity_name !== 'rf-sheets' && (!capabilitiesLoaded || capabilities?.[s.entity_name]?.can_peek_all)
   );
 
   return (
@@ -145,8 +145,8 @@ export function AdminLayout() {
             className={`
               flex items-center gap-3 px-3 py-2.5 rounded-lg mb-2 transition-colors
               ${location.pathname === '/'
-                ? 'bg-primary-50 text-primary-700'
-                : 'text-gray-600 hover:bg-gray-100'
+                ? 'bg-primary-50 dark:bg-primary-600/20 text-primary-700 dark:text-white'
+                : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
               }
             `}
           >
@@ -177,8 +177,8 @@ export function AdminLayout() {
                         className={`
                           flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors
                           ${isActive
-                            ? 'bg-primary-50 text-primary-700 font-medium'
-                            : 'text-gray-600 hover:bg-gray-100'
+                            ? 'bg-primary-50 dark:bg-primary-600/20 text-primary-700 dark:text-white font-medium'
+                            : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                           }
                         `}
                       >
@@ -211,8 +211,8 @@ export function AdminLayout() {
                     className={`
                       flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors
                       ${location.pathname.startsWith('/sheets')
-                        ? 'bg-primary-50 text-primary-700 font-medium'
-                        : 'text-gray-600 hover:bg-gray-100'
+                        ? 'bg-primary-50 dark:bg-primary-600/20 text-primary-700 dark:text-white font-medium'
+                        : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                       }
                     `}
                   >
@@ -241,8 +241,8 @@ export function AdminLayout() {
                         className={`
                           flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors
                           ${isActive
-                            ? 'bg-primary-50 text-primary-700 font-medium'
-                            : 'text-gray-600 hover:bg-gray-100'
+                            ? 'bg-primary-50 dark:bg-primary-600/20 text-primary-700 dark:text-white font-medium'
+                            : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                           }
                         `}
                       >
