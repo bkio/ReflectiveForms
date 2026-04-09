@@ -1,17 +1,18 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, FileSpreadsheet, Trash2 } from 'lucide-react';
+import { Plus, FileSpreadsheet, Trash2, Lock } from 'lucide-react';
 import { useEntityList, useCapabilities } from '../hooks/useEntity';
+import { useLockedEntities } from '../hooks/useLockedEntities';
 import { deleteEntity } from '../api/client';
 import { toast } from 'sonner';
 
 export function RfSheetListPage() {
   const { data: sheets, isLoading, error, refetch } = useEntityList('rf-sheets');
   const { data: capabilities } = useCapabilities();
+  const lockedEntities = useLockedEntities('rf-sheets');
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const canCreate = capabilities?.['rf-sheets']?.can_create ?? false;
-  const canDeleteAll = capabilities?.['rf-sheets']?.can_delete ?? false;
 
   const handleDelete = async (id: number, title: string) => {
     if (!confirm(`Delete "${title || `Sheet #${id}`}"?`)) return;
@@ -96,15 +97,28 @@ export function RfSheetListPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {sheets.map((sheet) => (
+              {sheets.map((sheet) => {
+                const lockInfo = lockedEntities.get(sheet.id);
+                return (
                 <tr key={sheet.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                   <td className="px-6 py-4">
-                    <Link
-                      to={`/sheets/${sheet.id}`}
-                      className="text-primary-600 hover:text-primary-700 dark:hover:text-white font-medium"
-                    >
-                      {sheet.title || `Sheet #${sheet.id}`}
-                    </Link>
+                    <div className="flex items-center">
+                      <Link
+                        to={`/sheets/${sheet.id}`}
+                        className="text-primary-600 hover:text-primary-700 dark:hover:text-white font-medium"
+                      >
+                        {sheet.title || `Sheet #${sheet.id}`}
+                      </Link>
+                      {lockInfo && (
+                        <span
+                          className="inline-flex items-center gap-1 ml-2 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-full"
+                          title={`Being edited by ${lockInfo.locked_by_user_name ?? 'another user'}`}
+                        >
+                          <Lock className="w-3 h-3" />
+                          {lockInfo.locked_by_user_name ?? 'Locked'}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
                     {sheet.author || '—'}
@@ -130,7 +144,7 @@ export function RfSheetListPage() {
                     {sheet.modified ? new Date(sheet.modified).toLocaleString() : '—'}
                   </td>
                   <td className="px-6 py-4 text-right">
-                    {(sheet.access_level === 'owner' || canDeleteAll) && (
+                    {sheet.access_level === 'owner' && (
                       <button
                         onClick={() => handleDelete(sheet.id, sheet.title)}
                         disabled={deletingId === sheet.id}
@@ -142,7 +156,8 @@ export function RfSheetListPage() {
                     )}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

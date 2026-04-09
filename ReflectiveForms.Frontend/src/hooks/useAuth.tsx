@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { checkAuth as apiCheckAuth, logout as apiLogout, onUnauthorized } from '../api/client';
 
 const USER_STORAGE_KEY = 'rf_user';
@@ -42,6 +43,7 @@ function loadStoredUser(): UserInfo | null {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<UserInfo | null>(loadStoredUser);
@@ -88,7 +90,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAuthenticated(false);
     setUser(null);
     localStorage.removeItem(USER_STORAGE_KEY);
-  }, []);
+    queryClient.clear();
+  }, [queryClient]);
 
   return (
     <AuthContext.Provider value={{ isAuthenticated, isLoading, user, login: loginFn, logout: logoutFn }}>

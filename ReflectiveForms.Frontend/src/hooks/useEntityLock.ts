@@ -24,8 +24,17 @@ export function useEntityLock(
   const [lockStatus, setLockStatus] = useState<'idle' | 'locked' | 'failed' | 'error'>('idle');
   const [lockedBy, setLockedBy] = useState<string | null>(null);
 
+  // Keep callbacks in refs so the main effect doesn't re-fire when they change
+  const onLockFailedRef = useRef(onLockFailed);
+  onLockFailedRef.current = onLockFailed;
+  const onLockLostRef = useRef(onLockLost);
+  onLockLostRef.current = onLockLost;
+
+  // Track whether we already showed the "locked by" toast for this entity to avoid duplicates
+  const failedToastShownRef = useRef(false);
+
   const acquireLock = useCallback(async (): Promise<boolean> => {
-    if (!entityId || entityId < 0 || !enabled) {
+    if (!entityId || entityId < 0) {
       return true; // No lock needed for new entities
     }
 
@@ -45,8 +54,11 @@ export function useEntityLock(
             }
           } catch { /* fall back to generic name */ }
           setLockedBy(lockOwner);
-          onLockFailed?.(lockOwner);
-          toast.error(`This entity is being edited by ${lockOwner}`);
+          onLockFailedRef.current?.(lockOwner);
+          if (!failedToastShownRef.current) {
+            failedToastShownRef.current = true;
+            toast.error(`This entity is being edited by ${lockOwner}`);
+          }
           return false;
         }
         setLockStatus('error');
@@ -54,6 +66,7 @@ export function useEntityLock(
         return false;
       }
 
+      failedToastShownRef.current = false;
       isLockedRef.current = true;
       setLockStatus('locked');
       return true;
@@ -62,7 +75,7 @@ export function useEntityLock(
       setLockStatus('error');
       return false;
     }
-  }, [entityName, entityId, enabled, onLockFailed]);
+  }, [entityName, entityId]);
 
   const releaseLock = useCallback(async (): Promise<void> => {
     if (!entityId || entityId < 0 || !isLockedRef.current) {
@@ -92,8 +105,8 @@ export function useEntityLock(
       lockIntervalRef.current = null;
     }
     toast.error('Your editing session expired due to inactivity. Redirecting to view page…');
-    onLockLost?.();
-  }, [onLockLost]);
+    onLockLostRef.current?.();
+  }, []);
 
   // Heartbeat: only refreshes the lock if there has been recent save activity.
   // If the user has been idle longer than INACTIVITY_TIMEOUT, release the lock
@@ -117,7 +130,9 @@ export function useEntityLock(
     }
   }, [acquireLock, releaseLock, handleLockLost]);
 
-  // Acquire lock on mount, run heartbeat periodically, release on unmount
+  // Acquire lock on mount, run heartbeat periodically, release on unmount.
+  // Only depends on entityId and enabled — callbacks are accessed via refs or
+  // stable useCallback instances that don't include `enabled`.
   useEffect(() => {
     if (!enabled || !entityId || entityId < 0) {
       return;
@@ -125,6 +140,7 @@ export function useEntityLock(
 
     // Mark initial activity
     lastActivityRef.current = Date.now();
+    failedToastShownRef.current = false;
 
     // Initial lock acquisition
     acquireLock();
@@ -140,7 +156,7 @@ export function useEntityLock(
       }
       releaseLock();
     };
-  }, [entityId, enabled, acquireLock, heartbeat, releaseLock]);
+  }, [entityId, enabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Release lock on page unload
   useEffect(() => {

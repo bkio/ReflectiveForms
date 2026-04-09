@@ -82,6 +82,7 @@ internal class Crud: BaseEndpoint
             var access = GetSheetAccessLevel(result.Data.NotNull(), RequesterUser.NotNull());
             if (access == SheetAccessLevel.None)
                 return HttpStatusCode.Forbidden.ToResult("You do not have access to this sheet.");
+            result.Data!["access_level"] = access.ToString().ToLowerInvariant();
         }
 
         return result.Data.ToResult();
@@ -126,9 +127,19 @@ internal class Crud: BaseEndpoint
 
     private async Task<IResult> HandleCreate(string entityName, CrudMethodInfo crudMethodInfo, CancellationToken cancellationToken)
     {
+        var body = RequestBodyJsonObject.NotNull();
+
+        // Automatically set the author to the requesting user for entities with HasAuthor.
+        // This ensures the creator is always recorded even if the client omits the field.
+        if (RfConfiguration.EntityNameToConfiguration[entityName].EntityConfiguration.HasAuthor
+            && !body.ContainsKey(EntityModelAttributes.Author))
+        {
+            body[EntityModelAttributes.Author] = RequesterUser.NotNull().Id;
+        }
+
         var t = (Task<OperationResult<JObject>>)crudMethodInfo.PutOneAsyncMethodInfo.Invoke(RfConfiguration.RepositoryService, [
             entityName,
-            RequestBodyJsonObject.NotNull(),
+            body,
             cancellationToken]).NotNull();
         var result = await t.NotNull();
         return !result.IsSuccessful ? result.StatusCode.ToResult(result.ErrorMessage) : result.Data.ToResult();

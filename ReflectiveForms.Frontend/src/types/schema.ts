@@ -153,6 +153,7 @@ export interface EntityData {
   author?: number;
   tags?: number[];
   categories?: number[];
+  access_level?: 'owner' | 'edit' | 'view';
 }
 
 export interface PeekEntity {

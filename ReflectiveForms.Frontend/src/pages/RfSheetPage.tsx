@@ -1,10 +1,12 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, RefreshCw, PanelLeftClose, PanelLeft, Download, AlertTriangle, Share2 } from 'lucide-react';
+import { ArrowLeft, Save, RefreshCw, PanelLeftClose, PanelLeft, Download, AlertTriangle, Share2, Lock } from 'lucide-react';
 import { useEntity, useAllSchemas, useCapabilities } from '../hooks/useEntity';
-import { createEntity, updateEntity } from '../api/client';
+import { createEntity, updateEntity, fetchLockStatus } from '../api/client';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useAuth } from '../hooks/useAuth';
+import { useEntityLock } from '../hooks/useEntityLock';
 import { useRfSheetData } from '../hooks/useRfSheetData';
 import { registerRfFormulas } from '../lib/rf-sheet-functions';
 import type { FormulaContext } from '../lib/rf-sheet-functions';
@@ -89,6 +91,7 @@ export function RfSheetPage() {
   const [showPanel, setShowPanel] = useState(true);
   const [showSharingDialog, setShowSharingDialog] = useState(false);
   const [activeSources, setActiveSources] = useState<string[]>([]);
+  const [sheetAuthorId, setSheetAuthorId] = useState<number | undefined>(undefined);
   const [sharing, setSharing] = useState<SheetSharingState>({
     is_public: false,
     shared_users: [],
@@ -132,12 +135,46 @@ export function RfSheetPage() {
 
   const dataStore = useRfSheetData(bulkReadSources, sheetFields.refresh_interval_seconds);
 
-  // Design mode: user can edit structure (panel, formulas, save). View mode: read-only.
-  const { data: capabilities } = useCapabilities();
-  const isDesignMode = isNew || (capabilities?.['rf-sheets']?.can_update ?? false);
-
   // Ownership: current user is the sheet creator (author field matches user id)
-  const isOwner = isNew || (existingSheet?.author === currentUser?.id);
+  const sheetAccessLevel = existingSheet?.access_level;
+  const isOwner = isNew || sheetAccessLevel === 'owner';
+
+  // Design mode: user can edit structure (panel, formulas, save). View mode: read-only.
+  // Use the per-sheet access_level returned by the backend (owner/edit/view)
+  const hasEditRight = isNew || sheetAccessLevel === 'owner' || sheetAccessLevel === 'edit';
+  const { data: capabilities } = useCapabilities();
+
+  // Entity locking — acquire lock when user has edit rights on an existing sheet
+  const { lockStatus, lockedBy, signalActivity } = useEntityLock(
+    'rf-sheets',
+    numericId,
+    {
+      enabled: hasEditRight && !isNew,
+      onLockLost: () => {
+        // Stay on same page but in view-only mode (lockStatus becomes 'failed')
+      },
+    },
+  );
+  // For existing sheets: must hold the lock to edit. While lock is in-flight (idle), stay read-only.
+  const isDesignMode = isNew ? true : (hasEditRight && lockStatus === 'locked');
+
+  // For read-only viewers (no edit right) or locked-out editors: poll lock status to show banner
+  const showLockPoll = !isNew && numericId !== undefined && !isDesignMode;
+  const { data: polledLockStatus } = useQuery({
+    queryKey: ['sheet-lock-status', numericId],
+    queryFn: async () => {
+      const res = await fetchLockStatus('rf-sheets', numericId!);
+      return res.data ?? null;
+    },
+    enabled: showLockPoll,
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
+  });
+
+  // Determine who's editing: from lock hook (for editors) or polled status (for viewers)
+  const activeLockHolder = hasEditRight && lockStatus === 'failed'
+    ? lockedBy
+    : polledLockStatus?.locked_by_user_name ?? null;
 
   // Schema evolution: detect stale field references
   const [staleFields, setStaleFields] = useState<StaleFieldReference[]>([]);
@@ -156,6 +193,7 @@ export function RfSheetPage() {
   useEffect(() => {
     if (existingSheet) {
       setTitle(existingSheet.title?.rendered ?? '');
+      setSheetAuthorId(existingSheet.author);
       const fields = parseSheetFields(existingSheet.fields);
       try {
         const sources = JSON.parse(fields.sources);
@@ -310,6 +348,7 @@ export function RfSheetPage() {
       return;
     }
 
+    signalActivity(); // Reset lock inactivity timer on save
     setSaving(true);
     try {
       const fields: Record<string, unknown> = {
@@ -325,6 +364,7 @@ export function RfSheetPage() {
       if (isNew) {
         const result = await createEntity('rf-sheets', {
           title: { rendered: title },
+          author: currentUser?.id,
           fields,
         });
         if (result.error) {
@@ -337,6 +377,7 @@ export function RfSheetPage() {
         const result = await updateEntity('rf-sheets', {
           id: numericId,
           title: { rendered: title },
+          author: sheetAuthorId,
           fields,
         });
         if (result.error) {
@@ -357,6 +398,38 @@ export function RfSheetPage() {
   const handleRemoveSource = (entityName: string) => {
     setActiveSources((prev) => prev.filter((s) => s !== entityName));
   };
+
+  // Save sharing settings immediately when the dialog is closed (for existing sheets).
+  const handleSharingDone = useCallback(async () => {
+    setShowSharingDialog(false);
+    if (isNew || !numericId) return; // Nothing to persist yet — will be saved with initial create.
+
+    signalActivity(); // Reset lock inactivity timer
+    setSaving(true);
+    try {
+      const result = await updateEntity('rf-sheets', {
+        id: numericId,
+        title: { rendered: title },
+        author: sheetAuthorId,
+        fields: {
+          sources: JSON.stringify(activeSources),
+          bound_regions: sheetFields.bound_regions,
+          workbook_data: getWorkbookData(),
+          refresh_interval_seconds: sheetFields.refresh_interval_seconds,
+          is_public: sharing.is_public,
+          shared_users: sharing.shared_users,
+          shared_roles: sharing.shared_roles,
+        },
+      });
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        toast.success('Sharing settings saved');
+      }
+    } finally {
+      setSaving(false);
+    }
+  }, [isNew, numericId, title, activeSources, sheetFields, sharing, getWorkbookData, signalActivity, sheetAuthorId]);
 
   // Drop handler — called from Univer's Drop event with the exact cell coordinates
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -470,6 +543,17 @@ export function RfSheetPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-6rem)]">
+      {/* Lock warning banner — shown to anyone viewing a sheet that is currently being edited */}
+      {!isNew && !isDesignMode && activeLockHolder && (
+        <div className="mb-2 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg px-4 py-3 flex items-center gap-3">
+          <Lock className="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
+          <div>
+            <p className="font-medium text-yellow-800 dark:text-yellow-200 text-sm">
+              Currently being edited by {activeLockHolder}
+            </p>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between px-1 pb-3">
         <div className="flex items-center gap-3">
@@ -520,7 +604,7 @@ export function RfSheetPage() {
           >
             <Download className="w-4 h-4" />
           </button>
-          {!isNew && (
+          {!isNew && isOwner && isDesignMode && (
             <button
               onClick={() => setShowSharingDialog(true)}
               className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
@@ -595,7 +679,12 @@ export function RfSheetPage() {
           isOwner={isOwner}
           sharing={sharing}
           onChange={setSharing}
-          onClose={() => setShowSharingDialog(false)}
+          onClose={handleSharingDone}
+          canPeekUsers={capabilities?.['users']?.can_peek_all ?? false}
+          canPeekRoles={capabilities?.['iam-role']?.can_peek_all ?? false}
+          authorId={sheetAuthorId}
+          onAuthorChange={setSheetAuthorId}
+          isSystemOwner={isOwner && sheetAuthorId !== currentUser?.id}
         />
       )}
     </div>

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { X, Globe, Users, Shield, Trash2 } from 'lucide-react';
+import { X, Globe, Users, Shield, Trash2, UserCog } from 'lucide-react';
 import { useEntityList } from '../../hooks/useEntity';
 import type { PeekEntity } from '../../types/schema';
 
@@ -24,11 +24,21 @@ export interface SheetSharingDialogProps {
   sharing: SheetSharingState;
   onChange: (sharing: SheetSharingState) => void;
   onClose: () => void;
+  /** Whether the current user can peek_all on the 'users' entity */
+  canPeekUsers: boolean;
+  /** Whether the current user can peek_all on the 'iam-role' entity */
+  canPeekRoles: boolean;
+  /** Current author user id (for owner-role users to transfer ownership) */
+  authorId?: number;
+  /** Called when owner-role user changes the author */
+  onAuthorChange?: (newAuthorId: number) => void;
+  /** Whether the current user has the system Owner role (can transfer authorship) */
+  isSystemOwner?: boolean;
 }
 
-export function SheetSharingDialog({ isOwner, sharing, onChange, onClose }: SheetSharingDialogProps) {
-  const { data: allUsers } = useEntityList('users');
-  const { data: allRoles } = useEntityList('iam-role');
+export function SheetSharingDialog({ isOwner, sharing, onChange, onClose, canPeekUsers, canPeekRoles, authorId, onAuthorChange, isSystemOwner }: SheetSharingDialogProps) {
+  const { data: allUsers } = useEntityList(canPeekUsers ? 'users' : '');
+  const { data: allRoles } = useEntityList(canPeekRoles ? 'iam-role' : '');
 
   // New user to add
   const [newUserId, setNewUserId] = useState<number | ''>('');
@@ -149,8 +159,32 @@ export function SheetSharingDialog({ isOwner, sharing, onChange, onClose }: Shee
             </label>
           </div>
 
+          {/* Author (ownership transfer) — only for system Owner role users */}
+          {isSystemOwner && canPeekUsers && authorId !== undefined && onAuthorChange && (
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <UserCog className="w-4 h-4 text-gray-400" />
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Sheet Author</p>
+              </div>
+              <select
+                value={authorId}
+                onChange={(e) => onAuthorChange(Number(e.target.value))}
+                className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+              >
+                {(allUsers ?? []).map((u: PeekEntity) => (
+                  <option key={u.id} value={u.id}>
+                    {u.title || u.author || `User #${u.id}`}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Changing the author transfers ownership of this sheet.
+              </p>
+            </div>
+          )}
+
           {/* Shared Users */}
-          <div>
+          {canPeekUsers && <div>
             <div className="flex items-center gap-2 mb-2">
               <Users className="w-4 h-4 text-gray-400" />
               <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Shared with Users</p>
@@ -216,10 +250,10 @@ export function SheetSharingDialog({ isOwner, sharing, onChange, onClose }: Shee
                 </button>
               </div>
             )}
-          </div>
+          </div>}
 
           {/* Shared Roles */}
-          <div>
+          {canPeekRoles && <div>
             <div className="flex items-center gap-2 mb-2">
               <Shield className="w-4 h-4 text-gray-400" />
               <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Shared with Roles</p>
@@ -285,7 +319,7 @@ export function SheetSharingDialog({ isOwner, sharing, onChange, onClose }: Shee
                 </button>
               </div>
             )}
-          </div>
+          </div>}
         </div>
 
         {/* Footer */}
