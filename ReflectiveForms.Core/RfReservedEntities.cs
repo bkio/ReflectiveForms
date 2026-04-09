@@ -10,7 +10,11 @@ public sealed class TagEntitiesCache() : EntitiesCacheBase<TaxonomyEntityFieldsM
 public sealed class CategoryEntitiesCache() : EntitiesCacheBase<TaxonomyEntityFieldsModel>(RfReservedEntities.CategoriesEntityName);
 public sealed class IamRoleEntitiesCache : EntitiesCacheBase<IamRoleEntityFieldsModel>
 {
-    public IamRoleEntitiesCache() : base(RfReservedEntities.IamRoleEntityName) => RootManager.EnsureOwnerRoleExistAsync(this).GetAwaiter().GetResult();
+    public IamRoleEntitiesCache() : base(RfReservedEntities.IamRoleEntityName)
+    {
+        RootManager.EnsureOwnerRoleExistAsync(this).GetAwaiter().GetResult();
+        RootManager.EnsureSheetsEditorRoleExistAsync(this).GetAwaiter().GetResult();
+    }
 }
 public sealed class UserEntitiesCache : EntitiesCacheBase<UserEntityFieldsModel>
 {
@@ -68,7 +72,7 @@ public static class RfReservedEntities
             HasCategories = false,
             HasParentChildRelationship = false,
             RequireGlobalTitleUniqueness = true,
-            OptionalTitleSanityCheck = title => Task.FromResult(title.Text != RootManager.OwnerRoleTitle),
+            OptionalTitleSanityCheck = title => Task.FromResult(title.Text != RootManager.OwnerRoleTitle && title.Text != RootManager.SheetsEditorRoleTitle),
         }),
         new EntityFinalConfiguration<TaxonomyEntityFieldsModel>(new EntityConfigurationBuilder<TaxonomyEntityFieldsModel>
         {

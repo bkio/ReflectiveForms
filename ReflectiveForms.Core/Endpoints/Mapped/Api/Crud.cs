@@ -225,9 +225,8 @@ internal class Crud: BaseEndpoint
     /// </summary>
     private static SheetAccessLevel GetSheetAccessLevel(JObject sheetEntity, EntityModel<UserEntityFieldsModel> user)
     {
-        // Users with the Owner role (system admin) always get full access to all sheets
-        var ownerRoleId = RootManager.OwnerRoleId;
-        if (ownerRoleId > 0 && user.Fields.Roles.Any(r => r.RoleId == ownerRoleId))
+        // Users with the Owner or Sheets Admin role always get full access to all sheets
+        if (RootManager.HasSheetAdminRole(user.Fields))
         {
             return SheetAccessLevel.Owner;
         }
