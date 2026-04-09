@@ -1,9 +1,9 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, RefreshCw, PanelLeftClose, PanelLeft, Download, AlertTriangle, Share2, Lock } from 'lucide-react';
-import { useEntity, useAllSchemas, useCapabilities } from '../hooks/useEntity';
+import { ArrowLeft, Save, RefreshCw, PanelLeftClose, PanelLeft, Download, AlertTriangle, Share2, Lock, Eye } from 'lucide-react';
+import { useEntity, useAllSchemas } from '../hooks/useEntity';
 import { createEntity, updateEntity, fetchLockStatus } from '../api/client';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useAuth } from '../hooks/useAuth';
 import { useEntityLock } from '../hooks/useEntityLock';
@@ -86,6 +86,7 @@ export function RfSheetPage() {
   const { data: existingSheet, isLoading } = useEntity('rf-sheets', numericId);
   const { data: schemas } = useAllSchemas();
   const { user: currentUser } = useAuth();
+  const queryClient = useQueryClient();
   const [title, setTitle] = useState('');
   const [saving, setSaving] = useState(false);
   const [showPanel, setShowPanel] = useState(true);
@@ -142,7 +143,6 @@ export function RfSheetPage() {
   // Design mode: user can edit structure (panel, formulas, save). View mode: read-only.
   // Use the per-sheet access_level returned by the backend (owner/edit/view)
   const hasEditRight = isNew || sheetAccessLevel === 'owner' || sheetAccessLevel === 'edit';
-  const { data: capabilities } = useCapabilities();
 
   // Entity locking — acquire lock when user has edit rights on an existing sheet
   const { lockStatus, lockedBy, signalActivity } = useEntityLock(
@@ -425,11 +425,12 @@ export function RfSheetPage() {
         toast.error(result.error);
       } else {
         toast.success('Sharing settings saved');
+        queryClient.invalidateQueries({ queryKey: ['entity', 'rf-sheets', numericId] });
       }
     } finally {
       setSaving(false);
     }
-  }, [isNew, numericId, title, activeSources, sheetFields, sharing, getWorkbookData, signalActivity, sheetAuthorId]);
+  }, [isNew, numericId, title, activeSources, sheetFields, sharing, getWorkbookData, signalActivity, sheetAuthorId, queryClient]);
 
   // Drop handler — called from Univer's Drop event with the exact cell coordinates
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -552,6 +553,15 @@ export function RfSheetPage() {
               Currently being edited by {activeLockHolder}
             </p>
           </div>
+        </div>
+      )}
+      {/* View-only banner */}
+      {!isNew && !isDesignMode && (
+        <div className="mb-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-2 flex items-center gap-3">
+          <Eye className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+          <p className="text-sm text-blue-800 dark:text-blue-200">
+            You are viewing this sheet in <span className="font-medium">read-only</span> mode. Changes cannot be made.
+          </p>
         </div>
       )}
       {/* Header */}
@@ -680,8 +690,7 @@ export function RfSheetPage() {
           sharing={sharing}
           onChange={setSharing}
           onClose={handleSharingDone}
-          canPeekUsers={capabilities?.['users']?.can_peek_all ?? false}
-          canPeekRoles={capabilities?.['iam-role']?.can_peek_all ?? false}
+          entityName="rf-sheets"
           authorId={sheetAuthorId}
           onAuthorChange={setSheetAuthorId}
           isSystemOwner={isOwner && sheetAuthorId !== currentUser?.id}

@@ -146,6 +146,27 @@ export async function sanityCheck(
   });
 }
 
+// Sharing Candidates API
+export interface SharingCandidate {
+  id: number;
+  name: string;
+  max_permission: 'view' | 'edit';
+}
+
+export interface SharingCandidatesResponse {
+  users: SharingCandidate[];
+  roles: SharingCandidate[];
+}
+
+export async function fetchSharingCandidates(
+  entityName: string
+): Promise<ApiResponse<SharingCandidatesResponse>> {
+  return fetchApi<SharingCandidatesResponse>(
+    `/crud?operation=SHARING_CANDIDATES&type=${encodeURIComponent(entityName)}`,
+    { method: 'POST', body: '{}' }
+  );
+}
+
 // Entity Lock API
 export interface LockStatus {
   entity_id: number;

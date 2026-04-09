@@ -7,6 +7,7 @@ using CrossCloudKit.Utilities.Common;
 using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json.Linq;
 using ReflectiveForms.Core.Endpoints.Enums;
+using ReflectiveForms.Core.Models;
 using ReflectiveForms.Core.Operation;
 
 namespace ReflectiveForms.Core.Endpoints.Mapped.Api;
@@ -143,7 +144,19 @@ internal class EntityLockControl: BaseEndpoint
 
     private async Task<IResult> TryLockAsync(string entityName, int id, CancellationToken cancellationToken)
     {
-        var result = await EntityLockController.TryToLockAsync(entityName, id,  RequesterUser.NotNull().Id, cancellationToken);
+        // For individually-shared entity types, verify the user has edit access to this specific entity
+        if (entityName == RfReservedEntities.SheetsEntityName)
+        {
+            var existing = await RfConfiguration.RepositoryService.GetOneAsync(entityName, id, cancellationToken);
+            if (!existing.IsSuccessful)
+                return existing.StatusCode.ToResult(existing.ErrorMessage);
+
+            var access = Crud.GetEntitySharingAccessLevel(existing.Data.NotNull(), RequesterUser.NotNull());
+            if (access < Crud.SharingAccessLevel.Edit)
+                return HttpStatusCode.Forbidden.ToResult("You do not have edit access to this entity.");
+        }
+
+        var result = await EntityLockController.TryToLockAsync(entityName, id, RequesterUser.NotNull().Id, cancellationToken);
         return !result.IsSuccessful
             ? result.StatusCode.ToResult(result.ErrorMessage)
             : HttpStatusCode.OK.ToResult("Lock successful.");

@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { X, Globe, Users, Shield, Trash2, UserCog } from 'lucide-react';
-import { useEntityList } from '../../hooks/useEntity';
-import type { PeekEntity } from '../../types/schema';
+import { fetchSharingCandidates } from '../../api/client';
 
 export interface SharedUser {
   user: number;
@@ -24,10 +24,8 @@ export interface SheetSharingDialogProps {
   sharing: SheetSharingState;
   onChange: (sharing: SheetSharingState) => void;
   onClose: () => void;
-  /** Whether the current user can peek_all on the 'users' entity */
-  canPeekUsers: boolean;
-  /** Whether the current user can peek_all on the 'iam-role' entity */
-  canPeekRoles: boolean;
+  /** The entity type name to fetch sharing candidates for */
+  entityName: string;
   /** Current author user id (for owner-role users to transfer ownership) */
   authorId?: number;
   /** Called when owner-role user changes the author */
@@ -36,9 +34,19 @@ export interface SheetSharingDialogProps {
   isSystemOwner?: boolean;
 }
 
-export function SheetSharingDialog({ isOwner, sharing, onChange, onClose, canPeekUsers, canPeekRoles, authorId, onAuthorChange, isSystemOwner }: SheetSharingDialogProps) {
-  const { data: allUsers } = useEntityList(canPeekUsers ? 'users' : '');
-  const { data: allRoles } = useEntityList(canPeekRoles ? 'iam-role' : '');
+export function SheetSharingDialog({ isOwner, sharing, onChange, onClose, entityName, authorId, onAuthorChange, isSystemOwner }: SheetSharingDialogProps) {
+  const { data: candidates } = useQuery({
+    queryKey: ['sharing-candidates', entityName],
+    queryFn: async () => {
+      const res = await fetchSharingCandidates(entityName);
+      if (res.error) return { users: [], roles: [] };
+      return res.data ?? { users: [], roles: [] };
+    },
+    enabled: !!entityName,
+  });
+
+  const allUsers = candidates?.users ?? [];
+  const allRoles = candidates?.roles ?? [];
 
   // New user to add
   const [newUserId, setNewUserId] = useState<number | ''>('');
@@ -51,12 +59,15 @@ export function SheetSharingDialog({ isOwner, sharing, onChange, onClose, canPee
   const sharedUserIds = useMemo(() => new Set(sharing.shared_users.map((u) => u.user)), [sharing.shared_users]);
   const sharedRoleIds = useMemo(() => new Set(sharing.shared_roles.map((r) => r.role)), [sharing.shared_roles]);
 
+  const userMap = useMemo(() => new Map(allUsers.map((u) => [u.id, u])), [allUsers]);
+  const roleMap = useMemo(() => new Map(allRoles.map((r) => [r.id, r])), [allRoles]);
+
   const availableUsers = useMemo(
-    () => (allUsers ?? []).filter((u: PeekEntity) => !sharedUserIds.has(u.id)),
+    () => allUsers.filter((u) => !sharedUserIds.has(u.id)),
     [allUsers, sharedUserIds],
   );
   const availableRoles = useMemo(
-    () => (allRoles ?? []).filter((r: PeekEntity) => !sharedRoleIds.has(r.id)),
+    () => allRoles.filter((r) => !sharedRoleIds.has(r.id)),
     [allRoles, sharedRoleIds],
   );
 
@@ -109,13 +120,21 @@ export function SheetSharingDialog({ isOwner, sharing, onChange, onClose, canPee
   };
 
   const getUserDisplay = (userId: number) => {
-    const u = (allUsers ?? []).find((x: PeekEntity) => x.id === userId);
-    return u ? (u.title || u.author || `User #${userId}`) : `User #${userId}`;
+    const u = userMap.get(userId);
+    return u ? u.name : `User #${userId}`;
   };
 
   const getRoleDisplay = (roleId: number) => {
-    const r = (allRoles ?? []).find((x: PeekEntity) => x.id === roleId);
-    return r ? (r.title || `Role #${roleId}`) : `Role #${roleId}`;
+    const r = roleMap.get(roleId);
+    return r ? r.name : `Role #${roleId}`;
+  };
+
+  const getUserMaxPerm = (userId: number): 'view' | 'edit' => {
+    return userMap.get(userId)?.max_permission ?? 'view';
+  };
+
+  const getRoleMaxPerm = (roleId: number): 'view' | 'edit' => {
+    return roleMap.get(roleId)?.max_permission ?? 'view';
   };
 
   return (
@@ -152,7 +171,14 @@ export function SheetSharingDialog({ isOwner, sharing, onChange, onClose, canPee
                 type="checkbox"
                 checked={sharing.is_public}
                 disabled={!isOwner}
-                onChange={(e) => onChange({ ...sharing, is_public: e.target.checked })}
+                onChange={(e) => {
+                  const goingPublic = e.target.checked;
+                  onChange({
+                    ...sharing,
+                    is_public: goingPublic,
+                    ...(goingPublic ? { shared_users: [], shared_roles: [] } : {}),
+                  });
+                }}
                 className="sr-only peer"
               />
               <div className="w-9 h-5 bg-gray-200 peer-focus:ring-2 peer-focus:ring-primary-300 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-primary-600 peer-disabled:opacity-50" />
@@ -160,7 +186,7 @@ export function SheetSharingDialog({ isOwner, sharing, onChange, onClose, canPee
           </div>
 
           {/* Author (ownership transfer) — only for system Owner role users */}
-          {isSystemOwner && canPeekUsers && authorId !== undefined && onAuthorChange && (
+          {isSystemOwner && allUsers.length > 0 && authorId !== undefined && onAuthorChange && (
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <UserCog className="w-4 h-4 text-gray-400" />
@@ -171,9 +197,9 @@ export function SheetSharingDialog({ isOwner, sharing, onChange, onClose, canPee
                 onChange={(e) => onAuthorChange(Number(e.target.value))}
                 className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
               >
-                {(allUsers ?? []).map((u: PeekEntity) => (
+                {allUsers.map((u) => (
                   <option key={u.id} value={u.id}>
-                    {u.title || u.author || `User #${u.id}`}
+                    {u.name}
                   </option>
                 ))}
               </select>
@@ -184,7 +210,7 @@ export function SheetSharingDialog({ isOwner, sharing, onChange, onClose, canPee
           )}
 
           {/* Shared Users */}
-          {canPeekUsers && <div>
+          {!sharing.is_public && allUsers.length > 0 && <div>
             <div className="flex items-center gap-2 mb-2">
               <Users className="w-4 h-4 text-gray-400" />
               <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Shared with Users</p>
@@ -204,7 +230,7 @@ export function SheetSharingDialog({ isOwner, sharing, onChange, onClose, canPee
                       className="text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
                     >
                       <option value="view">View</option>
-                      <option value="edit">Edit</option>
+                      {getUserMaxPerm(su.user) === 'edit' && <option value="edit">Edit</option>}
                     </select>
                     {isOwner && (
                       <button
@@ -227,9 +253,9 @@ export function SheetSharingDialog({ isOwner, sharing, onChange, onClose, canPee
                   className="flex-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
                 >
                   <option value="">Select user...</option>
-                  {availableUsers.map((u: PeekEntity) => (
+                  {availableUsers.map((u) => (
                     <option key={u.id} value={u.id}>
-                      {u.title || u.author || `User #${u.id}`}
+                      {u.name}
                     </option>
                   ))}
                 </select>
@@ -239,7 +265,7 @@ export function SheetSharingDialog({ isOwner, sharing, onChange, onClose, canPee
                   className="text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
                 >
                   <option value="view">View</option>
-                  <option value="edit">Edit</option>
+                  {newUserId !== '' && getUserMaxPerm(newUserId as number) === 'edit' && <option value="edit">Edit</option>}
                 </select>
                 <button
                   onClick={addUser}
@@ -253,7 +279,7 @@ export function SheetSharingDialog({ isOwner, sharing, onChange, onClose, canPee
           </div>}
 
           {/* Shared Roles */}
-          {canPeekRoles && <div>
+          {!sharing.is_public && allRoles.length > 0 && <div>
             <div className="flex items-center gap-2 mb-2">
               <Shield className="w-4 h-4 text-gray-400" />
               <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Shared with Roles</p>
@@ -273,7 +299,7 @@ export function SheetSharingDialog({ isOwner, sharing, onChange, onClose, canPee
                       className="text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
                     >
                       <option value="view">View</option>
-                      <option value="edit">Edit</option>
+                      {getRoleMaxPerm(sr.role) === 'edit' && <option value="edit">Edit</option>}
                     </select>
                     {isOwner && (
                       <button
@@ -296,9 +322,9 @@ export function SheetSharingDialog({ isOwner, sharing, onChange, onClose, canPee
                   className="flex-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
                 >
                   <option value="">Select role...</option>
-                  {availableRoles.map((r: PeekEntity) => (
+                  {availableRoles.map((r) => (
                     <option key={r.id} value={r.id}>
-                      {r.title || `Role #${r.id}`}
+                      {r.name}
                     </option>
                   ))}
                 </select>
@@ -308,7 +334,7 @@ export function SheetSharingDialog({ isOwner, sharing, onChange, onClose, canPee
                   className="text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
                 >
                   <option value="view">View</option>
-                  <option value="edit">Edit</option>
+                  {newRoleId !== '' && getRoleMaxPerm(newRoleId as number) === 'edit' && <option value="edit">Edit</option>}
                 </select>
                 <button
                   onClick={addRole}

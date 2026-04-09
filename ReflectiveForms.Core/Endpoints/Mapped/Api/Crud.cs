@@ -41,10 +41,12 @@ internal class Crud: BaseEndpoint
         var crudMethodInfo = config.CrudMethodInfo;
 
         // Auth check — PEEK_ALL_PAGINATED uses same permissions as PEEK_ALL, HISTORY uses READ
+        // SHARING_CANDIDATES requires UPDATE (only owners/editors configure sharing)
         var authOperation = operation switch
         {
             "PEEK_ALL_PAGINATED" => "PEEK_ALL",
             "HISTORY" => "READ",
+            "SHARING_CANDIDATES" => "UPDATE",
             _ => operation
         };
         var userFields = RequesterUser.NotNull().Fields;
@@ -65,6 +67,7 @@ internal class Crud: BaseEndpoint
             "UPDATE" => await HandleUpdate(entityName, crudMethodInfo, uid, cancellationToken),
             "DELETE" => await HandleDelete(entityName, crudMethodInfo, cancellationToken),
             "HISTORY" => await HandleHistory(entityName, cancellationToken),
+            "SHARING_CANDIDATES" => HandleSharingCandidates(entityName),
             _ => HttpStatusCode.BadRequest.ToResult("Unknown operation.")
         };
     }
@@ -79,8 +82,8 @@ internal class Crud: BaseEndpoint
 
         if (entityName == RfReservedEntities.SheetsEntityName)
         {
-            var access = GetSheetAccessLevel(result.Data.NotNull(), RequesterUser.NotNull());
-            if (access == SheetAccessLevel.None)
+            var access = GetEntitySharingAccessLevel(result.Data.NotNull(), RequesterUser.NotNull());
+            if (access == SharingAccessLevel.None)
                 return HttpStatusCode.Forbidden.ToResult("You do not have access to this sheet.");
             result.Data!["access_level"] = access.ToString().ToLowerInvariant();
         }
@@ -155,12 +158,12 @@ internal class Crud: BaseEndpoint
             var existing = await RfConfiguration.RepositoryService.GetOneAsync(entityName, id, cancellationToken);
             if (!existing.IsSuccessful) return existing.StatusCode.ToResult(existing.ErrorMessage);
 
-            var access = GetSheetAccessLevel(existing.Data.NotNull(), RequesterUser.NotNull());
-            if (access < SheetAccessLevel.Edit)
+            var access = GetEntitySharingAccessLevel(existing.Data.NotNull(), RequesterUser.NotNull());
+            if (access < SharingAccessLevel.Edit)
                 return HttpStatusCode.Forbidden.ToResult("You do not have edit access to this sheet.");
 
             // Only the owner can change sharing settings
-            if (access != SheetAccessLevel.Owner)
+            if (access != SharingAccessLevel.Owner)
             {
                 var body = RequestBodyJsonObject.NotNull();
                 if (body.TryGetValue("fields", out var fieldsToken) && fieldsToken is JObject fieldsObj)
@@ -192,8 +195,8 @@ internal class Crud: BaseEndpoint
             var existing = await RfConfiguration.RepositoryService.GetOneAsync(entityName, id, cancellationToken);
             if (!existing.IsSuccessful) return existing.StatusCode.ToResult(existing.ErrorMessage);
 
-            var access = GetSheetAccessLevel(existing.Data.NotNull(), RequesterUser.NotNull());
-            if (access != SheetAccessLevel.Owner)
+            var access = GetEntitySharingAccessLevel(existing.Data.NotNull(), RequesterUser.NotNull());
+            if (access != SharingAccessLevel.Owner)
                 return HttpStatusCode.Forbidden.ToResult("Only the sheet owner can delete this sheet.");
         }
 
@@ -217,18 +220,18 @@ internal class Crud: BaseEndpoint
 
     // ── Sheet access control ─────────────────────────────────────────
 
-    private enum SheetAccessLevel { None, View, Edit, Owner }
+    internal enum SharingAccessLevel { None, View, Edit, Owner }
 
     /// <summary>
     /// Determines the access level the given user has on a sheet entity.
     /// Priority: admin > owner > shared user (edit/view) > shared role (edit/view) > public > none.
     /// </summary>
-    private static SheetAccessLevel GetSheetAccessLevel(JObject sheetEntity, EntityModel<UserEntityFieldsModel> user)
+    internal static SharingAccessLevel GetEntitySharingAccessLevel(JObject sheetEntity, EntityModel<UserEntityFieldsModel> user)
     {
         // Users with the Owner or Sheets Admin role always get full access to all sheets
         if (RootManager.HasSheetAdminRole(user.Fields))
         {
-            return SheetAccessLevel.Owner;
+            return SharingAccessLevel.Owner;
         }
 
         // Owner always has full access
@@ -236,7 +239,7 @@ internal class Crud: BaseEndpoint
             && authorToken.Type == JTokenType.Integer
             && authorToken.Value<int>() == user.Id)
         {
-            return SheetAccessLevel.Owner;
+            return SharingAccessLevel.Owner;
         }
 
         var fields = sheetEntity[EntityModelAttributes.Fields] as JObject;
@@ -244,7 +247,7 @@ internal class Crud: BaseEndpoint
         // Accumulate the best access level from both shared_users and shared_roles,
         // so a user gains the highest permission across all access vectors.
         // (e.g. shared as "view" directly but "edit" via a role → should receive "edit")
-        var bestAccess = SheetAccessLevel.None;
+        var bestAccess = SharingAccessLevel.None;
 
         // Check shared_users
         if (fields?["shared_users"] is JArray sharedUsers)
@@ -257,7 +260,7 @@ internal class Crud: BaseEndpoint
                     && userIdToken.Value<int>() == user.Id)
                 {
                     var perm = su["permission"]?.Value<string>() ?? "view";
-                    var level = perm == "edit" ? SheetAccessLevel.Edit : SheetAccessLevel.View;
+                    var level = perm == "edit" ? SharingAccessLevel.Edit : SharingAccessLevel.View;
                     if (level > bestAccess) bestAccess = level;
                 }
             }
@@ -275,21 +278,21 @@ internal class Crud: BaseEndpoint
                     && userRoleIds.Contains(roleIdToken.Value<int>()))
                 {
                     var perm = sr["permission"]?.Value<string>() ?? "view";
-                    var level = perm == "edit" ? SheetAccessLevel.Edit : SheetAccessLevel.View;
+                    var level = perm == "edit" ? SharingAccessLevel.Edit : SharingAccessLevel.View;
                     if (level > bestAccess) bestAccess = level;
                 }
             }
         }
 
-        if (bestAccess > SheetAccessLevel.None) return bestAccess;
+        if (bestAccess > SharingAccessLevel.None) return bestAccess;
 
         // Public sheets: anyone with PEEK_ALL permission on rf-sheets can view
         if (fields?["is_public"]?.Value<bool>() == true)
         {
-            return SheetAccessLevel.View;
+            return SharingAccessLevel.View;
         }
 
-        return SheetAccessLevel.None;
+        return SharingAccessLevel.None;
     }
 
     /// <summary>
@@ -307,8 +310,8 @@ internal class Crud: BaseEndpoint
             if (!item.IsSuccessful) continue;
             var entity = item.Data.NotNull();
 
-            var access = GetSheetAccessLevel(entity, user);
-            if (access == SheetAccessLevel.None) continue;
+            var access = GetEntitySharingAccessLevel(entity, user);
+            if (access == SharingAccessLevel.None) continue;
 
             // Build lean peek overview object
             var peek = new JObject { [EntityModelAttributes.Id] = entity[EntityModelAttributes.Id] };
@@ -348,5 +351,54 @@ internal class Crud: BaseEndpoint
         }
 
         return accessible.ToResult();
+    }
+
+    /// <summary>
+    /// Returns users and roles eligible for individual sharing on the given entity type.
+    /// Each user/role is annotated with the maximum permission they can be granted
+    /// based on their IAM capabilities (READ → "view", UPDATE → "edit").
+    /// </summary>
+    private static IResult HandleSharingCandidates(string entityName)
+    {
+        var users = RfConfiguration.UserEntitiesCache.FindEntitiesAndGetCopies();
+        var roles = RfConfiguration.IamRoleEntitiesCache.FindEntitiesAndGetCopies();
+
+        var candidateUsers = new JArray();
+        foreach (var user in users)
+        {
+            var canRead = user.Fields.CanUserDo("READ", entityName);
+            var canUpdate = user.Fields.CanUserDo("UPDATE", entityName);
+
+            if (!canRead && !canUpdate) continue;
+
+            candidateUsers.Add(new JObject
+            {
+                ["id"] = user.Id,
+                ["name"] = user.Title.Text,
+                ["max_permission"] = canUpdate ? "edit" : "view"
+            });
+        }
+
+        var candidateRoles = new JArray();
+        foreach (var role in roles)
+        {
+            var canRead = role.Fields.CanDo(entityName, "READ");
+            var canUpdate = role.Fields.CanDo(entityName, "UPDATE");
+
+            if (!canRead && !canUpdate) continue;
+
+            candidateRoles.Add(new JObject
+            {
+                ["id"] = role.Id,
+                ["name"] = role.Title.Text,
+                ["max_permission"] = canUpdate ? "edit" : "view"
+            });
+        }
+
+        return new JObject
+        {
+            ["users"] = candidateUsers,
+            ["roles"] = candidateRoles
+        }.ToResult();
     }
 }

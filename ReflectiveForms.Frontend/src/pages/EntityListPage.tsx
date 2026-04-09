@@ -1,4 +1,4 @@
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, Navigate } from 'react-router-dom';
 import { Trash2, Edit, Copy, Plus, ChevronLeft, ChevronRight, Eye, Search, X, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown as ChevronDownIcon, ChevronRight as ChevronRightIcon, Filter, Lock } from 'lucide-react';
 import { useSchema, useEntityList, useDeleteEntity, useCapabilities } from '../hooks/useEntity';
 import { useLockedEntities } from '../hooks/useLockedEntities';
@@ -103,6 +103,12 @@ function formatDate(dateStr: string | undefined): string {
 
 export function EntityListPage() {
   const { entityName } = useParams<{ entityName: string }>();
+
+  // rf-sheets has its own dedicated pages with sharing/access control
+  if (entityName === 'rf-sheets') {
+    return <Navigate to="/sheets" replace />;
+  }
+
   const [currentPage, setCurrentPage] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState<SortConfig>({ column: 'modified', direction: 'desc' });
@@ -296,6 +302,22 @@ export function EntityListPage() {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (!schema) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Entity type not found</h2>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            The entity type <code className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-sm">{entityName}</code> does not exist.
+          </p>
+          <Link to="/" className="mt-4 inline-block text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400">
+            ← Back to Dashboard
+          </Link>
+        </div>
       </div>
     );
   }
