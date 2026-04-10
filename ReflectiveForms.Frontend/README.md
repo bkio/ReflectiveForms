@@ -73,6 +73,7 @@ createReflectiveFormsApp({
 | `auth.mode` | `"local" \| "sso"` | No | `"local"` | Authentication mode |
 | `auth.ssoLoginUrl` | `string` | No | — | SSO redirect URL |
 | `customPages` | `CustomPage[]` | No | `[]` | Extra sidebar pages |
+| `overrides` | `object` | No | — | Override built-in pages (`LoginPage`, `DashboardPage`) |
 
 ### Custom Pages
 
@@ -80,7 +81,7 @@ createReflectiveFormsApp({
 interface CustomPage {
   path: string;          // Route path (e.g. '/analytics')
   label: string;         // Sidebar label
-  icon?: ComponentType;  // Lucide-react icon or any component
+  icon: ComponentType<{ className?: string }>;  // Lucide-react icon or any component
   component: ComponentType; // Page component to render
   section?: string;      // Sidebar section group (default: 'Custom')
 }
@@ -160,6 +161,7 @@ The library exports:
 - **Layout:** `AdminLayout`
 - **Routes:** `RfRoutes`
 - **Pages:** `LoginPage`, `SsoLoginPage`, `DashboardPage`, `EntityListPage`, `EntityEditPage`, `EntityViewPage`, `RevisionDiffPage`, `RfSheetListPage`, `RfSheetPage`
+- **Components:** `SharingDialog` — reusable sharing dialog for entity types with individual sharing
 - **Hooks:** `useSchema`, `useEntity`, `useEntityLock`, `useAutoSave`
 - **Types:** `RfConfig`, `CustomPage`, `EntitySchema`, `FieldSchema`
 - **Utilities:** `schemaToZod`, `conditionParser`, `sanitize`, `formUtils`
@@ -173,7 +175,8 @@ src/
 │   ├── fields/                    # TextField, SelectField, RepeaterField, etc.
 │   ├── form/                      # DynamicForm, SearchableSelect
 │   ├── layout/AdminLayout.tsx     # Config-driven sidebar layout
-│   └── sheets/                    # EntitySourcePanel, SheetSharingDialog, RepeaterDropDialog
+│   ├── sharing/                   # SharingDialog — reusable sharing UI for any shareable entity
+│   └── sheets/                    # EntitySourcePanel, RepeaterDropDialog, SheetSharingDialog (re-export)
 ├── hooks/                         # useEntity, useSchema, useAutoSave, useEntityLock
 ├── lib/
 │   ├── createApp.tsx              # createReflectiveFormsApp()
@@ -194,7 +197,7 @@ src/
 ### Unit Tests (Vitest)
 
 ```bash
-npm run test:run       # 290+ tests
+npm run test:run       # 680+ tests
 npm run test:coverage  # With coverage report
 ```
 

@@ -18,27 +18,40 @@ internal static class RootManager
     private const string OwnerRoleTitleConstant = "Owner";
     internal static string OwnerRoleTitle { get; private set; } = OwnerRoleTitleConstant;
 
-    private const string SheetsEditorRoleTitleConstant = "Sheets Admin";
-    internal static string SheetsEditorRoleTitle { get; private set; } = SheetsEditorRoleTitleConstant;
-
     private const string RootUserTitleConstant = "Root User";
     internal static string RootUserTitle { get; private set; } = RootUserTitleConstant;
 
     private static int _ownerRoleId = -1;
     internal static int OwnerRoleId => _ownerRoleId;
 
-    private static int _sheetsEditorRoleId = -1;
-    internal static int SheetsEditorRoleId => _sheetsEditorRoleId;
+    // ── Sharing admin roles (one per entity type with HasIndividualSharing) ──
+    // Key: entity name, Value: role id
+    private static readonly Dictionary<string, int> SharingAdminRoleIds = new();
+    // Key: entity name, Value: role title constant (e.g. "Sheets Admin")
+    private static readonly Dictionary<string, string> SharingAdminRoleTitles = new();
 
     /// <summary>
-    /// Returns true if the user has either the Owner role or the Sheets Admin role,
-    /// granting them full admin access to all sheets.
+    /// Returns the admin role title for a sharing entity type, or null if not applicable.
+    /// Used by the IAM role title-sanity-check to prevent renaming auto-generated admin roles.
     /// </summary>
-    internal static bool HasSheetAdminRole(UserEntityFieldsModel userFields)
+    internal static bool IsSharingAdminRoleTitle(string title)
     {
-        return userFields.Roles.Any(r =>
-            (_ownerRoleId > 0 && r.RoleId == _ownerRoleId) ||
-            (_sheetsEditorRoleId > 0 && r.RoleId == _sheetsEditorRoleId));
+        return SharingAdminRoleTitles.Values.Contains(title);
+    }
+
+    /// <summary>
+    /// Returns true if the user has the Owner role or the sharing-admin role for the given entity type,
+    /// granting them full admin access to all entities of that type.
+    /// </summary>
+    internal static bool HasEntityAdminRole(string entityName, UserEntityFieldsModel userFields)
+    {
+        var hasOwner = _ownerRoleId > 0 && userFields.Roles.Any(r => r.RoleId == _ownerRoleId);
+        if (hasOwner) return true;
+
+        if (SharingAdminRoleIds.TryGetValue(entityName, out var adminRoleId) && adminRoleId > 0)
+            return userFields.Roles.Any(r => r.RoleId == adminRoleId);
+
+        return false;
     }
 
     public static async Task EnsureOwnerRoleExistAsync(IamRoleEntitiesCache iamRoleEntitiesCache, CancellationToken cancellationToken = default)
@@ -211,103 +224,116 @@ internal static class RootManager
             AllowUpdate = true
         }).ToList();
 
-    public static async Task EnsureSheetsEditorRoleExistAsync(IamRoleEntitiesCache iamRoleEntitiesCache, CancellationToken cancellationToken = default)
+    public static async Task EnsureSharingAdminRolesExistAsync(IamRoleEntitiesCache iamRoleEntitiesCache, CancellationToken cancellationToken = default)
     {
-        var sheetsEditorRole = iamRoleEntitiesCache.FindEntityByFilterAndGetCopy(f => f.Title.Text == SheetsEditorRoleTitleConstant);
-
-        SheetsEditorRoleTitle = StringUtilities.GenerateRandomString(32);
-        try
+        // Find all entity types with HasIndividualSharing and ensure an admin role for each
+        foreach (var (entityName, config) in RfConfiguration.EntityNameToConfiguration)
         {
-            if (sheetsEditorRole == null)
+            if (!config.EntityConfiguration.HasIndividualSharing) continue;
+
+            var roleTitleConstant = $"{config.EntityConfiguration.EntityReadableNamePlural} Admin";
+
+            var existingRole = iamRoleEntitiesCache.FindEntityByFilterAndGetCopy(f => f.Title.Text == roleTitleConstant);
+
+            // Temporarily set the title to a random string to bypass iam role title-sanity-check
+            // (same pattern as OwnerRoleTitle in EnsureOwnerRoleExistAsync)
+            var tempTitle = StringUtilities.GenerateRandomString(32);
+            SharingAdminRoleTitles[entityName] = tempTitle;
+
+            try
             {
-                var putResult = await RfConfiguration.RepositoryService.PutOneAsync<IamRoleEntityFieldsModel>(
-                    RfReservedEntities.IamRoleEntityName,
-                    new EntityModel<IamRoleEntityFieldsModel>
-                    {
-                        Title = new TitleRenderedModel
-                        {
-                            Text = SheetsEditorRoleTitleConstant
-                        },
-                        Fields = new IamRoleEntityFieldsModel
-                        {
-                            Capabilities = SheetsEditorRoleCapabilities
-                        }
-                    }.FromObjectWithPolymorphism(),
-                    cancellationToken);
-                if (!putResult.IsSuccessful
-                    || !putResult.Data.TryGetTypedValue(EntityModelAttributes.Id, out int roleId))
-                    throw new Exception($"Failed to create Sheets Admin role with title {SheetsEditorRoleTitleConstant}. Error: {putResult.ErrorMessage}");
+                var capabilities = GetSharingAdminCapabilities(entityName);
 
-                _sheetsEditorRoleId = roleId;
-            }
-            else
-            {
-                _sheetsEditorRoleId = sheetsEditorRole.Id;
-
-                var currentCapabilities = SheetsEditorRoleCapabilities;
-                var existingCapabilities = sheetsEditorRole.Fields.Capabilities;
-
-                if (currentCapabilities.Count != existingCapabilities.Count
-                    || currentCapabilities.Except(existingCapabilities).Any()
-                    || existingCapabilities.Except(currentCapabilities).Any())
+                if (existingRole == null)
                 {
-                    sheetsEditorRole.Fields.Capabilities = currentCapabilities;
-
-                    var rootUserGetResult = OperationResult<JObject>.Failure("Not found.", HttpStatusCode.NotFound);
-                    await foreach (var result in RfConfiguration.RepositoryService
-                                       .GetByFilterAsync(
-                                           RfReservedEntities.UsersEntityName,
-                                           ConditionBuilder.AttributeEquals(
-                                               $"{EntityModelAttributes.Title}.{EntityModelAttributes.TitleRendered}",
-                                               RootUserTitleConstant),
-                                           1,
-                                           cancellationToken))
-                    {
-                        rootUserGetResult = result;
-                        break;
-                    }
-
-                    EntityUpdaterIdentity updaterIdentity;
-                    if (rootUserGetResult.IsSuccessful)
-                    {
-                        var rootUser = rootUserGetResult.Data.ToObjectWithPolymorphism<EntityModel<UserEntityFieldsModel>>();
-                        var rootUserFields = rootUser.NotNull().Fields;
-                        updaterIdentity = EntityUpdaterIdentity.NormalUpdate(rootUser.NotNull().Id, rootUserFields.EmailAddress);
-                    }
-                    else
-                    {
-                        updaterIdentity = EntityUpdaterIdentity.DuringHookCallUpdate();
-                    }
-
-                    var updateResult = await RfConfiguration.RepositoryService.UpdateOneAsync<IamRoleEntityFieldsModel>(
+                    var putResult = await RfConfiguration.RepositoryService.PutOneAsync<IamRoleEntityFieldsModel>(
                         RfReservedEntities.IamRoleEntityName,
-                        sheetsEditorRole.Id,
-                        sheetsEditorRole.FromObjectWithPolymorphism(),
-                        updaterIdentity,
+                        new EntityModel<IamRoleEntityFieldsModel>
+                        {
+                            Title = new TitleRenderedModel
+                            {
+                                Text = roleTitleConstant
+                            },
+                            Fields = new IamRoleEntityFieldsModel
+                            {
+                                Capabilities = capabilities
+                            }
+                        }.FromObjectWithPolymorphism(),
                         cancellationToken);
-                    if (!updateResult.IsSuccessful)
-                        throw new Exception($"Failed to update Sheets Admin role with id {sheetsEditorRole.Id} with the new capabilities. Reason: {updateResult.ErrorMessage} ({updateResult.StatusCode})");
+                    if (!putResult.IsSuccessful
+                        || !putResult.Data.TryGetTypedValue(EntityModelAttributes.Id, out int roleId))
+                        throw new Exception($"Failed to create {roleTitleConstant} role. Error: {putResult.ErrorMessage}");
+
+                    SharingAdminRoleIds[entityName] = roleId;
+                }
+                else
+                {
+                    SharingAdminRoleIds[entityName] = existingRole.Id;
+
+                    var existingCapabilities = existingRole.Fields.Capabilities;
+
+                    if (capabilities.Count != existingCapabilities.Count
+                        || capabilities.Except(existingCapabilities).Any()
+                        || existingCapabilities.Except(capabilities).Any())
+                    {
+                        existingRole.Fields.Capabilities = capabilities;
+
+                        var rootUserGetResult = OperationResult<JObject>.Failure("Not found.", HttpStatusCode.NotFound);
+                        await foreach (var result in RfConfiguration.RepositoryService
+                                           .GetByFilterAsync(
+                                               RfReservedEntities.UsersEntityName,
+                                               ConditionBuilder.AttributeEquals(
+                                                   $"{EntityModelAttributes.Title}.{EntityModelAttributes.TitleRendered}",
+                                                   RootUserTitleConstant),
+                                               1,
+                                               cancellationToken))
+                        {
+                            rootUserGetResult = result;
+                            break;
+                        }
+
+                        EntityUpdaterIdentity updaterIdentity;
+                        if (rootUserGetResult.IsSuccessful)
+                        {
+                            var rootUser = rootUserGetResult.Data.ToObjectWithPolymorphism<EntityModel<UserEntityFieldsModel>>();
+                            var rootUserFields = rootUser.NotNull().Fields;
+                            updaterIdentity = EntityUpdaterIdentity.NormalUpdate(rootUser.NotNull().Id, rootUserFields.EmailAddress);
+                        }
+                        else
+                        {
+                            updaterIdentity = EntityUpdaterIdentity.DuringHookCallUpdate();
+                        }
+
+                        var updateResult = await RfConfiguration.RepositoryService.UpdateOneAsync<IamRoleEntityFieldsModel>(
+                            RfReservedEntities.IamRoleEntityName,
+                            existingRole.Id,
+                            existingRole.FromObjectWithPolymorphism(),
+                            updaterIdentity,
+                            cancellationToken);
+                        if (!updateResult.IsSuccessful)
+                            throw new Exception($"Failed to update {roleTitleConstant} role with id {existingRole.Id}. Reason: {updateResult.ErrorMessage} ({updateResult.StatusCode})");
+                    }
                 }
             }
-        }
-        finally
-        {
-            SheetsEditorRoleTitle = SheetsEditorRoleTitleConstant;
+            finally
+            {
+                SharingAdminRoleTitles[entityName] = roleTitleConstant; // Revert to the original value.
+            }
         }
     }
 
-    private static List<IamRoleCapabilitiesModel> SheetsEditorRoleCapabilities =>
+    private static List<IamRoleCapabilitiesModel> GetSharingAdminCapabilities(string entityName) =>
     [
         new IamRoleCapabilitiesModel
         {
-            EntityType = RfReservedEntities.SheetsEntityName,
+            EntityType = entityName,
             AllowCreate = true,
             AllowDelete = true,
             AllowPeekAll = true,
             AllowRead = true,
             AllowUpdate = true
         },
-        // Sheets Admin needs peek access to users and iam-role for the sharing dialog
+        // Sharing admin needs peek access to users and iam-role for the sharing dialog
         new IamRoleCapabilitiesModel
         {
             EntityType = RfReservedEntities.UsersEntityName,

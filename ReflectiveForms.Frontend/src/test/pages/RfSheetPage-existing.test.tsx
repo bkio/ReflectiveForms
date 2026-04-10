@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -17,6 +17,7 @@ vi.mock('@univerjs/presets', () => ({
       createWorkbook: vi.fn(),
       dispose: vi.fn(),
       addEvent: vi.fn(() => ({ dispose: vi.fn() })),
+      onCommandExecuted: vi.fn(() => ({ dispose: vi.fn() })),
       Event: { BeforeSheetEditStart: 'BeforeSheetEditStart' },
       getFormula: vi.fn(() => ({
         registerFunction: vi.fn(() => ({ dispose: vi.fn() })),
@@ -63,6 +64,10 @@ vi.mock('../../api/client', () => ({
   createEntity: vi.fn(),
   updateEntity: vi.fn(),
   bulkRead: vi.fn(() => Promise.resolve({ data: { results: [], unauthorized: [] } })),
+  tryLockEntity: vi.fn(() => Promise.resolve({ data: { locked: true } })),
+  unlockEntity: vi.fn(() => Promise.resolve({ data: {} })),
+  fetchLockStatus: vi.fn(() => Promise.resolve({ data: null })),
+  getApiBaseUrl: vi.fn(() => 'http://localhost:9000/rf/api'),
 }));
 
 vi.mock('sonner', () => ({
@@ -83,7 +88,6 @@ vi.mock('../../hooks/useRfSheetData', () => ({
 
 import { useEntity } from '../../hooks/useEntity';
 import { updateEntity } from '../../api/client';
-import { toast } from 'sonner';
 
 function renderSheetPage(path: string) {
   const queryClient = new QueryClient({
@@ -109,6 +113,8 @@ const mockSheetData = {
   date_gmt: '2025-01-01T00:00:00Z',
   modified: '2025-01-15T00:00:00Z',
   modified_gmt: '2025-01-15T00:00:00Z',
+  author: 1,
+  access_level: 'owner' as const,
   fields: {
     sources: '[{"entity":"employee"}]',
     bound_regions: '[]',
@@ -133,7 +139,7 @@ describe('RfSheetPage — existing sheet', () => {
     expect(screen.queryByPlaceholderText('Untitled Sheet')).not.toBeInTheDocument();
   });
 
-  it('loads existing sheet title', () => {
+  it('loads existing sheet title', async () => {
     vi.mocked(useEntity).mockReturnValue({
       data: mockSheetData,
       isLoading: false,
@@ -141,7 +147,7 @@ describe('RfSheetPage — existing sheet', () => {
     } as unknown as ReturnType<typeof useEntity>);
 
     renderSheetPage('/sheets/7');
-    const input = screen.getByPlaceholderText('Untitled Sheet') as HTMLInputElement;
+    const input = await screen.findByPlaceholderText('Untitled Sheet') as HTMLInputElement;
     expect(input.value).toBe('Sales Report');
   });
 
@@ -155,15 +161,16 @@ describe('RfSheetPage — existing sheet', () => {
     vi.mocked(updateEntity).mockResolvedValue({ data: mockSheetData });
 
     renderSheetPage('/sheets/7');
-    await userEvent.click(screen.getByText('Save'));
+    await waitFor(() => expect(screen.getByText('Save Now')).toBeInTheDocument());
+    await userEvent.click(screen.getByText('Save Now'));
 
-    expect(updateEntity).toHaveBeenCalledWith('rf-sheets', expect.objectContaining({
+    await waitFor(() => expect(updateEntity).toHaveBeenCalledWith('rf-sheets', expect.objectContaining({
       id: 7,
       title: { rendered: 'Sales Report' },
-    }));
+    })));
   });
 
-  it('shows success toast on successful update', async () => {
+  it('shows saved indicator on successful update', async () => {
     vi.mocked(useEntity).mockReturnValue({
       data: mockSheetData,
       isLoading: false,
@@ -173,12 +180,13 @@ describe('RfSheetPage — existing sheet', () => {
     vi.mocked(updateEntity).mockResolvedValue({ data: mockSheetData });
 
     renderSheetPage('/sheets/7');
-    await userEvent.click(screen.getByText('Save'));
+    await waitFor(() => expect(screen.getByText('Save Now')).toBeInTheDocument());
+    await userEvent.click(screen.getByText('Save Now'));
 
-    expect(toast.success).toHaveBeenCalledWith('Sheet saved');
+    await waitFor(() => expect(screen.getByTestId('autosave-saved')).toBeInTheDocument());
   });
 
-  it('shows error toast on failed update', async () => {
+  it('shows error indicator on failed update', async () => {
     vi.mocked(useEntity).mockReturnValue({
       data: mockSheetData,
       isLoading: false,
@@ -188,9 +196,10 @@ describe('RfSheetPage — existing sheet', () => {
     vi.mocked(updateEntity).mockResolvedValue({ error: 'Update failed' });
 
     renderSheetPage('/sheets/7');
-    await userEvent.click(screen.getByText('Save'));
+    await waitFor(() => expect(screen.getByText('Save Now')).toBeInTheDocument());
+    await userEvent.click(screen.getByText('Save Now'));
 
-    expect(toast.error).toHaveBeenCalledWith('Update failed');
+    await waitFor(() => expect(screen.getByTestId('autosave-error')).toBeInTheDocument());
   });
 
   it('allows editing the sheet title', async () => {
@@ -201,7 +210,7 @@ describe('RfSheetPage — existing sheet', () => {
     } as unknown as ReturnType<typeof useEntity>);
 
     renderSheetPage('/sheets/7');
-    const input = screen.getByPlaceholderText('Untitled Sheet') as HTMLInputElement;
+    const input = await screen.findByPlaceholderText('Untitled Sheet') as HTMLInputElement;
     await userEvent.clear(input);
     await userEvent.type(input, 'Updated Report');
     expect(input.value).toBe('Updated Report');

@@ -204,7 +204,7 @@ test.describe('Blog Post CRUD', () => {
 
     // Now remove the last item (click trash button)
     const lastItem = initialLinks.nth(initialCount);
-    await lastItem.locator('button[title="Remove"]').click();
+    await ui.safeClick(lastItem.locator('button[title="Remove"]'));
 
     await ui.clickSaveNow();
     await ui.waitForSave();

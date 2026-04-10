@@ -99,7 +99,15 @@ builder.WebHost.ConfigureKestrel(options =>
     options.Listen(System.Net.IPAddress.Loopback, 9000);
 });
 
-var app = builder.BuildWithReflectiveFields(RfBuilder.Build());
+// Create rf logger
+using var loggerFactory = LoggerFactory.Create(logging =>
+{
+    logging.AddConsole();
+    logging.AddDebug();
+});
+var rfLogger = loggerFactory.CreateLogger<Program>();
+
+var app = builder.BuildWithReflectiveFields(RfBuilder.Build(rfLogger));
 app.UseCors("Frontend");
 app.Run();
 ```
@@ -111,12 +119,13 @@ using CrossCloudKit.Database.Basic;
 using CrossCloudKit.File.Basic;
 using CrossCloudKit.Memory.Basic;
 using CrossCloudKit.PubSub.Basic;
+using Microsoft.Extensions.Logging;
 using ReflectiveForms.Core;
 using ReflectiveForms.Core.Endpoints;
 
 public static class RfBuilder
 {
-    public static RfConfigurationBuilder Build()
+    public static RfConfigurationBuilder Build(ILogger logger)
     {
         var pubSub = new PubSubServiceBasic();
         var memory = new MemoryServiceBasic(pubSub);
@@ -125,6 +134,7 @@ public static class RfBuilder
 
         return new RfConfigurationBuilder
         {
+            Logger = logger,
             RootUserCredentials = new RootUserCredentials("admin@karasoftware.com", "123456"),
             RepositoryServiceConfiguration = new EntityRepositoryServiceConfiguration(
                 db, memory, pubSub,
@@ -144,6 +154,12 @@ public static class RfBuilder
                     EntityReadableNameSingular = "Note",
                     EntityReadableNamePlural = "Notes",
                     SupportsFrontendEdit = true,
+                    HasAuthor = false,
+                    HasTags = false,
+                    HasCategories = false,
+                    HasParentChildRelationship = false,
+                    RequireGlobalTitleUniqueness = false,
+                    OptionalTitleSanityCheck = null,
                 },
             ],
         };
@@ -161,18 +177,18 @@ using ReflectiveForms.Core.Models;
 
 public class NoteModel : EntityFieldsModel
 {
-    [JsonProperty("content")]
-    [WysiwygEditor(label: "Content", mandatory: true)]
+    [JsonProperty("content"),
+     WysiwygEditor(label: "Content", instructions: "", mandatory: true)]
     public string Content = "";
 
-    [JsonProperty("priority")]
-    [Select(label: "Priority", mandatory: true,
-        choices: ["low", "medium", "high"],
-        defaultValue: "medium")]
+    [JsonProperty("priority"),
+     Select(label: "Priority", instructions: "",
+        defaultValue: "medium",
+        choices: new[] { "low", "medium", "high" })]
     public string Priority = "medium";
 
-    [JsonProperty("is_pinned")]
-    [Checkbox(label: "Pinned", defaultValue: false)]
+    [JsonProperty("is_pinned"),
+     Checkbox(label: "Pinned", instructions: "", defaultValue: false)]
     public bool IsPinned;
 }
 ```
@@ -269,19 +285,22 @@ Every entity in ReflectiveForms is a C# class that extends `EntityFieldsModel`. 
 ```csharp
 public class NoteModel : EntityFieldsModel
 {
-    [JsonProperty("content")]          // JSON key in the API
-    [WysiwygEditor(label: "Content",   // Rich text editor
-        mandatory: true)]              // Required field
+    [JsonProperty("content"),           // JSON key in the API
+     WysiwygEditor(label: "Content",    // Rich text editor
+        instructions: "",
+        mandatory: true)]               // Required field
     public string Content = "";
 
-    [JsonProperty("priority")]
-    [Select(label: "Priority",         // Dropdown select
-        choices: ["low", "medium", "high"],
-        defaultValue: "medium")]
+    [JsonProperty("priority"),
+     Select(label: "Priority",          // Dropdown select
+        instructions: "",
+        defaultValue: "medium",
+        choices: new[] { "low", "medium", "high" })]
     public string Priority = "medium";
 
-    [JsonProperty("is_pinned")]
-    [Checkbox(label: "Pinned",         // Toggle checkbox
+    [JsonProperty("is_pinned"),
+     Checkbox(label: "Pinned",          // Toggle checkbox
+        instructions: "",
         defaultValue: false)]
     public bool IsPinned;
 }
@@ -303,22 +322,24 @@ using ReflectiveForms.Core.Models;
 
 public class TaskModel : EntityFieldsModel
 {
-    [JsonProperty("description")]
-    [TextArea(label: "Description", mandatory: true, placeholder: "What needs to be done?")]
+    [JsonProperty("description"),
+     TextArea(label: "Description", instructions: "", mandatory: true,
+        placeholderText: "What needs to be done?")]
     public string Description = "";
 
-    [JsonProperty("due_date")]
-    [DatePicker(label: "Due Date")]
+    [JsonProperty("due_date"),
+     DatePicker(label: "Due Date", instructions: "", mandatory: false)]
     public string DueDate = "";
 
-    [JsonProperty("status")]
-    [Select(label: "Status",
-        choices: ["todo", "in-progress", "done"],
-        defaultValue: "todo")]
+    [JsonProperty("status"),
+     Select(label: "Status", instructions: "",
+        defaultValue: "todo",
+        choices: new[] { "todo", "in-progress", "done" })]
     public string Status = "todo";
 
-    [JsonProperty("effort_hours")]
-    [Number(label: "Estimated Hours", mandatory: false, minValue: 0, maxValue: 100)]
+    [JsonProperty("effort_hours"),
+     Number(label: "Estimated Hours", instructions: "", mandatory: false,
+        placeholderText: "", minimumMaximumValues: new double[] { 0, 100 })]
     public double EffortHours;
 }
 ```
@@ -334,12 +355,6 @@ EntityTypes =
         EntityReadableNameSingular = "Note",
         EntityReadableNamePlural = "Notes",
         SupportsFrontendEdit = true,
-        HasAuthor = false,
-        HasTags = false,
-        HasCategories = false,
-        HasParentChildRelationship = false,
-        RequireGlobalTitleUniqueness = false,
-        OptionalTitleSanityCheck = null,
         HasAuthor = false,
         HasTags = false,
         HasCategories = false,
@@ -393,13 +408,13 @@ Restart the backend (`dotnet run`) and refresh the frontend. "Tasks" appears in 
 Show or hide fields based on other field values:
 
 ```csharp
-[JsonProperty("is_urgent")]
-[Checkbox(label: "Urgent", defaultValue: false)]
+[JsonProperty("is_urgent"),
+ Checkbox(label: "Urgent", instructions: "", defaultValue: false)]
 public bool IsUrgent;
 
-[JsonProperty("urgency_reason")]
-[DisplayCondition("is_urgent == true")]
-[TextArea(label: "Why is this urgent?", mandatory: true)]
+[JsonProperty("urgency_reason"),
+ DisplayCondition("is_urgent == true"),
+ TextArea(label: "Why is this urgent?", instructions: "", mandatory: true, placeholderText: "")]
 public string UrgencyReason = "";
 ```
 
@@ -430,6 +445,94 @@ new EntityConfigurationBuilder<TaskModel>
     OptionalTitleSanityCheck = null,     // No custom title check
 }
 ```
+
+---
+
+## Creating a Shareable Entity Type
+
+Standard entities use role-based access control — any user with the right IAM capabilities can read/write all entities of that type. **Shareable entities** add per-entity access control: each entity instance has its own owner, shared users, shared roles, and public visibility.
+
+This is useful for entity types where users create personal content that should only be visible to others if explicitly shared — like documents, projects, dashboards, or reports.
+
+### What Changes When You Enable Sharing
+
+| Aspect | Standard Entity | Shareable Entity |
+|--------|----------------|------------------|
+| **Access control** | Role-based (per entity type) | Per-entity (owner, shared users/roles, public) |
+| **List view** | Shows all entities | Shows only entities you own, are shared with you, or are public |
+| **Edit access** | Anyone with UPDATE capability | Only owner + users shared with "edit" permission |
+| **Delete access** | Anyone with DELETE capability | Only the entity owner |
+| **Sharing settings** | N/A | Only the owner can change sharing |
+| **Admin role** | N/A | Auto-generated "{Name} Admin" role with full access |
+| **Frontend** | Generic entity list/edit pages | Custom pages (you provide the route) |
+
+### Step-by-Step
+
+**1. Create a fields model that inherits from `SharableEntityFieldsModel`** instead of `EntityFieldsModel`:
+
+```csharp
+using Newtonsoft.Json;
+using ReflectiveForms.Core.Attributes.Fields;
+using ReflectiveForms.Core.Models;
+
+public class ProjectModel : SharableEntityFieldsModel
+{
+    [JsonProperty("description"),
+     TextArea(label: "Description", instructions: "", mandatory: true,
+        placeholderText: "Describe the project...")]
+    public string Description = "";
+
+    [JsonProperty("status"),
+     Select(label: "Status", instructions: "",
+        defaultValue: "planning",
+        choices: new[] { "planning", "active", "on-hold", "completed" })]
+    public string Status = "planning";
+}
+```
+
+`SharableEntityFieldsModel` automatically adds three fields to every entity:
+- `is_public` (Checkbox) — When enabled, anyone with entity-type-level PEEK_ALL permission can view
+- `shared_users` (Repeater) — List of user + permission (`view` or `edit`) entries
+- `shared_roles` (Repeater) — List of role + permission (`view` or `edit`) entries
+
+You don't define these fields yourself — they come from the base class.
+
+**2. Register the entity with `HasIndividualSharing = true`:**
+
+```csharp
+new EntityConfigurationBuilder<ProjectModel>
+{
+    EntityName = "project",
+    EntityReadableNameSingular = "Project",
+    EntityReadableNamePlural = "Projects",
+    SupportsFrontendEdit = true,
+    HasAuthor = true,                       // Required — tracks entity ownership
+    HasTags = false,
+    HasCategories = false,
+    HasParentChildRelationship = false,
+    RequireGlobalTitleUniqueness = false,
+    OptionalTitleSanityCheck = null,
+    HasIndividualSharing = true,            // Enables per-entity sharing
+    CustomFrontendListRoute = "/projects",  // Sidebar link & route redirect target
+}
+```
+
+> **Requirements:** `HasAuthor` must be `true` (the author is the owner), and the fields model must inherit from `SharableEntityFieldsModel`. The framework validates these at startup and throws a clear error if misconfigured.
+
+**3. Build a custom frontend page** for your entity type. Shareable entities need dedicated pages (they don't use the generic entity list/edit pages) because they have unique UX needs like the sharing dialog and access-level banners. See the built-in RF Sheets pages (`RfSheetListPage` and `RfSheetPage`) as a reference for building your own.
+
+### What the Framework Does Automatically
+
+Once configured, the backend:
+- **Filters list results** — PEEK_ALL and PEEK_ALL_PAGINATED only return entities the user owns, is shared with, or that are public
+- **Enforces access on read** — READ returns a `403` if the user has no access; adds `access_level` (owner/edit/view) to the response
+- **Enforces access on update** — UPDATE requires at least `edit` access; non-owners cannot change sharing fields
+- **Enforces access on delete** — DELETE requires `owner` access
+- **Enforces access on lock** — Entity locking requires at least `edit` access
+- **Creates an admin role** — A "Project Admin" role is auto-created at startup with full CRUD capabilities; users with this role (or the system Owner role) bypass per-entity checks
+- **Exposes sharing candidates** — The `SHARING_CANDIDATES` operation returns users and roles eligible for sharing, annotated with their maximum permission level
+
+The frontend schema includes `has_individual_sharing: true` and `custom_frontend_list_route: "/projects"`, which the sidebar and navigation system use to render the correct links and redirects.
 
 ---
 
@@ -491,8 +594,10 @@ To use SSO instead of username/password login:
 ```csharp
 EndpointConfiguration = new EndpointConfiguration
 {
-    JwtSecret = "your-secret",
+    RootPath = "/rf",
+    PublicUrlRootForApi = "http://localhost:9000/rf/api/",
     PublicFrontendBaseUrl = "http://localhost:3000",
+    JwtSecret = "your-secret",
     SsoConfiguration = new SsoConfiguration
     {
         Provider = SsoProvider.AzureAd,

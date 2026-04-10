@@ -200,7 +200,7 @@ test.describe('Objective CRUD', () => {
     const yearTrigger = yearWrapper.locator('button[aria-haspopup="listbox"]');
 
     if (await yearTrigger.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await yearTrigger.click();
+      await ui.safeClick(yearTrigger);
       const options = await yearWrapper.locator('[role="option"]').allTextContents();
       await page.keyboard.press('Escape');
       const currentYear = new Date().getFullYear();
@@ -219,7 +219,7 @@ test.describe('Objective CRUD', () => {
     const countBefore = await items.count();
 
     const last = items.nth(countBefore - 1);
-    await last.locator('button[title="Remove"]').click();
+    await ui.safeClick(last.locator('button[title="Remove"]'));
 
     await ui.clickSaveNow();
     await ui.waitForSave();

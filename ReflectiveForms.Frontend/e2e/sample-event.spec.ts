@@ -226,7 +226,7 @@ test.describe('Event CRUD', () => {
     const countBefore = await sessions.count();
 
     const last = sessions.nth(countBefore - 1);
-    await last.locator('button[title="Remove"]').click();
+    await ui.safeClick(last.locator('button[title="Remove"]'));
 
     await ui.clickSaveNow();
     await ui.waitForSave();

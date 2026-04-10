@@ -1,6 +1,6 @@
 import { useParams, Link, Navigate } from 'react-router-dom';
 import { Trash2, Edit, Copy, Plus, ChevronLeft, ChevronRight, Eye, Search, X, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown as ChevronDownIcon, ChevronRight as ChevronRightIcon, Filter, Lock } from 'lucide-react';
-import { useSchema, useEntityList, useDeleteEntity, useCapabilities } from '../hooks/useEntity';
+import { useSchema, useAllSchemas, useEntityList, useDeleteEntity, useCapabilities } from '../hooks/useEntity';
 import { useLockedEntities } from '../hooks/useLockedEntities';
 import { toast } from 'sonner';
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
@@ -103,11 +103,7 @@ function formatDate(dateStr: string | undefined): string {
 
 export function EntityListPage() {
   const { entityName } = useParams<{ entityName: string }>();
-
-  // rf-sheets has its own dedicated pages with sharing/access control
-  if (entityName === 'rf-sheets') {
-    return <Navigate to="/sheets" replace />;
-  }
+  const { data: allSchemas } = useAllSchemas();
 
   const [currentPage, setCurrentPage] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
@@ -297,6 +293,12 @@ export function EntityListPage() {
       toast.success('Deleted successfully');
     }
   };
+
+  // Entities with individual sharing have their own dedicated pages — redirect after all hooks
+  const entitySchema = entityName ? allSchemas?.[entityName] : undefined;
+  if (entitySchema?.features.has_individual_sharing && entitySchema.features.custom_frontend_list_route) {
+    return <Navigate to={entitySchema.features.custom_frontend_list_route} replace />;
+  }
 
   if (schemaLoading || entitiesLoading) {
     return (

@@ -28,6 +28,7 @@ A comprehensive sample application demonstrating every feature of the **Reflecti
   - [Dynamic Default Values](#dynamic-default-values)
   - [Lifecycle Hooks](#lifecycle-hooks)
 - [Reserved (Built-in) Entities](#reserved-built-in-entities)
+- [Individual Sharing](#individual-sharing)
 - [Troubleshooting](#troubleshooting)
 
 ---
@@ -231,6 +232,7 @@ Every ReflectiveForms feature is demonstrated at least once in this sample:
 | **HasTags** | Objective ✓, Blog Post ✓, Product ✓, Team Member ✗, Event ✗ |
 | **HasCategories** | Objective ✓, Blog Post ✓, Product ✓, Event ✓, Team Member ✗ |
 | **HasParentChildRelationship** | Objective ✓, Product ✓, Blog Post ✗, Team Member ✗, Event ✗ |
+| **HasIndividualSharing** | RF Sheets ✓ (built-in) — see [Individual Sharing](#individual-sharing) |
 | **SupportsFrontendEdit** | `true` for all authorized (5 entities), `false` for some if needed (Team Member) |
 | **PostCreateHook** | Objective, Blog Post, Product |
 | **PostUpdateHook** | Objective, Blog Post |
@@ -294,6 +296,8 @@ new EntityConfigurationBuilder<YourModel>
     HasParentChildRelationship = true,                    // Enables parent-child hierarchy
     RequireGlobalTitleUniqueness = true,                  // Enforces unique titles
     OptionalTitleSanityCheck = async title => ...,        // Custom title validation
+    HasIndividualSharing = false,                         // Per-entity sharing (see below)
+    CustomFrontendListRoute = null,                       // Custom sidebar route for sharing entities
     HooksSetup = new EntityOnChangedHooksSetup<YourModel> // Lifecycle hooks
     {
         PostCreateHook = (p, ct) => ...,
@@ -317,6 +321,8 @@ All endpoints are served under `/rf/api/`. The framework automatically generates
 | `/rf/api/crud?operation=CREATE&type={entity}` | POST | Create a new entity |
 | `/rf/api/crud?operation=UPDATE&type={entity}` | POST | Update an entity (body includes `id`) |
 | `/rf/api/crud?operation=DELETE&type={entity}` | POST | Delete an entity (body: `{ id }`) |
+| `/rf/api/crud?operation=HISTORY&type={entity}` | POST | Revision history (body: `{ id }`) |
+| `/rf/api/crud?operation=SHARING_CANDIDATES&type={entity}` | POST | Users/roles eligible for sharing |
 | `/rf/api/entity_lock_control?type={entity}&id={id}&operation=try_lock` | POST | Acquire entity lock |
 | `/rf/api/entity_lock_control?type={entity}&id={id}&operation=try_unlock` | POST | Release entity lock |
 | `/rf/api/entity_lock_control?type={entity}&id={id}&operation=heartbeat` | POST | Refresh lock |
@@ -324,6 +330,8 @@ All endpoints are served under `/rf/api/`. The framework automatically generates
 | `/rf/api/sanity_check?type={entity}` | POST | Validate entity data |
 | `/rf/api/bulk_read` | POST | Fetch multiple entities with optional field filtering |
 | `/rf/api/media` | POST | Upload media files |
+| `/rf/api/auth_check` | POST | Verify authentication status |
+| `/rf/api/capabilities` | POST | Get user capabilities per entity type |
 | `/rf/api/login` | POST | Authenticate and receive JWT |
 | `/rf/api/logout` | POST | Invalidate session |
 
@@ -353,6 +361,7 @@ The frontend is a React single-page application that dynamically renders forms b
 - **Auto-save** — Debounced auto-save with visual feedback and toast notifications
 - **Depth-aware nesting** — Nested fields inside repeaters and groups render cleanly without redundant card wrappers
 - **RF Sheets** — Built-in spreadsheet editor at `/sheets` with entity data sources, custom RF formulas (RF.FIELD, RF.SUM, RF.FILTER, etc.), sharing (user/role/public), and Excel export
+- **Individual sharing** — Reusable sharing dialog and schema-driven navigation for entity types with `HasIndividualSharing` enabled
 
 ### Running the Frontend
 
@@ -729,9 +738,77 @@ ReflectiveForms automatically creates and manages these system entities:
 | **Tags** | `tags` | Flat taxonomy for tagging entities |
 | **Categories** | `categories` | Flat taxonomy for categorizing entities |
 | **Media** | `media` | Media library with automatic image resizing (150, 300, 600, 1024px) |
-| **RF Sheets** | `rf-sheets` | Built-in spreadsheet editor with RF formulas, entity data sources, sharing, and Excel export |
+| **RF Sheets** | `rf-sheets` | Built-in spreadsheet editor with RF formulas, entity data sources, individual sharing (user/role/public), and Excel export. Uses `HasIndividualSharing` for per-entity access control. |
 
 These are always available and do not need to be registered in `EntityTypes`.
+
+---
+
+## Individual Sharing
+
+Entity types can opt into **per-entity access control** by setting `HasIndividualSharing = true`. The built-in RF Sheets entity uses this feature. Here's how to add it to your own entity types:
+
+### 1. Inherit from `SharableEntityFieldsModel`
+
+Instead of `EntityFieldsModel`, use `SharableEntityFieldsModel` as the base class. This adds `is_public`, `shared_users`, and `shared_roles` fields automatically:
+
+```csharp
+using Newtonsoft.Json;
+using ReflectiveForms.Core.Attributes.Fields;
+using ReflectiveForms.Core.Models;
+
+public class ProjectModel : SharableEntityFieldsModel
+{
+    [JsonProperty("description"),
+     TextArea(label: "Description", instructions: "", mandatory: true,
+        placeholderText: "Project description...")]
+    public string Description = "";
+
+    [JsonProperty("status"),
+     Select(label: "Status", instructions: "",
+        defaultValue: "planning",
+        choices: new[] { "planning", "active", "completed" })]
+    public string Status = "planning";
+}
+```
+
+### 2. Enable sharing in the entity configuration
+
+```csharp
+new EntityConfigurationBuilder<ProjectModel>
+{
+    EntityName = "project",
+    EntityReadableNameSingular = "Project",
+    EntityReadableNamePlural = "Projects",
+    SupportsFrontendEdit = true,
+    HasAuthor = true,                       // Required — the author is the entity owner
+    HasTags = false,
+    HasCategories = false,
+    HasParentChildRelationship = false,
+    RequireGlobalTitleUniqueness = false,
+    OptionalTitleSanityCheck = null,
+    HasIndividualSharing = true,            // Enables per-entity access control
+    CustomFrontendListRoute = "/projects",  // Route for the custom page in the sidebar
+}
+```
+
+### 3. Build a custom frontend page
+
+Shareable entities must have their own dedicated pages rather than using the generic entity list/edit pages, because the UX requires a sharing dialog, access-level banners, and filtered list views. The frontend automatically:
+- Hides sharing entities from the generic entity sidebar section
+- Adds a dedicated sidebar entry under the entity's readable name (plural) linking to `CustomFrontendListRoute`
+- Redirects `/entities/{entityName}` to the custom route
+
+See `RfSheetListPage` and `RfSheetPage` in the frontend source for a complete implementation example.
+
+### What the framework handles automatically
+
+- **Admin role creation** — A "Project Admin" IAM role is created at startup with full CRUD + user/role peek capabilities
+- **Filtered list endpoints** — PEEK_ALL returns only entities the user owns, is shared with, or that are public
+- **Per-entity access checks** — READ, UPDATE, DELETE, and entity locking verify per-entity access levels
+- **Sharing protection** — Non-owners cannot modify `is_public`, `shared_users`, or `shared_roles` fields
+- **Sharing candidates endpoint** — `SHARING_CANDIDATES` operation returns users and roles eligible for sharing, annotated with their maximum permission level (view or edit based on IAM capabilities)
+- **Schema exposure** — `has_individual_sharing` and `custom_frontend_list_route` are included in the entity schema for frontend consumption
 
 ---
 

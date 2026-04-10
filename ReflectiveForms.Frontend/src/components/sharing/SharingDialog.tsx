@@ -13,19 +13,21 @@ export interface SharedRole {
   permission: 'view' | 'edit';
 }
 
-export interface SheetSharingState {
+export interface SharingState {
   is_public: boolean;
   shared_users: SharedUser[];
   shared_roles: SharedRole[];
 }
 
-export interface SheetSharingDialogProps {
+export interface SharingDialogProps {
   isOwner: boolean;
-  sharing: SheetSharingState;
-  onChange: (sharing: SheetSharingState) => void;
+  sharing: SharingState;
+  onChange: (sharing: SharingState) => void;
   onClose: () => void;
   /** The entity type name to fetch sharing candidates for */
   entityName: string;
+  /** Human-readable singular name of the entity type (e.g. "Sheet") */
+  entityDisplayName?: string;
   /** Current author user id (for owner-role users to transfer ownership) */
   authorId?: number;
   /** Called when owner-role user changes the author */
@@ -34,7 +36,8 @@ export interface SheetSharingDialogProps {
   isSystemOwner?: boolean;
 }
 
-export function SheetSharingDialog({ isOwner, sharing, onChange, onClose, entityName, authorId, onAuthorChange, isSystemOwner }: SheetSharingDialogProps) {
+export function SharingDialog({ isOwner, sharing, onChange, onClose, entityName, entityDisplayName, authorId, onAuthorChange, isSystemOwner }: SharingDialogProps) {
+  const displayName = entityDisplayName ?? 'entity';
   const { data: candidates } = useQuery({
     queryKey: ['sharing-candidates', entityName],
     queryFn: async () => {
@@ -162,7 +165,7 @@ export function SheetSharingDialog({ isOwner, sharing, onChange, onClose, entity
               <div>
                 <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Public</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Anyone with sheet permissions can view
+                  Anyone with {displayName.toLowerCase()} permissions can view
                 </p>
               </div>
             </div>
@@ -190,7 +193,7 @@ export function SheetSharingDialog({ isOwner, sharing, onChange, onClose, entity
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <UserCog className="w-4 h-4 text-gray-400" />
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Sheet Author</p>
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{displayName} Author</p>
               </div>
               <select
                 value={authorId}
@@ -204,7 +207,7 @@ export function SheetSharingDialog({ isOwner, sharing, onChange, onClose, entity
                 ))}
               </select>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Changing the author transfers ownership of this sheet.
+                Changing the author transfers ownership of this {displayName.toLowerCase()}.
               </p>
             </div>
           )}

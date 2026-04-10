@@ -145,13 +145,13 @@ internal class EntityLockControl: BaseEndpoint
     private async Task<IResult> TryLockAsync(string entityName, int id, CancellationToken cancellationToken)
     {
         // For individually-shared entity types, verify the user has edit access to this specific entity
-        if (entityName == RfReservedEntities.SheetsEntityName)
+        if (RfConfiguration.EntityNameToConfiguration[entityName].EntityConfiguration.HasIndividualSharing)
         {
             var existing = await RfConfiguration.RepositoryService.GetOneAsync(entityName, id, cancellationToken);
             if (!existing.IsSuccessful)
                 return existing.StatusCode.ToResult(existing.ErrorMessage);
 
-            var access = Crud.GetEntitySharingAccessLevel(existing.Data.NotNull(), RequesterUser.NotNull());
+            var access = Crud.GetEntitySharingAccessLevel(entityName, existing.Data.NotNull(), RequesterUser.NotNull());
             if (access < Crud.SharingAccessLevel.Edit)
                 return HttpStatusCode.Forbidden.ToResult("You do not have edit access to this entity.");
         }

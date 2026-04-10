@@ -146,7 +146,7 @@ export function RfSheetListPage() {
                   <td className="px-6 py-4 text-right">
                     {sheet.access_level === 'owner' && (
                       <button
-                        onClick={() => handleDelete(sheet.id, sheet.title)}
+                        onClick={() => handleDelete(sheet.id, sheet.title ?? '')}
                         disabled={deletingId === sheet.id}
                         className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors disabled:opacity-50"
                         title="Delete sheet"

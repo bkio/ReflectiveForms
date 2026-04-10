@@ -59,6 +59,12 @@ public class EntityFeatures
 
     [JsonProperty("supports_frontend_edit")]
     public bool SupportsFrontendEdit { get; init; }
+
+    [JsonProperty("has_individual_sharing")]
+    public bool HasIndividualSharing { get; init; }
+
+    [JsonProperty("custom_frontend_list_route")]
+    public string? CustomFrontendListRoute { get; init; }
 }
 
 public class ApiEndpoints

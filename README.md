@@ -33,10 +33,18 @@ dotnet add package ReflectiveForms.Core
 
 ```csharp
 // Program.cs
+using Microsoft.Extensions.Logging;
 using ReflectiveForms.Core;
 
 var builder = WebApplication.CreateBuilder(args);
-var app = builder.BuildWithReflectiveFields(RfBuilder.Build());
+using var loggerFactory = LoggerFactory.Create(logging =>
+{
+    logging.AddConsole();
+    logging.AddDebug();
+});
+var rfLogger = loggerFactory.CreateLogger<Program>();
+
+var app = builder.BuildWithReflectiveFields(RfBuilder.Build(rfLogger));
 app.Run();
 ```
 
@@ -46,12 +54,13 @@ using CrossCloudKit.Database.Basic;
 using CrossCloudKit.File.Basic;
 using CrossCloudKit.Memory.Basic;
 using CrossCloudKit.PubSub.Basic;
+using Microsoft.Extensions.Logging;
 using ReflectiveForms.Core;
 using ReflectiveForms.Core.Endpoints;
 
 public static class RfBuilder
 {
-    public static RfConfigurationBuilder Build()
+    public static RfConfigurationBuilder Build(ILogger logger)
     {
         var pubSub = new PubSubServiceBasic();
         var memory = new MemoryServiceBasic(pubSub);
@@ -60,6 +69,7 @@ public static class RfBuilder
 
         return new RfConfigurationBuilder
         {
+            Logger = logger,
             RootUserCredentials = new RootUserCredentials("admin@karasoftware.com", "123456"),
             RepositoryServiceConfiguration = new EntityRepositoryServiceConfiguration(
                 db, memory, pubSub,
@@ -121,6 +131,7 @@ createReflectiveFormsApp({
 - **Sanity checks** — Server-side validation with custom async logic (e.g. uniqueness)
 - **Entity metadata** — Tags, categories, parent-child hierarchy
 - **Role-based access** — IAM with per-entity-type CRUD capabilities
+- **Individual sharing** — Per-entity access control: share with specific users/roles, public toggle, auto-generated admin roles
 - **SSO** — OpenID Connect, Azure AD, Google with auto-provisioning and domain filtering
 
 ### Admin Panel (Frontend)
@@ -136,6 +147,7 @@ createReflectiveFormsApp({
 - **Custom pages** — Add sidebar pages grouped by section
 - **Revision diff** — Side-by-side comparison of entity revisions with field-level change highlighting
 - **SSO login** — Dedicated SSO login page with branding
+- **Sharing dialog** — Reusable sharing UI for any entity type with individual sharing enabled
 - **RF Sheets** — Built-in spreadsheet editor (Univer) with custom RF formulas, entity data sources, sharing (user/role/public), and Excel export
 
 ## Configuration Reference
@@ -146,7 +158,7 @@ createReflectiveFormsApp({
 |----------|----------|---------|-------------|
 | `PublicFrontendBaseUrl` | Yes | — | Frontend URL for CORS |
 | `JwtSecret` | Yes | — | JWT signing key |
-| `RootPath` | No | `"/rf"` | API route prefix |
+| `RootPath` | Yes | `"/rf"` | API route prefix |
 | `PublicUrlRootForApi` | Yes | — | Public API URL for schema links |
 | `SsoConfiguration` | No | `null` | SSO settings (see below) |
 
@@ -205,7 +217,7 @@ ReflectiveForms/
 │   ├── Repositories/                 #   DB integration
 │   └── Schema/                       #   JSON schema generator
 │
-├── ReflectiveForms.Core.Tests/       # Backend unit tests (xUnit, 190+)
+├── ReflectiveForms.Core.Tests/       # Backend unit tests (xUnit, 260+)
 │
 ├── ReflectiveForms.Frontend/         # React npm library
 │   ├── src/
@@ -238,11 +250,14 @@ ReflectiveForms/
 | `/rf/api/crud?operation=PEEK_ALL&type={name}` | POST | List all |
 | `/rf/api/crud?operation=PEEK_ALL_PAGINATED&type={name}&page_size={n}` | POST | Paginated list |
 | `/rf/api/crud?operation=HISTORY&type={name}` | POST | Revision history |
+| `/rf/api/crud?operation=SHARING_CANDIDATES&type={name}` | POST | Users/roles eligible for sharing |
 | `/rf/api/sanity_check?type={name}` | POST | Validate |
 | `/rf/api/entity_lock_control?type={name}&id={id}&operation=try_lock` | POST | Lock |
 | `/rf/api/entity_lock_control?type={name}&id={id}&operation=try_unlock` | POST | Unlock |
 | `/rf/api/entity_lock_control?type={name}&id={id}&operation=heartbeat` | POST | Heartbeat |
 | `/rf/api/bulk_read` | POST | Fetch multiple entities with optional field filtering |
+| `/rf/api/auth_check` | POST | Verify authentication status |
+| `/rf/api/capabilities` | POST | Get user capabilities per entity type |
 | `/rf/api/login` | POST | Authenticate |
 | `/rf/api/logout` | POST | Logout |
 
@@ -252,14 +267,14 @@ ReflectiveForms/
 
 ```bash
 cd ReflectiveForms.Core.Tests
-dotnet test    # 200+ tests
+dotnet test    # 260+ tests
 ```
 
 ### Frontend Unit Tests
 
 ```bash
 cd ReflectiveForms.Frontend
-npm run test:run       # 290+ tests (Vitest)
+npm run test:run       # 680+ tests (Vitest)
 ```
 
 ### E2E Tests
@@ -294,12 +309,12 @@ node --test tests/scaffold.test.js   # 16 tests
 
 ```csharp
 [JsonProperty("is_digital"),
- Checkbox(label: "Digital Product", defaultValue: false)]
+ Checkbox(label: "Digital Product", instructions: "", defaultValue: false)]
 public bool IsDigital;
 
 [JsonProperty("weight_kg"),
  DisplayCondition("is_digital == false"),
- Number(label: "Weight (kg)", mandatory: false)]
+ Number(label: "Weight (kg)", instructions: "", mandatory: false)]
 public double WeightKg;
 ```
 
@@ -320,6 +335,60 @@ public List<SurveyQuestionModel> Questions = [];
  Repeater(repeaterFor: typeof(SurveyChoiceModel), minimumRows: 2, maximumRows: 8)]
 public List<SurveyChoiceModel>? Choices = null;
 ```
+
+### Individual Sharing (Shareable Entity Types)
+
+Entity types can opt into per-entity access control by setting `HasIndividualSharing = true`. This enables:
+
+- **Per-entity sharing** — Each entity instance can be shared with specific users and/or roles at `view` or `edit` permission levels
+- **Public toggle** — Entities can be marked public so anyone with entity-type-level access can view them
+- **Owner-based access** — The entity author is always the owner with full control
+- **Auto-generated admin role** — A "{ReadableName} Admin" role is automatically created and maintained at startup, granting full access to all entities of that type
+- **Entity locking** — Lock checks respect sharing permissions (only users with edit access can lock)
+- **Dedicated frontend pages** — Sharing entities use custom pages (set via `CustomFrontendListRoute`) instead of the generic entity list/edit pages
+
+```csharp
+// 1. Create a fields model inheriting from SharableEntityFieldsModel
+public class ProjectModel : SharableEntityFieldsModel
+{
+    [JsonProperty("description"),
+     TextArea(label: "Description", instructions: "", mandatory: true,
+        placeholderText: "Describe the project...")]
+    public string Description = "";
+
+    [JsonProperty("status"),
+     Select(label: "Status", instructions: "",
+        defaultValue: "active",
+        choices: new[] { "active", "archived" })]
+    public string Status = "active";
+}
+
+// 2. Register with HasIndividualSharing = true
+new EntityConfigurationBuilder<ProjectModel>
+{
+    EntityName = "project",
+    EntityReadableNameSingular = "Project",
+    EntityReadableNamePlural = "Projects",
+    SupportsFrontendEdit = true,
+    HasAuthor = true,  // Required for sharing
+    HasTags = false,
+    HasCategories = false,
+    HasParentChildRelationship = false,
+    RequireGlobalTitleUniqueness = false,
+    OptionalTitleSanityCheck = null,
+    HasIndividualSharing = true,
+    CustomFrontendListRoute = "/projects",
+}
+```
+
+The framework then automatically:
+- Adds `is_public`, `shared_users`, and `shared_roles` fields (inherited from `SharableEntityFieldsModel`)
+- Creates a "Project Admin" IAM role with full CRUD capabilities on the entity type
+- Filters PEEK_ALL results to only entities the user can access (owned, shared, or public)
+- Enforces per-entity READ/UPDATE/DELETE access checks
+- Strips sharing fields from UPDATE requests for non-owners
+- Exposes `SHARING_CANDIDATES` operation returning eligible users and roles
+- Exposes `has_individual_sharing` and `custom_frontend_list_route` in the schema for frontend navigation
 
 ## Development (this repo)
 

@@ -13,7 +13,7 @@ public sealed class IamRoleEntitiesCache : EntitiesCacheBase<IamRoleEntityFields
     public IamRoleEntitiesCache() : base(RfReservedEntities.IamRoleEntityName)
     {
         RootManager.EnsureOwnerRoleExistAsync(this).GetAwaiter().GetResult();
-        RootManager.EnsureSheetsEditorRoleExistAsync(this).GetAwaiter().GetResult();
+        RootManager.EnsureSharingAdminRolesExistAsync(this).GetAwaiter().GetResult();
     }
 }
 public sealed class UserEntitiesCache : EntitiesCacheBase<UserEntityFieldsModel>
@@ -72,7 +72,7 @@ public static class RfReservedEntities
             HasCategories = false,
             HasParentChildRelationship = false,
             RequireGlobalTitleUniqueness = true,
-            OptionalTitleSanityCheck = title => Task.FromResult(title.Text != RootManager.OwnerRoleTitle && title.Text != RootManager.SheetsEditorRoleTitle),
+            OptionalTitleSanityCheck = title => Task.FromResult(title.Text != RootManager.OwnerRoleTitle && !RootManager.IsSharingAdminRoleTitle(title.Text)),
         }),
         new EntityFinalConfiguration<TaxonomyEntityFieldsModel>(new EntityConfigurationBuilder<TaxonomyEntityFieldsModel>
         {
@@ -130,7 +130,9 @@ public static class RfReservedEntities
             HasCategories = false,
             HasParentChildRelationship = false,
             RequireGlobalTitleUniqueness = false,
-            OptionalTitleSanityCheck = null
+            OptionalTitleSanityCheck = null,
+            HasIndividualSharing = true,
+            CustomFrontendListRoute = "/sheets"
         })
     };
 }

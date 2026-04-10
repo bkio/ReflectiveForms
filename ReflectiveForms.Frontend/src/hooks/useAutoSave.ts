@@ -64,6 +64,7 @@ export function useAutoSave({
 
   const performSave = useCallback(async () => {
     clearTimers();
+    statusRef.current = 'saving';
     setStatus(prev => ({ ...prev, status: 'saving', countdownRemaining: 0 }));
     try {
       await onSave();
@@ -112,6 +113,7 @@ export function useAutoSave({
   }, [countdownDuration, clearTimers, performSave, setStatus]);
 
   const startSanityAndCountdown = useCallback(async () => {
+    statusRef.current = 'checking';
     setStatus(prev => ({ ...prev, status: 'checking', validationErrors: [], error: null }));
     try {
       const result = await onSanityCheck();
@@ -145,6 +147,7 @@ export function useAutoSave({
 
     clearTimers();
 
+    statusRef.current = 'waiting';
     setStatus(prev => ({ ...prev, status: 'waiting', error: null, validationErrors: [] }));
 
     waitTimerRef.current = setTimeout(() => {

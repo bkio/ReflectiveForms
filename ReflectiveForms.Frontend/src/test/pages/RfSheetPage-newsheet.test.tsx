@@ -17,6 +17,7 @@ vi.mock('@univerjs/presets', () => ({
       createWorkbook: vi.fn(),
       dispose: vi.fn(),
       addEvent: vi.fn(() => ({ dispose: vi.fn() })),
+      onCommandExecuted: vi.fn(() => ({ dispose: vi.fn() })),
       Event: { BeforeSheetEditStart: 'BeforeSheetEditStart' },
       getFormula: vi.fn(() => ({
         registerFunction: vi.fn(() => ({ dispose: vi.fn() })),
@@ -63,6 +64,10 @@ vi.mock('../../api/client', () => ({
   createEntity: vi.fn(),
   updateEntity: vi.fn(),
   bulkRead: vi.fn(() => Promise.resolve({ data: { results: [], unauthorized: [] } })),
+  tryLockEntity: vi.fn(() => Promise.resolve({ data: { locked: true } })),
+  unlockEntity: vi.fn(() => Promise.resolve({ data: {} })),
+  fetchLockStatus: vi.fn(() => Promise.resolve({ data: null })),
+  getApiBaseUrl: vi.fn(() => 'http://localhost:9000/rf/api'),
 }));
 
 vi.mock('sonner', () => ({

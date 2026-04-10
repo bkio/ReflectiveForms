@@ -69,6 +69,23 @@ public abstract class EntityConfigurationBuilderBase
     /// An optional delegate that defines a custom sanity check for an entity's title during update/create operations.
     /// </summary>
     public required Func<TitleRenderedModel, Task<bool>>? OptionalTitleSanityCheck { get; init; }
+
+    /// <summary>
+    /// Should this entity type support individual sharing (per-entity access control)?
+    /// When true, each entity instance can be shared with specific users and roles,
+    /// and the framework automatically enforces per-entity access checks on READ, UPDATE, DELETE, PEEK_ALL, and entity locking.
+    /// Requires HasAuthor = true and the entity's fields model to inherit from SharableEntityFieldsModel.
+    /// An admin role for this entity type is automatically created and maintained at startup.
+    /// </summary>
+    public bool HasIndividualSharing { get; init; }
+
+    /// <summary>
+    /// Optional custom frontend route for the entity's list page.
+    /// When set, the sidebar and navigation use this route instead of the generic /entities/{entityName} path.
+    /// Required when HasIndividualSharing is true (sharing entities need custom pages).
+    /// Example: "/sheets" for rf-sheets.
+    /// </summary>
+    public string? CustomFrontendListRoute { get; init; }
 }
 
 public sealed class EntityConfigurationBuilder<T>() : EntityConfigurationBuilderBase(typeof(T))

@@ -130,6 +130,19 @@ public class RfConfigurationBuilder
             {
                 errors.Add($"Entity readable name (plural) in the configuration cannot be empty (for '{config.EntityName}')");
             }
+
+            if (config.HasIndividualSharing)
+            {
+                if (!config.HasAuthor)
+                {
+                    errors.Add($"Entity '{config.EntityName}' has HasIndividualSharing=true but HasAuthor=false. Individual sharing requires an author field (the author is the owner).");
+                }
+
+                if (!typeof(SharableEntityFieldsModel).IsAssignableFrom(config.EntityFieldsModelType))
+                {
+                    errors.Add($"Entity '{config.EntityName}' has HasIndividualSharing=true but its fields model '{config.EntityFieldsModelType.FullName}' does not inherit from SharableEntityFieldsModel.");
+                }
+            }
         }
         if (errors.Count != 0)
             throw new ArgumentException(string.Join(Environment.NewLine, errors));

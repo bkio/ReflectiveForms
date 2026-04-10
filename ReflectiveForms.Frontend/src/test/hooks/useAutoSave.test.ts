@@ -4,6 +4,15 @@ import { useAutoSave } from '../../hooks/useAutoSave';
 
 const WAIT = 500; // short waitDuration for tests
 
+/** Advance fake timers AND flush the microtask queue so resolved promises settle. */
+async function advanceAndFlush(ms: number) {
+  // 1. Advance timers synchronously — fires setTimeout/setInterval callbacks
+  act(() => { vi.advanceTimersByTime(ms); });
+  // 2. Flush microtask queue — resolves pending promises from timer callbacks
+  //    (e.g. startSanityAndCountdown → await onSanityCheck → setState)
+  await act(async () => {});
+}
+
 describe('useAutoSave', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -39,7 +48,7 @@ describe('useAutoSave', () => {
     expect(result.current.status).toBe('waiting');
 
     // Advance past wait period
-    await act(async () => { vi.advanceTimersByTime(WAIT); });
+    await advanceAndFlush(WAIT);
     expect(result.current.status).toBe('checking');
 
     await act(async () => { resolveSanity({ passed: true }); });
@@ -59,7 +68,7 @@ describe('useAutoSave', () => {
     act(() => { result.current.triggerAutoSave(); });
     expect(result.current.status).toBe('waiting');
 
-    await act(async () => { vi.advanceTimersByTime(WAIT); });
+    await advanceAndFlush(WAIT);
     expect(result.current.status).toBe('validation-error');
     expect(result.current.validationErrors).toEqual(['Title is required']);
   });
@@ -73,7 +82,7 @@ describe('useAutoSave', () => {
     );
 
     act(() => { result.current.triggerAutoSave(); });
-    await act(async () => { vi.advanceTimersByTime(WAIT); });
+    await advanceAndFlush(WAIT);
     expect(result.current.status).toBe('countdown');
     expect(result.current.countdownRemaining).toBeGreaterThan(0);
   });
@@ -88,11 +97,11 @@ describe('useAutoSave', () => {
 
     act(() => { result.current.triggerAutoSave(); });
     // Wait period
-    await act(async () => { vi.advanceTimersByTime(WAIT); });
+    await advanceAndFlush(WAIT);
     expect(result.current.status).toBe('countdown');
 
     // Advance past countdown
-    await act(async () => { vi.advanceTimersByTime(1100); });
+    await advanceAndFlush(1100);
     expect(onSave).toHaveBeenCalledOnce();
     expect(result.current.status).toBe('saved');
   });
@@ -106,8 +115,8 @@ describe('useAutoSave', () => {
     );
 
     act(() => { result.current.triggerAutoSave(); });
-    await act(async () => { vi.advanceTimersByTime(WAIT); });
-    await act(async () => { vi.advanceTimersByTime(600); });
+    await advanceAndFlush(WAIT);
+    await advanceAndFlush(600);
     expect(result.current.status).toBe('saved');
 
     // Auto-dismiss after 2s
@@ -124,8 +133,8 @@ describe('useAutoSave', () => {
     );
 
     act(() => { result.current.triggerAutoSave(); });
-    await act(async () => { vi.advanceTimersByTime(WAIT); });
-    await act(async () => { vi.advanceTimersByTime(600); });
+    await advanceAndFlush(WAIT);
+    await advanceAndFlush(600);
     expect(result.current.status).toBe('error');
     expect(result.current.error).toBe('Network error');
   });
@@ -144,7 +153,7 @@ describe('useAutoSave', () => {
     act(() => { result.current.cancel(); });
     expect(result.current.status).toBe('idle');
 
-    await act(async () => { vi.advanceTimersByTime(10000); });
+    await advanceAndFlush(10000);
     expect(onSanityCheck).not.toHaveBeenCalled();
     expect(onSave).not.toHaveBeenCalled();
   });
@@ -158,13 +167,13 @@ describe('useAutoSave', () => {
     );
 
     act(() => { result.current.triggerAutoSave(); });
-    await act(async () => { vi.advanceTimersByTime(WAIT); });
+    await advanceAndFlush(WAIT);
     expect(result.current.status).toBe('countdown');
 
     act(() => { result.current.cancel(); });
     expect(result.current.status).toBe('idle');
 
-    await act(async () => { vi.advanceTimersByTime(5000); });
+    await advanceAndFlush(5000);
     expect(onSave).not.toHaveBeenCalled();
   });
 
@@ -194,7 +203,7 @@ describe('useAutoSave', () => {
     );
 
     act(() => { result.current.triggerAutoSave(); });
-    await act(async () => { vi.advanceTimersByTime(WAIT); });
+    await advanceAndFlush(WAIT);
     expect(result.current.status).toBe('validation-error');
 
     act(() => { result.current.dismissValidation(); });
@@ -222,7 +231,7 @@ describe('useAutoSave', () => {
     );
 
     act(() => { result.current.triggerAutoSave(); });
-    await act(async () => { vi.advanceTimersByTime(WAIT); });
+    await advanceAndFlush(WAIT);
     expect(result.current.status).toBe('countdown');
   });
 
@@ -251,7 +260,7 @@ describe('useAutoSave', () => {
     expect(onSanityCheck).not.toHaveBeenCalled();
 
     // Complete the reset wait
-    await act(async () => { vi.advanceTimersByTime(200); });
+    await advanceAndFlush(200);
     expect(result.current.status).toBe('countdown');
     expect(onSanityCheck).toHaveBeenCalledTimes(1);
   });
@@ -266,7 +275,7 @@ describe('useAutoSave', () => {
 
     // Start → waiting → checking → countdown
     act(() => { result.current.triggerAutoSave(); });
-    await act(async () => { vi.advanceTimersByTime(WAIT); });
+    await advanceAndFlush(WAIT);
     expect(result.current.status).toBe('countdown');
     expect(onSanityCheck).toHaveBeenCalledTimes(1);
 
@@ -279,12 +288,12 @@ describe('useAutoSave', () => {
     expect(result.current.status).toBe('waiting');
 
     // Wait period expires → sanity check runs again → countdown
-    await act(async () => { vi.advanceTimersByTime(WAIT); });
+    await advanceAndFlush(WAIT);
     expect(result.current.status).toBe('countdown');
     expect(onSanityCheck).toHaveBeenCalledTimes(2);
 
     // Complete the countdown
-    await act(async () => { vi.advanceTimersByTime(3100); });
+    await advanceAndFlush(3100);
     expect(onSave).toHaveBeenCalledOnce();
     expect(result.current.status).toBe('saved');
   });
@@ -301,8 +310,8 @@ describe('useAutoSave', () => {
 
     // Start → waiting → checking → countdown → saving
     act(() => { result.current.triggerAutoSave(); });
-    await act(async () => { vi.advanceTimersByTime(WAIT); });
-    await act(async () => { vi.advanceTimersByTime(600); });
+    await advanceAndFlush(WAIT);
+    await advanceAndFlush(600);
     expect(result.current.status).toBe('saving');
 
     // Trigger again while saving — should be ignored
@@ -331,7 +340,7 @@ describe('useAutoSave', () => {
     expect(onSanityCheck).not.toHaveBeenCalled();
 
     // Transitions after 5s
-    await act(async () => { vi.advanceTimersByTime(200); });
+    await advanceAndFlush(200);
     expect(onSanityCheck).toHaveBeenCalledTimes(1);
   });
 });

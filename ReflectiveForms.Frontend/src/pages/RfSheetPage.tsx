@@ -7,6 +7,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useAuth } from '../hooks/useAuth';
 import { useEntityLock } from '../hooks/useEntityLock';
+import { useAutoSave } from '../hooks/useAutoSave';
+import { AutoSaveIndicator } from '../components/form/AutoSaveIndicator';
 import { useRfSheetData } from '../hooks/useRfSheetData';
 import { registerRfFormulas } from '../lib/rf-sheet-functions';
 import type { FormulaContext } from '../lib/rf-sheet-functions';
@@ -16,8 +18,8 @@ import type { StaleFieldReference } from '../lib/rf-sheet-schema-validator';
 import { EntitySourcePanel } from '../components/sheets/EntitySourcePanel';
 import { RepeaterDropDialog } from '../components/sheets/RepeaterDropDialog';
 import type { RepeaterFormulaChoice } from '../components/sheets/RepeaterDropDialog';
-import { SheetSharingDialog } from '../components/sheets/SheetSharingDialog';
-import type { SheetSharingState } from '../components/sheets/SheetSharingDialog';
+import { SharingDialog } from '../components/sharing/SharingDialog';
+import type { SharingState } from '../components/sharing/SharingDialog';
 import type { BulkReadSource, FieldSchema } from '../types/schema';
 
 // Univer imports
@@ -93,7 +95,7 @@ export function RfSheetPage() {
   const [showSharingDialog, setShowSharingDialog] = useState(false);
   const [activeSources, setActiveSources] = useState<string[]>([]);
   const [sheetAuthorId, setSheetAuthorId] = useState<number | undefined>(undefined);
-  const [sharing, setSharing] = useState<SheetSharingState>({
+  const [sharing, setSharing] = useState<SharingState>({
     is_public: false,
     shared_users: [],
     shared_roles: [],
@@ -272,7 +274,20 @@ export function RfSheetPage() {
       (params: any) => { dropHandlerRef.current(params); },
     );
 
+    // Listen for Univer command execution to detect spreadsheet changes.
+    // Only trigger on COMMAND type (0) which represents user-level actions like cell edits,
+    // row/column inserts, formatting, etc. Ignores OPERATION (1 = scroll, selection)
+    // and MUTATION (2 = internal low-level changes).
+    // Uses the ref bridge so this callback never goes stale.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const commandDisposable = univerAPI.onCommandExecuted((commandInfo: any) => {
+      if (commandInfo.type === 0) {
+        triggerAutoSaveRef.current();
+      }
+    });
+
     return () => {
+      commandDisposable.dispose();
       dragOverDisposable.dispose();
       dropDisposable.dispose();
       formulaDisposableRef.current?.dispose();
@@ -342,13 +357,76 @@ export function RfSheetPage() {
     }
   }, []);
 
-  const handleSave = async () => {
+  // ── Autosave ──────────────────────────────────────────────
+  // Ref bridge so the Univer command listener always calls the latest triggerAutoSave
+  // without re-running the Univer init useEffect.
+  const triggerAutoSaveRef = useRef<() => void>(() => {});
+
+  const handleAutoSaveSanityCheck = useCallback(async () => {
+    if (!title.trim()) return { passed: false, errors: ['Sheet name is required'] };
+    return { passed: true };
+  }, [title]);
+
+  const handleAutoSavePerform = useCallback(async () => {
+    signalActivity();
+    const fields: Record<string, unknown> = {
+      sources: JSON.stringify(activeSources),
+      bound_regions: sheetFields.bound_regions,
+      workbook_data: getWorkbookData(),
+      refresh_interval_seconds: sheetFields.refresh_interval_seconds,
+      is_public: sharing.is_public,
+      shared_users: sharing.shared_users,
+      shared_roles: sharing.shared_roles,
+    };
+    const result = await updateEntity('rf-sheets', {
+      id: numericId,
+      title: { rendered: title },
+      author: sheetAuthorId,
+      fields,
+    });
+    if (result.error) throw new Error(result.error);
+  }, [signalActivity, activeSources, sheetFields, sharing, getWorkbookData, numericId, title, sheetAuthorId]);
+
+  const autoSave = useAutoSave({
+    onSanityCheck: handleAutoSaveSanityCheck,
+    onSave: handleAutoSavePerform,
+    countdownDuration: 3000,
+    waitDuration: 5000,
+    enabled: isDesignMode && !isNew,
+  });
+
+  // Keep the ref bridge up-to-date
+  triggerAutoSaveRef.current = autoSave.triggerAutoSave;
+
+  // Trigger autosave when title or active sources change (for existing sheets).
+  // Always keep refs in sync, but only trigger autosave after initial data load
+  // has settled (prevTitleRef starts empty, so the first sync from existingSheet
+  // would be a false positive).
+  const prevTitleRef = useRef(title);
+  const prevSourcesRef = useRef(activeSources);
+  const initialSyncDoneRef = useRef(false);
+  useEffect(() => {
+    if (isNew || !isDesignMode) return;
+    const titleChanged = prevTitleRef.current !== title;
+    const sourcesChanged = prevSourcesRef.current !== activeSources;
+    prevTitleRef.current = title;
+    prevSourcesRef.current = activeSources;
+    if (!initialSyncDoneRef.current) {
+      // First render with design mode — skip trigger, just sync refs
+      initialSyncDoneRef.current = true;
+      return;
+    }
+    if (titleChanged || sourcesChanged) {
+      triggerAutoSaveRef.current();
+    }
+  }, [title, activeSources, isNew, isDesignMode]);
+
+  // Manual create for new sheets
+  const handleCreateSheet = async () => {
     if (!title.trim()) {
       toast.error('Sheet name is required');
       return;
     }
-
-    signalActivity(); // Reset lock inactivity timer on save
     setSaving(true);
     try {
       const fields: Record<string, unknown> = {
@@ -360,36 +438,28 @@ export function RfSheetPage() {
         shared_users: sharing.shared_users,
         shared_roles: sharing.shared_roles,
       };
-
-      if (isNew) {
-        const result = await createEntity('rf-sheets', {
-          title: { rendered: title },
-          author: currentUser?.id,
-          fields,
-        });
-        if (result.error) {
-          toast.error(result.error);
-        } else if (result.data) {
-          toast.success('Sheet created');
-          navigate(`/sheets/${result.data.id}`, { replace: true });
-        }
-      } else {
-        const result = await updateEntity('rf-sheets', {
-          id: numericId,
-          title: { rendered: title },
-          author: sheetAuthorId,
-          fields,
-        });
-        if (result.error) {
-          toast.error(result.error);
-        } else {
-          toast.success('Sheet saved');
-        }
+      const result = await createEntity('rf-sheets', {
+        title: { rendered: title },
+        author: currentUser?.id,
+        fields,
+      });
+      if (result.error) {
+        toast.error(result.error);
+      } else if (result.data) {
+        toast.success('Sheet created');
+        queryClient.invalidateQueries({ queryKey: ['entities', 'rf-sheets'] });
+        navigate(`/sheets/${result.data.id}`, { replace: true });
       }
     } finally {
       setSaving(false);
     }
   };
+
+  // Manual "Save Now" for existing sheets — immediate, bypasses countdown
+  const handleSaveNow = useCallback(async () => {
+    autoSave.cancel();
+    await autoSave.saveNow();
+  }, [autoSave]);
 
   const handleAddSource = (entityName: string) => {
     setActiveSources((prev) => (prev.includes(entityName) ? prev : [...prev, entityName]));
@@ -404,33 +474,11 @@ export function RfSheetPage() {
     setShowSharingDialog(false);
     if (isNew || !numericId) return; // Nothing to persist yet — will be saved with initial create.
 
-    signalActivity(); // Reset lock inactivity timer
-    setSaving(true);
-    try {
-      const result = await updateEntity('rf-sheets', {
-        id: numericId,
-        title: { rendered: title },
-        author: sheetAuthorId,
-        fields: {
-          sources: JSON.stringify(activeSources),
-          bound_regions: sheetFields.bound_regions,
-          workbook_data: getWorkbookData(),
-          refresh_interval_seconds: sheetFields.refresh_interval_seconds,
-          is_public: sharing.is_public,
-          shared_users: sharing.shared_users,
-          shared_roles: sharing.shared_roles,
-        },
-      });
-      if (result.error) {
-        toast.error(result.error);
-      } else {
-        toast.success('Sharing settings saved');
-        queryClient.invalidateQueries({ queryKey: ['entity', 'rf-sheets', numericId] });
-      }
-    } finally {
-      setSaving(false);
-    }
-  }, [isNew, numericId, title, activeSources, sheetFields, sharing, getWorkbookData, signalActivity, sheetAuthorId, queryClient]);
+    // Trigger an immediate save so sharing changes persist right away.
+    autoSave.cancel();
+    await autoSave.saveNow();
+    queryClient.invalidateQueries({ queryKey: ['entity', 'rf-sheets', numericId] });
+  }, [isNew, numericId, autoSave, queryClient]);
 
   // Drop handler — called from Univer's Drop event with the exact cell coordinates
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -566,7 +614,7 @@ export function RfSheetPage() {
       )}
       {/* Header */}
       <div className="flex items-center justify-between px-1 pb-3">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
           <button
             onClick={() => navigate('/sheets')}
             className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
@@ -588,7 +636,7 @@ export function RfSheetPage() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Untitled Sheet"
-              className="text-2xl font-bold text-gray-900 dark:text-gray-100 bg-transparent border-none outline-none placeholder-gray-400"
+              className="text-2xl font-bold text-gray-900 dark:text-gray-100 bg-transparent border-none outline-none placeholder-gray-400 min-w-0"
             />
           ) : (
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
@@ -596,7 +644,7 @@ export function RfSheetPage() {
             </h1>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           {dataStore.isLoading && (
             <span className="text-xs text-gray-400 animate-pulse">Fetching data...</span>
           )}
@@ -623,14 +671,24 @@ export function RfSheetPage() {
               <Share2 className="w-4 h-4" />
             </button>
           )}
-          {isDesignMode && (
+          {isDesignMode && isNew && (
             <button
-              onClick={handleSave}
+              onClick={handleCreateSheet}
               disabled={saving}
               className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
             >
               <Save className="w-4 h-4" />
               {saving ? 'Saving...' : 'Save'}
+            </button>
+          )}
+          {isDesignMode && !isNew && (
+            <button
+              onClick={handleSaveNow}
+              disabled={autoSave.status === 'saving'}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
+            >
+              <Save className="w-4 h-4" />
+              {autoSave.status === 'saving' ? 'Saving...' : 'Save Now'}
             </button>
           )}
         </div>
@@ -685,15 +743,28 @@ export function RfSheetPage() {
 
       {/* Sharing dialog */}
       {showSharingDialog && (
-        <SheetSharingDialog
+        <SharingDialog
           isOwner={isOwner}
           sharing={sharing}
           onChange={setSharing}
           onClose={handleSharingDone}
           entityName="rf-sheets"
+          entityDisplayName="Sheet"
           authorId={sheetAuthorId}
           onAuthorChange={setSheetAuthorId}
           isSystemOwner={isOwner && sheetAuthorId !== currentUser?.id}
+        />
+      )}
+
+      {/* Autosave indicator (existing sheets in design mode only) */}
+      {isDesignMode && !isNew && (
+        <AutoSaveIndicator
+          status={autoSave.status}
+          countdownRemaining={autoSave.countdownRemaining}
+          countdownTotal={autoSave.countdownTotal}
+          validationErrors={autoSave.validationErrors}
+          error={autoSave.error}
+          onDismissValidation={autoSave.dismissValidation}
         />
       )}
     </div>

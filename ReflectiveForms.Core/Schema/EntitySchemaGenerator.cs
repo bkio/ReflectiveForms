@@ -51,7 +51,9 @@ public static class EntitySchemaGenerator
                 HasCategories = config.HasCategories,
                 HasParentChild = config.HasParentChildRelationship,
                 RequireTitleUniqueness = config.RequireGlobalTitleUniqueness,
-                SupportsFrontendEdit = config.SupportsFrontendEdit
+                SupportsFrontendEdit = config.SupportsFrontendEdit,
+                HasIndividualSharing = config.HasIndividualSharing,
+                CustomFrontendListRoute = config.CustomFrontendListRoute
             },
             Fields = fields,
             ApiEndpoints = new ApiEndpoints

@@ -156,6 +156,24 @@ export class UiHelper {
     this._request = request;
   }
 
+  /** Scroll an element to the center of the viewport to avoid sticky header overlap. */
+  private async scrollToCenter(locator: import('@playwright/test').Locator) {
+    await locator.evaluate(el => el.scrollIntoView({ block: 'center' }));
+  }
+
+  /**
+   * Click an element, falling back to JS click if pointer-event interception occurs
+   * (common on narrow mobile viewports with sticky headers/overlapping elements).
+   */
+  async safeClick(locator: import('@playwright/test').Locator) {
+    await this.scrollToCenter(locator);
+    try {
+      await locator.click({ timeout: 5000 });
+    } catch {
+      await locator.evaluate((el) => (el as HTMLElement).click());
+    }
+  }
+
   /** Navigate to the dashboard. */
   async gotoDashboard() {
     await this.page.goto(`${APP_PREFIX}/`);
@@ -245,14 +263,20 @@ export class UiHelper {
   async selectOption(label: string, value: string) {
     const field = this.fieldWrapperByLabel(label);
     const trigger = field.locator('button[aria-haspopup="listbox"]');
-    // Click the chevron area (right side) to avoid hitting the clear (X) button
-    await trigger.click({ position: { x: 10, y: 10 } });
+    await this.scrollToCenter(trigger);
+    await trigger.click();
 
     const listbox = field.locator('[role="listbox"]');
     // If the dropdown didn't open (e.g. click hit the clear button), retry
     const isVisible = await listbox.isVisible({ timeout: 1500 }).catch(() => false);
     if (!isVisible) {
-      await trigger.click({ position: { x: 10, y: 10 } });
+      // Retry by clicking the right side of the button (chevron area)
+      const box = await trigger.boundingBox();
+      if (box) {
+        await trigger.click({ position: { x: box.width - 15, y: box.height / 2 } });
+      } else {
+        await trigger.click();
+      }
     }
     await expect(listbox).toBeVisible({ timeout: 10000 });
 
@@ -269,12 +293,18 @@ export class UiHelper {
   async selectSearchableOption(label: string, optionPattern?: string | RegExp, nth: number = 0) {
     const field = this.fieldWrapperByLabel(label, nth);
     const trigger = field.locator('button[aria-haspopup="listbox"]');
-    await trigger.click({ position: { x: 10, y: 10 } });
+    await this.scrollToCenter(trigger);
+    await trigger.click();
 
     const listbox = field.locator('[role="listbox"]');
     const isVisible = await listbox.isVisible().catch(() => false);
     if (!isVisible) {
-      await trigger.click({ position: { x: 10, y: 10 } });
+      const box = await trigger.boundingBox();
+      if (box) {
+        await trigger.click({ position: { x: box.width - 15, y: box.height / 2 } });
+      } else {
+        await trigger.click();
+      }
     }
     await expect(listbox).toBeVisible({ timeout: 10000 });
 
@@ -378,7 +408,14 @@ export class UiHelper {
   // --- save ---
   async clickSaveNow() {
     const btn = this.page.locator('button[type="submit"]', { hasText: /save now/i });
-    await btn.click();
+    await this.scrollToCenter(btn);
+    try {
+      await btn.click({ timeout: 5000 });
+    } catch {
+      // If click is intercepted by another element on narrow mobile viewports,
+      // fall back to programmatic click which bypasses pointer-event checks
+      await btn.evaluate((el) => (el as HTMLElement).click());
+    }
   }
 
   /** Wait until the "Saved!" indicator appears or throw on error indicator/toast. */

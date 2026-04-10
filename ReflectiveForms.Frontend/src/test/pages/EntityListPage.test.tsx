@@ -8,6 +8,7 @@ import { PeekEntity } from '../../types/schema';
 
 vi.mock('../../hooks/useEntity', () => ({
   useSchema: vi.fn(),
+  useAllSchemas: vi.fn(() => ({ data: undefined })),
   useEntityList: vi.fn(),
   useDeleteEntity: vi.fn(),
   useCapabilities: vi.fn(() => ({ data: undefined, isLoading: false, isSuccess: false })),
@@ -29,6 +30,8 @@ const mockSchema = {
     has_parent_child: false,
     require_title_uniqueness: false,
     supports_frontend_edit: true,
+    has_individual_sharing: false,
+    custom_frontend_list_route: null,
   },
   fields: [],
   api_endpoints: {

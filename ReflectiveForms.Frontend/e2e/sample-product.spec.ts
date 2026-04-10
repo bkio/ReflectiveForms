@@ -229,7 +229,7 @@ test.describe('Product CRUD', () => {
 
     // Remove last variant
     const last = variants.nth(countBefore - 1);
-    await last.locator('button[title="Remove"]').click();
+    await ui.safeClick(last.locator('button[title="Remove"]'));
 
     await ui.clickSaveNow();
     await ui.waitForSave();

@@ -24,7 +24,7 @@ export function DashboardPage() {
   }
 
   const entityTypes = Object.values(schemas ?? {}).filter(
-    (s) => s.entity_name !== 'rf-sheets' && (!capabilities || capabilities[s.entity_name]?.can_peek_all)
+    (s) => !s.features.has_individual_sharing && (!capabilities || capabilities[s.entity_name]?.can_peek_all)
   );
   const editableTypes = entityTypes.filter((s) => s.features.supports_frontend_edit);
 
