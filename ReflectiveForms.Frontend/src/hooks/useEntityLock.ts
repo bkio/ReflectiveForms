@@ -4,6 +4,28 @@ import { tryLockEntity, unlockEntity, fetchLockStatus, getApiBaseUrl } from '../
 
 const HEARTBEAT_CHECK_INTERVAL = 15000; // Check every 15 seconds
 const INACTIVITY_TIMEOUT = 60000; // Lock expires after 60 seconds of no save activity
+const TAB_ID_KEY = '__rf_tab_id';
+
+/**
+ * Get or create a unique tab identifier.
+ * Uses sessionStorage which is scoped per browser tab — different tabs get
+ * different storage even for the same origin. The value survives page
+ * refreshes (F5) within the same tab, which is the desired behaviour so
+ * the refreshed page re-acquires the same lock.
+ */
+function getTabId(): string {
+  try {
+    let id = sessionStorage.getItem(TAB_ID_KEY);
+    if (!id) {
+      id = crypto.randomUUID();
+      sessionStorage.setItem(TAB_ID_KEY, id);
+    }
+    return id;
+  } catch {
+    // sessionStorage unavailable (SSR, iframe sandbox) — fall back to in-memory
+    return crypto.randomUUID();
+  }
+}
 
 interface UseEntityLockOptions {
   enabled?: boolean;
@@ -17,6 +39,9 @@ export function useEntityLock(
   options: UseEntityLockOptions = {}
 ) {
   const { enabled = true, onLockFailed, onLockLost } = options;
+
+  // Stable per-tab identifier — survives F5 refresh, unique across tabs
+  const tabIdRef = useRef(getTabId());
 
   const lockIntervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isLockedRef = useRef(false);
@@ -39,7 +64,7 @@ export function useEntityLock(
     }
 
     try {
-      const result = await tryLockEntity(entityName, entityId);
+      const result = await tryLockEntity(entityName, entityId, tabIdRef.current);
 
       if (result.error) {
         // Check if it's a "locked by another user" error (case-insensitive)
@@ -83,7 +108,7 @@ export function useEntityLock(
     }
 
     try {
-      await unlockEntity(entityName, entityId);
+      await unlockEntity(entityName, entityId, tabIdRef.current);
       isLockedRef.current = false;
       setLockStatus('idle');
     } catch (error) {
@@ -165,7 +190,7 @@ export function useEntityLock(
         // Use sendBeacon with form data for reliable delivery on page unload.
         // sendBeacon with Blob sends as a simple CORS request (no preflight),
         // and the URL includes all params so the body is just a placeholder.
-        const url = `${getApiBaseUrl()}/entity_lock_control?type=${encodeURIComponent(entityName)}&id=${entityId}&operation=try_unlock`;
+        const url = `${getApiBaseUrl()}/entity_lock_control?type=${encodeURIComponent(entityName)}&id=${entityId}&operation=try_unlock&tab_id=${encodeURIComponent(tabIdRef.current)}`;
         const blob = new Blob(['{}'], { type: 'application/x-www-form-urlencoded' });
         navigator.sendBeacon(url, blob);
       }

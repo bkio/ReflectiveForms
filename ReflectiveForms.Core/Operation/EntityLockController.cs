@@ -18,11 +18,22 @@ public class EntityLockState
 
     [JsonProperty("locked_by_user_name")]
     public required string? LockedByUserName { get; init; }
+
+    /// <summary>
+    /// Unique identifier for the browser tab holding the lock.
+    /// When the same user opens a second tab, the tab_id differs from the
+    /// one stored here, so the second tab is denied the lock.
+    /// Null for legacy locks created before this field was introduced.
+    /// </summary>
+    [JsonProperty("locked_by_tab_id")]
+    public string? LockedByTabId { get; init; }
 }
 public enum EntityLockOwnerStatus
 {
     OwnedByUser,
     OwnedByOtherUser,
+    /// <summary>Same user but a different browser tab.</summary>
+    OwnedByUserDifferentTab,
     NotLocked
 }
 public record EntityLockOwnerStatusAndEntityLockState(EntityLockOwnerStatus OwnerStatus, EntityLockState? LockState);
@@ -110,7 +121,8 @@ public static class EntityLockController
         string entityType,
         int id,
         int userId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? tabId = null)
     {
         var getLockStatusResult = await GetLockStatusAsync(entityType, id, cancellationToken);
         if (!getLockStatusResult.IsSuccessful)
@@ -120,11 +132,22 @@ public static class EntityLockController
 
         if (state != null)
         {
-            return state.LockedByUserId == userId
-                ? OperationResult<EntityLockOwnerStatusAndEntityLockState>.Success(
-                    new EntityLockOwnerStatusAndEntityLockState(EntityLockOwnerStatus.OwnedByUser, state))
-                : OperationResult<EntityLockOwnerStatusAndEntityLockState>.Success(
+            if (state.LockedByUserId != userId)
+                return OperationResult<EntityLockOwnerStatusAndEntityLockState>.Success(
                     new EntityLockOwnerStatusAndEntityLockState(EntityLockOwnerStatus.OwnedByOtherUser, state));
+
+            // Same user — check tab_id. If both the stored and incoming tab_id are present
+            // and they differ, this is a different browser tab.
+            if (!string.IsNullOrEmpty(tabId)
+                && !string.IsNullOrEmpty(state.LockedByTabId)
+                && !string.Equals(tabId, state.LockedByTabId, StringComparison.Ordinal))
+            {
+                return OperationResult<EntityLockOwnerStatusAndEntityLockState>.Success(
+                    new EntityLockOwnerStatusAndEntityLockState(EntityLockOwnerStatus.OwnedByUserDifferentTab, state));
+            }
+
+            return OperationResult<EntityLockOwnerStatusAndEntityLockState>.Success(
+                new EntityLockOwnerStatusAndEntityLockState(EntityLockOwnerStatus.OwnedByUser, state));
         }
         return OperationResult<EntityLockOwnerStatusAndEntityLockState>.Success(
             new EntityLockOwnerStatusAndEntityLockState(EntityLockOwnerStatus.NotLocked, null));
@@ -162,7 +185,8 @@ public static class EntityLockController
         string entityType,
         int id,
         int userId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? tabId = null)
     {
         var memoryScope = new MemoryScopeLambda($"{EntityLockMemoryScopePrefix}:{entityType}:{id}");
 
@@ -172,14 +196,25 @@ public static class EntityLockController
 
         await using var mutex = await CreateEntityMutexAsync(entityType, id, cancellationToken);
 
-        var lockCheckResult = await CheckIfLockIsLockedByUserIdUnsafeAsync(entityType, id, userId, cancellationToken);
+        var lockCheckResult = await CheckIfLockIsLockedByUserIdUnsafeAsync(entityType, id, userId, cancellationToken, tabId);
         if (!lockCheckResult.IsSuccessful)
             return OperationResult<bool>.Failure(lockCheckResult.ErrorMessage, lockCheckResult.StatusCode);
 
         switch (lockCheckResult.Data.OwnerStatus)
         {
             case EntityLockOwnerStatus.OwnedByUser:
-                return OperationResult<bool>.Success(true);
+                // Same user, same tab — refresh TTL and return success
+                var existingState = lockCheckResult.Data.LockState!;
+                var refreshedState = new EntityLockState
+                {
+                    EntityId = existingState.EntityId,
+                    LockedByUserId = existingState.LockedByUserId,
+                    LockedByUserName = existingState.LockedByUserName,
+                    LockedByTabId = existingState.LockedByTabId
+                };
+                return await SetTtlAndNewLockStateUnsafeAsync(memoryScope, refreshedState, cancellationToken);
+            case EntityLockOwnerStatus.OwnedByUserDifferentTab:
+                return OperationResult<bool>.Failure("Lock is held by you in another tab/window.", HttpStatusCode.Conflict);
             case EntityLockOwnerStatus.OwnedByOtherUser:
                 return OperationResult<bool>.Failure($"Lock-owning user is owned by another user.", HttpStatusCode.Conflict);
             case EntityLockOwnerStatus.NotLocked:
@@ -191,7 +226,8 @@ public static class EntityLockController
         {
             EntityId = id,
             LockedByUserId = userId,
-            LockedByUserName = userObject.Title.Text
+            LockedByUserName = userObject.Title.Text,
+            LockedByTabId = tabId
         };
         return await SetTtlAndNewLockStateUnsafeAsync(memoryScope, newLockObject, cancellationToken);
     }
@@ -199,13 +235,14 @@ public static class EntityLockController
         string entityType,
         int id,
         int userId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? tabId = null)
     {
         var memoryScope = new MemoryScopeLambda($"{EntityLockMemoryScopePrefix}:{entityType}:{id}");
 
         await using var mutex = await CreateEntityMutexAsync(entityType, id, cancellationToken);
 
-        var lockCheckResult = await CheckIfLockIsLockedByUserIdUnsafeAsync(entityType, id, userId, cancellationToken);
+        var lockCheckResult = await CheckIfLockIsLockedByUserIdUnsafeAsync(entityType, id, userId, cancellationToken, tabId);
         if (!lockCheckResult.IsSuccessful)
             return OperationResult<bool>.Failure(lockCheckResult.ErrorMessage, lockCheckResult.StatusCode);
 
@@ -213,6 +250,9 @@ public static class EntityLockController
         {
             case EntityLockOwnerStatus.OwnedByOtherUser:
                 return OperationResult<bool>.Failure($"Lock is owned by another user.", HttpStatusCode.Conflict);
+            case EntityLockOwnerStatus.OwnedByUserDifferentTab:
+                // Cannot unlock a lock held by your other tab
+                return OperationResult<bool>.Failure("Lock is held by you in another tab/window.", HttpStatusCode.Conflict);
             case EntityLockOwnerStatus.NotLocked:
                 return OperationResult<bool>.Success(true);
             case EntityLockOwnerStatus.OwnedByUser:
@@ -228,13 +268,13 @@ public static class EntityLockController
 
         return OperationResult<bool>.Success(true);
     }
-    public static async Task<OperationResult<bool>> HeartbeatAsync(string entityType, int id, int userId, CancellationToken cancellationToken)
+    public static async Task<OperationResult<bool>> HeartbeatAsync(string entityType, int id, int userId, CancellationToken cancellationToken, string? tabId = null)
     {
         var memoryScope = new MemoryScopeLambda($"{EntityLockMemoryScopePrefix}:{entityType}:{id}");
 
         await using var mutex = await CreateEntityMutexAsync(entityType, id, cancellationToken);
 
-        var lockCheckResult = await CheckIfLockIsLockedByUserIdUnsafeAsync(entityType, id, userId, cancellationToken);
+        var lockCheckResult = await CheckIfLockIsLockedByUserIdUnsafeAsync(entityType, id, userId, cancellationToken, tabId);
         if (!lockCheckResult.IsSuccessful)
             return OperationResult<bool>.Failure(lockCheckResult.ErrorMessage, lockCheckResult.StatusCode);
 
@@ -242,6 +282,8 @@ public static class EntityLockController
         {
             case EntityLockOwnerStatus.OwnedByOtherUser:
                 return OperationResult<bool>.Failure($"Lock is owned by another user.", HttpStatusCode.Conflict);
+            case EntityLockOwnerStatus.OwnedByUserDifferentTab:
+                return OperationResult<bool>.Failure("Lock is held by you in another tab/window.", HttpStatusCode.Conflict);
             case EntityLockOwnerStatus.NotLocked:
                 return OperationResult<bool>.Failure($"Lock is not locked.", HttpStatusCode.BadRequest);
             case EntityLockOwnerStatus.OwnedByUser:

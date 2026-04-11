@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState } from 'react';
+import { useRef, useCallback, useState, useEffect } from 'react';
 
 interface UseAutoSaveOptions {
   onSanityCheck: () => Promise<{ passed: boolean; errors?: string[] }>;
@@ -172,6 +172,16 @@ export function useAutoSave({
   const dismissValidation = useCallback(() => {
     setStatus(prev => (prev.status === 'validation-error' ? { ...prev, status: 'idle', validationErrors: [] } : prev));
   }, [setStatus]);
+
+  // Cancel any in-flight timers when enabled becomes false (e.g. lock lost).
+  // Without this, a countdown that was already running would complete and fire
+  // performSave even though the caller disabled autosave.
+  useEffect(() => {
+    if (!enabled) {
+      clearTimers();
+      setStatus(prev => (prev.status !== 'idle' && prev.status !== 'saved' ? { ...prev, status: 'idle', countdownRemaining: 0 } : prev));
+    }
+  }, [enabled, clearTimers, setStatus]);
 
   return {
     ...state,

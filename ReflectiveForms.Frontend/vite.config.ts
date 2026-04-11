@@ -44,6 +44,7 @@ export default defineConfig({
       '/rf/api': {
         target: 'http://localhost:9000',
         changeOrigin: true,
+        ws: true,
       },
     },
   },

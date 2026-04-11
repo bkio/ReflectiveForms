@@ -35,6 +35,8 @@ export {
 } from '../hooks/useEntity';
 export { useEntityLock } from '../hooks/useEntityLock';
 export { useAutoSave } from '../hooks/useAutoSave';
+export { useLiveUpdates } from '../hooks/useLiveUpdates';
+export type { LiveUpdateRole, LiveConnectionStatus } from '../hooks/useLiveUpdates';
 export { AuthProvider, useAuth } from '../hooks/useAuth';
 export type { UserInfo } from '../hooks/useAuth';
 export { getFieldTypes, findFieldInSchema, getAllFieldPaths } from '../hooks/useSchema';

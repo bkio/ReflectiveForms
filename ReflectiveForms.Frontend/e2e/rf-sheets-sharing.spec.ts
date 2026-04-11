@@ -747,10 +747,8 @@ test.describe('RF Sheets — Sharing & Access Control', () => {
         return false;
       }, undefined, { timeout: 15000 });
 
-      // Find User A's option in the user select
-      const userOption = userSelect.locator('option').filter({ hasText: /Sheet User A/i });
-      const userValue = await userOption.getAttribute('value');
-      await userSelect.selectOption(userValue!);
+      // Select User A by exact id to avoid stale user entries from prior runs.
+      await userSelect.selectOption(String(userAId));
 
       // Click the "Add" button for users (the first "Add" button after the user select)
       const addBtn = page.locator('button', { hasText: /^Add$/ }).first();
@@ -777,9 +775,8 @@ test.describe('RF Sheets — Sharing & Access Control', () => {
       await page.locator('button', { hasText: /^Done$/ }).click();
       // Wait for dialog to close
       await expect(page.locator('text=Sharing Settings')).not.toBeVisible({ timeout: 3000 });
-      // Save
-      await page.locator('button', { hasText: /^Save$/ }).click();
-      await expect(page.locator('text=Sheet saved')).toBeVisible({ timeout: 10000 });
+      // handleSharingDone auto-saves — wait for the autosave "Saved!" indicator
+      await expect(page.locator('[data-testid="autosave-saved"]')).toBeVisible({ timeout: 10000 });
     });
 
     await test.step('verify sharing persisted via API', async () => {
@@ -888,7 +885,7 @@ test.describe('RF Sheets — Sharing & Access Control', () => {
     await test.step('Save button IS visible (edit permission)', async () => {
       // Lock acquisition may take time: login + navigate + sheet data fetch + lock API call + re-render.
       // Wait for either the Save button OR the read-only banner, then assert based on what appeared.
-      const saveBtn = page.locator('button', { hasText: /^Save$/ });
+      const saveBtn = page.locator('button', { hasText: /Save Now/ });
       const readOnlyBanner = page.locator('text=read-only mode');
 
       // Wait for either to appear

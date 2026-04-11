@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, GripVertical, Database, Lock } from 'lucide-react';
-import type { EntitySchema, FieldSchema } from '../../types/schema';
+import type { AllCapabilities, EntitySchema, FieldSchema } from '../../types/schema';
 
 export interface EntitySourcePanelProps {
   /** All schemas the user can see */
@@ -9,6 +9,8 @@ export interface EntitySourcePanelProps {
   activeSources: string[];
   /** Entities the current user doesn't have permission for */
   unauthorizedEntities: Set<string>;
+  /** Per-entity-type capabilities for the current user */
+  capabilities?: AllCapabilities;
   /** Called when user wants to add a source entity */
   onAddSource: (entityName: string) => void;
   /** Called when user wants to remove a source entity */
@@ -19,6 +21,7 @@ export function EntitySourcePanel({
   schemas,
   activeSources,
   unauthorizedEntities,
+  capabilities,
   onAddSource,
   onRemoveSource,
 }: EntitySourcePanelProps) {
@@ -38,7 +41,8 @@ export function EntitySourcePanel({
   };
 
   const availableEntities = Object.keys(schemas).filter(
-    (name) => !activeSources.includes(name) && name !== 'rf-sheets',
+    (name) => !activeSources.includes(name) && name !== 'rf-sheets'
+      && (!capabilities || capabilities[name]?.can_peek_all || capabilities[name]?.can_read),
   );
 
   return (

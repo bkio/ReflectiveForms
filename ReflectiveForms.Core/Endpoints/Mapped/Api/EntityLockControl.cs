@@ -14,6 +14,9 @@ namespace ReflectiveForms.Core.Endpoints.Mapped.Api;
 
 internal class EntityLockControl: BaseEndpoint
 {
+    /// <summary>Per-request tab identifier extracted from the query string.</summary>
+    private string? _tabId;
+
     public override ImmutableHashSet<RequestHttpVerb> AllowedMethods()
     {
         return [RequestHttpVerb.Get, RequestHttpVerb.Post];
@@ -27,6 +30,10 @@ internal class EntityLockControl: BaseEndpoint
     protected override async Task<IResult> HandleAsync(HttpContext context, CancellationToken cancellationToken)
     {
         var request = context.Request;
+
+        // Extract optional tab_id for per-tab lock isolation
+        _tabId = request.Query.TryGetValue("tab_id", out var tabVal) ? tabVal.ToString() : null;
+        if (string.IsNullOrWhiteSpace(_tabId)) _tabId = null;
 
         // Validate query params
         if (!request.TryGetTypeParameter(out var entityName, out var failedResult))
@@ -128,7 +135,7 @@ internal class EntityLockControl: BaseEndpoint
 
     private async Task<IResult> HeartbeatAsync(string entityName, int id, CancellationToken cancellationToken)
     {
-        var result = await EntityLockController.HeartbeatAsync(entityName, id,  RequesterUser.NotNull().Id, cancellationToken);
+        var result = await EntityLockController.HeartbeatAsync(entityName, id,  RequesterUser.NotNull().Id, cancellationToken, _tabId);
         return !result.IsSuccessful
             ? result.StatusCode.ToResult(result.ErrorMessage)
             : HttpStatusCode.OK.ToResult("Heartbeat successful.");
@@ -136,7 +143,7 @@ internal class EntityLockControl: BaseEndpoint
 
     private async Task<IResult> TryUnlockAsync(string entityName, int id, CancellationToken cancellationToken)
     {
-        var result = await EntityLockController.TryToUnlockAsync(entityName, id,  RequesterUser.NotNull().Id, cancellationToken);
+        var result = await EntityLockController.TryToUnlockAsync(entityName, id,  RequesterUser.NotNull().Id, cancellationToken, _tabId);
         return !result.IsSuccessful
             ? result.StatusCode.ToResult(result.ErrorMessage)
             : HttpStatusCode.OK.ToResult("Unlock successful.");
@@ -156,7 +163,7 @@ internal class EntityLockControl: BaseEndpoint
                 return HttpStatusCode.Forbidden.ToResult("You do not have edit access to this entity.");
         }
 
-        var result = await EntityLockController.TryToLockAsync(entityName, id, RequesterUser.NotNull().Id, cancellationToken);
+        var result = await EntityLockController.TryToLockAsync(entityName, id, RequesterUser.NotNull().Id, cancellationToken, _tabId);
         return !result.IsSuccessful
             ? result.StatusCode.ToResult(result.ErrorMessage)
             : HttpStatusCode.OK.ToResult("Lock successful.");

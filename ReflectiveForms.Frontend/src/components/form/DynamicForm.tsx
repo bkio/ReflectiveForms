@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useForm, FormProvider, UseFormReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { toast } from 'sonner';
 import { Lock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { EntitySchema, EntityData } from '../../types/schema';
@@ -10,6 +9,7 @@ import { FormField } from '../fields/FormField';
 import { useSanityCheck, useCreateEntity, useUpdateEntity } from '../../hooks/useEntity';
 import { useEntityLock } from '../../hooks/useEntityLock';
 import { useAutoSave } from '../../hooks/useAutoSave';
+import { useLiveUpdates } from '../../hooks/useLiveUpdates';
 import { AutoSaveIndicator } from './AutoSaveIndicator';
 import { SearchableSelect } from './SearchableSelect';
 
@@ -21,7 +21,7 @@ interface DynamicFormProps {
 }
 
 export function DynamicForm({ schema, initialData, entityId, onSuccess }: DynamicFormProps) {
-  const isCreateMode = entityId === undefined || entityId < 0;
+  const isCreateMode = entityId === undefined || Number.isNaN(entityId) || entityId < 0;
   const formRef = useRef<HTMLFormElement>(null);
   const navigate = useNavigate();
 
@@ -135,6 +135,35 @@ export function DynamicForm({ schema, initialData, entityId, onSuccess }: Dynami
     enabled: !isFormDisabled,
   });
 
+  // Live updates: when form is the active editor, broadcast changes to viewers.
+  // When this window failed to acquire the lock (isFormDisabled), connect as a
+  // viewer instead so the locked-out editor also receives live updates.
+  // IMPORTANT: only claim editor role after the lock is confirmed ('locked').
+  // During 'idle' (lock in-flight) we must NOT connect as editor — doing so
+  // would overwrite the real editor's server-side room reference.
+  const liveRole = (!isCreateMode && lockStatus === 'locked') ? 'editor' : 'viewer';
+  const handleLiveViewerUpdate = useCallback(
+    (data: Record<string, unknown>) => {
+      // Silently update the disabled form so the locked-out editor sees changes
+      if (isFormDisabled) {
+        const entries = Object.entries(data);
+        for (const [key, value] of entries) {
+          form.setValue(key, value, { shouldDirty: false, shouldValidate: false });
+        }
+      }
+    },
+    [form, isFormDisabled],
+  );
+  const { broadcastUpdate } = useLiveUpdates({
+    entityName: schema.entity_name,
+    entityId,
+    role: liveRole,
+    onUpdate: handleLiveViewerUpdate,
+    enabled: !isCreateMode && lockStatus !== 'idle',
+  });
+  const broadcastUpdateRef = useRef(broadcastUpdate);
+  broadcastUpdateRef.current = broadcastUpdate;
+
   // Track dirty state and trigger autosave on blur OR debounced value commit.
   // Blur covers text inputs; debounce covers Controller-based fields (Select,
   // Relation, Wysiwyg, Media, Repeater) that don't emit focus/blur.
@@ -151,6 +180,9 @@ export function DynamicForm({ schema, initialData, entityId, onSuccess }: Dynami
     if (isFormDisabled) return;
     const subscription = form.watch(() => {
       isDirtyRef.current = true;
+
+      // Broadcast live update to viewers (debounced inside the hook)
+      broadcastUpdateRef.current(form.getValues() as Record<string, unknown>);
 
       // Debounce: if no further change within 600ms, treat as "committed"
       if (commitTimerRef.current) clearTimeout(commitTimerRef.current);

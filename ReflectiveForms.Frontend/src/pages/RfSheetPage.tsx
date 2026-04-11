@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, RefreshCw, PanelLeftClose, PanelLeft, Download, AlertTriangle, Share2, Lock, Eye } from 'lucide-react';
-import { useEntity, useAllSchemas } from '../hooks/useEntity';
+import { ArrowLeft, Save, RefreshCw, PanelLeftClose, PanelLeft, Download, AlertTriangle, Share2, Lock, Eye, Radio } from 'lucide-react';
+import { useEntity, useAllSchemas, useCapabilities } from '../hooks/useEntity';
 import { createEntity, updateEntity, fetchLockStatus } from '../api/client';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -21,6 +21,7 @@ import type { RepeaterFormulaChoice } from '../components/sheets/RepeaterDropDia
 import { SharingDialog } from '../components/sharing/SharingDialog';
 import type { SharingState } from '../components/sharing/SharingDialog';
 import type { BulkReadSource, FieldSchema } from '../types/schema';
+import { useLiveUpdates } from '../hooks/useLiveUpdates';
 
 // Univer imports
 import { UniverSheetsCorePreset } from '@univerjs/preset-sheets-core';
@@ -83,10 +84,12 @@ export function RfSheetPage() {
   const { sheetId } = useParams<{ sheetId: string }>();
   const navigate = useNavigate();
   const isNew = sheetId === 'new';
-  const numericId = isNew ? undefined : Number(sheetId);
+  const parsed = isNew ? NaN : Number(sheetId);
+  const numericId = Number.isNaN(parsed) ? undefined : parsed;
 
   const { data: existingSheet, isLoading } = useEntity('rf-sheets', numericId);
   const { data: schemas } = useAllSchemas();
+  const { data: capabilities } = useCapabilities();
   const { user: currentUser } = useAuth();
   const queryClient = useQueryClient();
   const [title, setTitle] = useState('');
@@ -105,6 +108,8 @@ export function RfSheetPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const univerAPIRef = useRef<any>(null);
   const formulaDisposableRef = useRef<{ dispose: () => void } | null>(null);
+  // Ref bridge: live-update handler calls updateRequiredFields defined later
+  const updateRequiredFieldsRef = useRef<() => void>(() => {});
 
   // Mutable context ref — formulas read from this. Avoids dispose/re-register on data change.
   const formulaContextRef = useRef<FormulaContext>({
@@ -159,6 +164,109 @@ export function RfSheetPage() {
   );
   // For existing sheets: must hold the lock to edit. While lock is in-flight (idle), stay read-only.
   const isDesignMode = isNew ? true : (hasEditRight && lockStatus === 'locked');
+
+  // Live updates: editor broadcasts workbook snapshots, viewers receive them
+  const [hasReceivedLiveData, setHasReceivedLiveData] = useState(false);
+  // Always buffer the latest live update for replay after Univer (re)init.
+  // This is critical because React StrictMode in dev may destroy and recreate
+  // Univer, and the live data applied to the first instance would be lost.
+  const pendingLiveUpdateRef = useRef<Record<string, unknown> | null>(null);
+  // Ref bridge: callback reads latest design mode without closing over stale state
+  const isDesignModeRef = useRef(isDesignMode);
+  isDesignModeRef.current = isDesignMode;
+  const handleSheetLiveUpdate = useCallback((data: Record<string, unknown>) => {
+    // Always store for replay on next Univer init (StrictMode resilience)
+    pendingLiveUpdateRef.current = data;
+    // Editors are the source of broadcasts — don't process incoming live updates.
+    // A stale viewer WS from StrictMode may still be open, so guard at handler level.
+    if (isDesignModeRef.current) return;
+    if (!univerAPIRef.current) return;
+    try {
+      const workbookData = data.workbook_data;
+      if (typeof workbookData === 'string') {
+        const parsed = JSON.parse(workbookData);
+        const stripped = stripFormulaCachedValues(parsed as Record<string, unknown>);
+        // Remove the workbook `id` to avoid "cannot create unit with same id" errors.
+        // FWorkbook.dispose() in Univer 0.20 does not properly unregister the unit id
+        // from UniverInstanceService, so createWorkbook with the same id fails.
+        delete stripped.id;
+        const workbook = univerAPIRef.current.getActiveWorkbook();
+
+        // Preserve viewer viewport: capture scroll position and active sheet before replacing
+        let savedSheetId: string | undefined;
+        let savedScrollTop = 0;
+        let savedScrollLeft = 0;
+        if (workbook) {
+          try {
+            const activeSheet = workbook.getActiveSheet();
+            savedSheetId = activeSheet?.getSheetId();
+            // Capture scroll position from the Univer container's scrollable element
+            const container = document.querySelector('.univer-render-canvas')?.closest('.univer-render-viewport') as HTMLElement | null;
+            if (container) {
+              savedScrollTop = container.scrollTop;
+              savedScrollLeft = container.scrollLeft;
+            }
+          } catch { /* ignore */ }
+          workbook.dispose();
+        }
+        univerAPIRef.current.createWorkbook(stripped);
+        // Re-extract required fields from the new workbook so that any newly
+        // referenced entity fields are included in the next bulk_read fetch.
+        // Without this, formulas referencing fields not in the previous
+        // requiredFields would evaluate to #FIELD_REMOVED.
+        updateRequiredFieldsRef.current();
+        // Viewers: re-apply read-only after workbook replacement (createWorkbook resets permissions)
+        try {
+          const newWb = univerAPIRef.current.getActiveWorkbook();
+          if (newWb) newWb.setEditable(false);
+        } catch { /* ignore */ }
+        univerAPIRef.current.getFormula()?.executeCalculation();
+
+        // Restore viewport: activate the same sheet and scroll position
+        try {
+          if (savedSheetId) {
+            const newWorkbook = univerAPIRef.current.getActiveWorkbook();
+            if (newWorkbook) {
+              const targetSheet = newWorkbook.getSheetBySheetId(savedSheetId);
+              if (targetSheet) {
+                targetSheet.activate();
+              }
+            }
+          }
+          const container = document.querySelector('.univer-render-canvas')?.closest('.univer-render-viewport') as HTMLElement | null;
+          if (container) {
+            container.scrollTop = savedScrollTop;
+            container.scrollLeft = savedScrollLeft;
+          }
+        } catch { /* ignore scroll restore errors */ }
+      }
+      // Update title if present
+      if (typeof data.title === 'string') {
+        setTitle(data.title);
+      }
+      // Update sources if present
+      if (Array.isArray(data.sources)) {
+        setActiveSources(data.sources as string[]);
+      }
+      setHasReceivedLiveData(true);
+    } catch { /* ignore parse errors from live stream */ }
+  }, []);
+  const liveUpdateBroadcastRef = useRef<(data: Record<string, unknown>) => void>(() => {});
+  const { broadcastUpdate: liveUpdateBroadcast, status: liveConnectionStatus } = useLiveUpdates({
+    entityName: 'rf-sheets',
+    entityId: numericId,
+    role: isDesignMode ? 'editor' : 'viewer',
+    onUpdate: handleSheetLiveUpdate,
+    enabled: !isNew && numericId !== undefined,
+  });
+  liveUpdateBroadcastRef.current = liveUpdateBroadcast;
+  // Reset live-data flag when navigating to a different sheet
+  useEffect(() => { setHasReceivedLiveData(false); }, [numericId]);
+  const isLive = !isDesignMode && liveConnectionStatus === 'connected' && hasReceivedLiveData;
+
+  // Ref bridge so the Univer command listener can read live sources without stale closure
+  const activeSourcesRef = useRef<string[]>(activeSources);
+  activeSourcesRef.current = activeSources;
 
   // For read-only viewers (no edit right) or locked-out editors: poll lock status to show banner
   const showLockPoll = !isNew && numericId !== undefined && !isDesignMode;
@@ -283,8 +391,32 @@ export function RfSheetPage() {
     const commandDisposable = univerAPI.onCommandExecuted((commandInfo: any) => {
       if (commandInfo.type === 0) {
         triggerAutoSaveRef.current();
+        // Broadcast live update to viewers
+        try {
+          const workbook = univerAPI.getActiveWorkbook();
+          if (workbook) {
+            const snapshotJson = JSON.stringify(workbook.save());
+            // Guard: skip broadcast if snapshot exceeds ~400 KB (server limit is 512 KB)
+            if (snapshotJson.length > 400_000) {
+              console.warn(`[RfSheet] Live update skipped: workbook snapshot is ${(snapshotJson.length / 1024).toFixed(0)} KB (limit ~400 KB)`);
+            } else {
+              liveUpdateBroadcastRef.current({
+                workbook_data: snapshotJson,
+                title: document.querySelector<HTMLInputElement>('input[data-testid="sheet-title-input"]')?.value ?? '',
+                sources: activeSourcesRef.current,
+              });
+            }
+          }
+        } catch { /* Univer not ready */ }
       }
     });
+
+    // Replay any live update that arrived before Univer was ready
+    if (pendingLiveUpdateRef.current) {
+      const pending = pendingLiveUpdateRef.current;
+      pendingLiveUpdateRef.current = null;
+      handleSheetLiveUpdate(pending);
+    }
 
     return () => {
       commandDisposable.dispose();
@@ -301,6 +433,19 @@ export function RfSheetPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existingSheet?.id]);
 
+  // Enforce read-only mode on the Univer workbook when the user is a viewer.
+  // setEditable(false) disables cell editing, formatting, and structural changes
+  // at the Univer permission level (not just a CSS overlay).
+  useEffect(() => {
+    if (!univerAPIRef.current) return;
+    try {
+      const workbook = univerAPIRef.current.getActiveWorkbook();
+      if (workbook) {
+        workbook.setEditable(isDesignMode);
+      }
+    } catch { /* Univer not ready */ }
+  }, [isDesignMode]);
+
   // Helper: extract required fields from the current workbook snapshot
   const updateRequiredFields = useCallback(() => {
     if (!univerAPIRef.current) return;
@@ -312,6 +457,8 @@ export function RfSheetPage() {
       setRequiredFields(fields);
     } catch { /* Univer not ready */ }
   }, []);
+
+  updateRequiredFieldsRef.current = updateRequiredFields;
 
   // Keep the mutable context ref always up-to-date (safe to do during render for a ref).
   formulaContextRef.current.dataStore = dataStore;
@@ -636,12 +783,19 @@ export function RfSheetPage() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Untitled Sheet"
+              data-testid="sheet-title-input"
               className="text-2xl font-bold text-gray-900 dark:text-gray-100 bg-transparent border-none outline-none placeholder-gray-400 min-w-0"
             />
           ) : (
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
               {title || 'Untitled Sheet'}
             </h1>
+          )}
+          {isLive && (
+            <span className="ml-3 inline-flex items-center gap-1 text-green-600" data-testid="live-indicator">
+              <Radio className="w-3.5 h-3.5 animate-pulse" />
+              Live
+            </span>
           )}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -720,6 +874,7 @@ export function RfSheetPage() {
             schemas={schemas}
             activeSources={activeSources}
             unauthorizedEntities={dataStore.unauthorizedEntities}
+            capabilities={capabilities}
             onAddSource={handleAddSource}
             onRemoveSource={handleRemoveSource}
           />

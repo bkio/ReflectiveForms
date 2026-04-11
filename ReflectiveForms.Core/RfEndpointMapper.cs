@@ -35,6 +35,7 @@ public static class RfEndpointMapper
     internal const string CapabilitiesEndpoint = "capabilities";
     internal const string SchemaEndpoint = "schema";
     internal const string BulkReadEndpoint = "bulk_read";
+    internal const string LiveEndpointPattern = "live/{entityName}/{entityId}";
 
     public static string PublicCrudEndpoint => RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + CrudEndpoint;
     public static string PublicSanityCheckEndpoint => RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + SanityCheckEndpoint;
@@ -59,6 +60,10 @@ public static class RfEndpointMapper
         MapEndpoint(group, AuthCheckEndpoint, new AuthCheck());
         MapEndpoint(group, CapabilitiesEndpoint, new Capabilities());
         MapEndpoint(group, BulkReadEndpoint, new BulkRead());
+
+        // WebSocket endpoint for live entity updates (editor → viewers relay)
+        group.Map(ApiRouteSegment + LiveEndpointPattern, LiveUpdateWebSocket.HandleAsync)
+            .RequireAuthorization("JwtOrCookie");
 
         return app;
     }
@@ -160,6 +165,11 @@ public static class RfEndpointMapper
         app.UseCors("ReflectiveFormsCors");
 
         app.UseSession();
+
+        app.UseWebSockets(new Microsoft.AspNetCore.Builder.WebSocketOptions
+        {
+            KeepAliveInterval = TimeSpan.FromSeconds(30),
+        });
 
         app.UseAuthentication();
         app.UseAuthorization();

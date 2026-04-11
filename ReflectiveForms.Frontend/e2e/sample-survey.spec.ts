@@ -663,6 +663,7 @@ test.describe('Survey Full Round-Trip', () => {
   });
 
   test('reload saved survey and verify nested data persisted', async ({ api }) => {
+    test.skip(!createdId, 'depends on prior create test');
     const data = await api.readEntity(ENTITY, createdId);
 
     expect(data.fields.survey_description).toBe('Created from UI test.');
@@ -687,6 +688,7 @@ test.describe('Survey Full Round-Trip', () => {
   });
 
   test('update: add second section via API and verify in UI', async ({ page, ui, api }) => {
+    test.skip(!createdId, 'depends on prior create test');
     const data = await api.readEntity(ENTITY, createdId);
     const fields = data.fields;
 

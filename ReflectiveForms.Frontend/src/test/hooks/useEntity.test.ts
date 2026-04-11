@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement } from 'react';
-import { useSchema, useEntity, useEntityList, useCreateEntity, useUpdateEntity, useDeleteEntity, useSanityCheck } from '../../hooks/useEntity';
+import { useSchema, useEntity, useEntityList, useCreateEntity, useUpdateEntity, useDeleteEntity, useSanityCheck, useEntityHistory } from '../../hooks/useEntity';
 import * as client from '../../api/client';
 
 // Mock the API client
@@ -117,6 +117,15 @@ describe('useEntity hooks', () => {
       expect(result.current.fetchStatus).toBe('idle');
       expect(client.readEntity).not.toHaveBeenCalled();
     });
+
+    it('should not fetch when id is NaN', async () => {
+      const { result } = renderHook(() => useEntity('TestEntity', NaN), {
+        wrapper: createWrapper(),
+      });
+
+      expect(result.current.fetchStatus).toBe('idle');
+      expect(client.readEntity).not.toHaveBeenCalled();
+    });
   });
 
   describe('useEntityList', () => {
@@ -203,6 +212,17 @@ describe('useEntity hooks', () => {
       await result.current.mutateAsync(entityData);
 
       expect(client.sanityCheck).toHaveBeenCalledWith('TestEntity', entityData);
+    });
+  });
+
+  describe('useEntityHistory', () => {
+    it('should not fetch when id is NaN', async () => {
+      const { result } = renderHook(() => useEntityHistory('TestEntity', NaN), {
+        wrapper: createWrapper(),
+      });
+
+      expect(result.current.fetchStatus).toBe('idle');
+      expect(client.fetchEntityHistory).not.toHaveBeenCalled();
     });
   });
 });

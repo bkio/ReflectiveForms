@@ -82,7 +82,8 @@ export function RevisionDiffPage() {
   const { entityName } = useParams<{ entityName: string }>();
   const [searchParams] = useSearchParams();
   const idParam = searchParams.get('id');
-  const entityId = idParam ? parseInt(idParam, 10) : undefined;
+  const parsedId = idParam ? parseInt(idParam, 10) : NaN;
+  const entityId = Number.isNaN(parsedId) ? undefined : parsedId;
 
   const { data: schema, isLoading: schemaLoading, error: schemaError } = useSchema(entityName ?? '');
   const { data: entityData, isLoading: entityLoading, error: entityError } = useEntity(entityName ?? '', entityId);
@@ -127,10 +128,17 @@ export function RevisionDiffPage() {
   }, [historyData, entityData]);
 
   // Auto-select defaults when options become available
+  // Track whether we've done the initial auto-select with the "Latest" option present.
+  const hasAutoSelected = useRef(false);
   useMemo(() => {
-    if (revisionOptions.length >= 2 && !leftValue && !rightValue) {
-      setLeftValue(revisionOptions[0].value);
-      setRightValue(revisionOptions[1].value);
+    if (revisionOptions.length >= 2) {
+      const hasLatest = revisionOptions.some(o => o.value === 'latest');
+      // Only auto-select if we haven't done so with "Latest" present yet
+      if (!hasAutoSelected.current || (!leftValue && !rightValue)) {
+        setLeftValue(revisionOptions[0].value);
+        setRightValue(revisionOptions[1].value);
+        if (hasLatest) hasAutoSelected.current = true;
+      }
     }
   }, [revisionOptions, leftValue, rightValue]);
 

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { EntitySourcePanel } from '../../components/sheets/EntitySourcePanel';
-import type { EntitySchema } from '../../types/schema';
+import type { AllCapabilities, EntitySchema } from '../../types/schema';
 
 const mockSchemas: Record<string, EntitySchema> = {
   employee: {
@@ -43,12 +43,13 @@ describe('EntitySourcePanel', () => {
     onFieldDragStart = vi.fn();
   });
 
-  function renderPanel(activeSources: string[] = [], unauthorizedEntities = new Set<string>()) {
+  function renderPanel(activeSources: string[] = [], unauthorizedEntities = new Set<string>(), capabilities?: AllCapabilities) {
     return render(
       <EntitySourcePanel
         schemas={mockSchemas}
         activeSources={activeSources}
         unauthorizedEntities={unauthorizedEntities}
+        capabilities={capabilities}
         onAddSource={onAddSource}
         onRemoveSource={onRemoveSource}
         onFieldDragStart={onFieldDragStart}
@@ -170,5 +171,36 @@ describe('EntitySourcePanel', () => {
     const fieldItems = document.querySelectorAll('[draggable="true"]');
     // ID + 3 fields = 4 draggable items
     expect(fieldItems.length).toBe(4);
+  });
+
+  // ── Capabilities Filtering ─────────────────────────────────────────────
+
+  it('hides entities the user cannot peek or read from the picker', async () => {
+    const caps: AllCapabilities = {
+      employee: { can_peek_all: true, can_read: true, can_create: false, can_update: false, can_delete: false },
+      department: { can_peek_all: false, can_read: false, can_create: false, can_update: false, can_delete: false },
+    };
+    renderPanel([], new Set(), caps);
+    await userEvent.click(screen.getByText('+ Add'));
+    expect(screen.getByText('Employee')).toBeInTheDocument();
+    expect(screen.queryByText('Department')).not.toBeInTheDocument();
+  });
+
+  it('shows entity in picker when user has can_peek_all but not can_read', async () => {
+    const caps: AllCapabilities = {
+      employee: { can_peek_all: true, can_read: false, can_create: false, can_update: false, can_delete: false },
+      department: { can_peek_all: false, can_read: false, can_create: false, can_update: false, can_delete: false },
+    };
+    renderPanel([], new Set(), caps);
+    await userEvent.click(screen.getByText('+ Add'));
+    expect(screen.getByText('Employee')).toBeInTheDocument();
+    expect(screen.queryByText('Department')).not.toBeInTheDocument();
+  });
+
+  it('shows all entities when capabilities are not provided', async () => {
+    renderPanel([], new Set(), undefined);
+    await userEvent.click(screen.getByText('+ Add'));
+    expect(screen.getByText('Employee')).toBeInTheDocument();
+    expect(screen.getByText('Department')).toBeInTheDocument();
   });
 });

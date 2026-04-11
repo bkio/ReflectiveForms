@@ -109,9 +109,16 @@ test.describe('Entity Locking', () => {
     }
   });
 
-  test('entity remains editable after lock timeout/release', async ({ page, ui }) => {
-    // Navigate to the entity fresh — any previous lock should be expired or released
-    await page.waitForTimeout(2000);
+  test('entity remains editable after lock timeout/release', async ({ page, request, ui }) => {
+    // Force-unlock via API (no tab_id → bypasses tab isolation) to clear any
+    // stale lock left behind when the previous test closed browser contexts
+    // without a reliable sendBeacon/unlock.
+    await request.post(
+      `http://localhost:9000/rf/api/entity_lock_control?type=blog-post&id=${blogId}&operation=try_unlock`,
+      { data: {}, timeout: 5000 },
+    ).catch(() => {});
+    await page.waitForTimeout(500);
+
     await ui.gotoEditEntity('blog-post', blogId);
 
     // Should be able to edit

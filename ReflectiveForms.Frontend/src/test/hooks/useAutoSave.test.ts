@@ -343,4 +343,33 @@ describe('useAutoSave', () => {
     await advanceAndFlush(200);
     expect(onSanityCheck).toHaveBeenCalledTimes(1);
   });
+
+  it('cancels pending timers when enabled becomes false', async () => {
+    const onSanityCheck = vi.fn().mockResolvedValue({ passed: true });
+    const onSave = vi.fn().mockResolvedValue(undefined);
+
+    const { result, rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) =>
+        useAutoSave({ onSanityCheck, onSave, waitDuration: WAIT, countdownDuration: 3000, enabled }),
+      { initialProps: { enabled: true } },
+    );
+
+    // Start autosave
+    act(() => { result.current.triggerAutoSave(); });
+    expect(result.current.status).toBe('waiting');
+
+    // Advance past wait into sanity+countdown
+    await advanceAndFlush(WAIT);
+    expect(result.current.status).toBe('countdown');
+
+    // Now disable (simulates lock lost)
+    rerender({ enabled: false });
+
+    // Status should reset to idle
+    expect(result.current.status).toBe('idle');
+
+    // Advance past the full countdown — save should NOT fire
+    await advanceAndFlush(5000);
+    expect(onSave).not.toHaveBeenCalled();
+  });
 });

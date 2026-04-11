@@ -172,24 +172,29 @@ export interface LockStatus {
   entity_id: number;
   locked_by_user_id: number;
   locked_by_user_name: string | null;
+  locked_by_tab_id?: string | null;
 }
 
 export async function tryLockEntity(
   entityName: string,
-  id: number
+  id: number,
+  tabId?: string,
 ): Promise<ApiResponse<void>> {
+  const tabParam = tabId ? `&tab_id=${encodeURIComponent(tabId)}` : '';
   return fetchApi<void>(
-    `/entity_lock_control?type=${encodeURIComponent(entityName)}&id=${id}&operation=try_lock`,
+    `/entity_lock_control?type=${encodeURIComponent(entityName)}&id=${id}&operation=try_lock${tabParam}`,
     { method: 'POST', body: '{}' }
   );
 }
 
 export async function unlockEntity(
   entityName: string,
-  id: number
+  id: number,
+  tabId?: string,
 ): Promise<ApiResponse<void>> {
+  const tabParam = tabId ? `&tab_id=${encodeURIComponent(tabId)}` : '';
   return fetchApi<void>(
-    `/entity_lock_control?type=${encodeURIComponent(entityName)}&id=${id}&operation=try_unlock`,
+    `/entity_lock_control?type=${encodeURIComponent(entityName)}&id=${id}&operation=try_unlock${tabParam}`,
     { method: 'POST', body: '{}' }
   );
 }

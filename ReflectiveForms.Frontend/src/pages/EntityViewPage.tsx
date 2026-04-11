@@ -1,10 +1,11 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { useSchema, useEntity, useEntityList, useCapabilities, useEntityHistory } from '../hooks/useEntity';
 import { FieldSchema, EntitySchema, PeekEntity, GroupRenderStyle } from '../types/schema';
 import { sanitizeHtml } from '../lib/sanitize';
 import { evaluateCompoundCondition } from '../lib/conditionParser';
-import { ArrowLeft, Edit, Tag, FolderTree, User, GitBranch, GitCompare } from 'lucide-react';
+import { ArrowLeft, Edit, Tag, FolderTree, User, GitBranch, GitCompare, Radio } from 'lucide-react';
+import { useLiveUpdates } from '../hooks/useLiveUpdates';
 
 /** Recursively collect all unique relation entity names from the field schema tree. */
 function collectRelationEntityNames(fields: FieldSchema[]): string[] {
@@ -34,11 +35,25 @@ export function EntityViewPage() {
   const { entityName } = useParams<{ entityName: string }>();
   const [searchParams] = useSearchParams();
   const idParam = searchParams.get('id');
-  const entityId = idParam ? parseInt(idParam, 10) : undefined;
+  const parsedId = idParam ? parseInt(idParam, 10) : NaN;
+  const entityId = Number.isNaN(parsedId) ? undefined : parsedId;
 
   const { data: schema, isLoading: schemaLoading, error: schemaError } = useSchema(entityName ?? '');
   const { data: entityData, isLoading: entityLoading, error: entityError } = useEntity(entityName ?? '', entityId);
   const { data: capabilities } = useCapabilities();
+
+  // Live updates: receive real-time changes from the editing user
+  const [liveData, setLiveData] = useState<Record<string, unknown> | null>(null);
+  const handleLiveUpdate = useCallback((data: Record<string, unknown>) => {
+    setLiveData(data);
+  }, []);
+  const { status: liveStatus } = useLiveUpdates({
+    entityName: entityName ?? '',
+    entityId,
+    role: 'viewer',
+    onUpdate: handleLiveUpdate,
+    enabled: !!entityName && entityId !== undefined,
+  });
 
   // Collect all unique relation entity names from the schema
   const relationEntityNames = useMemo(
@@ -105,8 +120,9 @@ export function EntityViewPage() {
     );
   }
 
-  const title = entityData.title;
-  const fields = entityData.fields ?? {};
+  const title = liveData?.title as { rendered?: string } | undefined ?? entityData.title;
+  const fields = (liveData?.fields ?? entityData.fields ?? {}) as Record<string, unknown>;
+  const isLive = liveStatus === 'connected' && liveData !== null;
 
   return (
     <div>
@@ -128,6 +144,12 @@ export function EntityViewPage() {
             </div>
             <p className="ml-8 text-sm text-gray-500">
               {schema.readable_name.singular} — ID: {entityId}
+              {isLive && (
+                <span className="ml-3 inline-flex items-center gap-1 text-green-600" data-testid="live-indicator">
+                  <Radio className="w-3.5 h-3.5 animate-pulse" />
+                  Live
+                </span>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-2">

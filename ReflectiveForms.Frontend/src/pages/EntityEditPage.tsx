@@ -17,9 +17,11 @@ export function EntityEditPage() {
     entityId = undefined;
   } else if (idParam?.startsWith('clone_from_')) {
     entityId = undefined;
-    cloneFromId = parseInt(idParam.replace('clone_from_', ''), 10);
+    const parsed = parseInt(idParam.replace('clone_from_', ''), 10);
+    cloneFromId = Number.isNaN(parsed) ? undefined : parsed;
   } else if (idParam) {
-    entityId = parseInt(idParam, 10);
+    const parsed = parseInt(idParam, 10);
+    entityId = Number.isNaN(parsed) ? undefined : parsed;
   }
 
   // Fetch schema

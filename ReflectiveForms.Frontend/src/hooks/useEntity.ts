@@ -55,15 +55,16 @@ export function useCapabilities() {
 
 // Entity hooks
 export function useEntity(entityName: string, id: number | undefined) {
+  const safeId = (id !== undefined && !Number.isNaN(id)) ? id : undefined;
   return useQuery({
-    queryKey: ['entity', entityName, id],
+    queryKey: ['entity', entityName, safeId],
     queryFn: async () => {
-      if (id === undefined) return null;
-      const result = await readEntity(entityName, id);
+      if (safeId === undefined) return null;
+      const result = await readEntity(entityName, safeId);
       if (result.error) throw new Error(result.error);
       return result.data as EntityData;
     },
-    enabled: id !== undefined,
+    enabled: safeId !== undefined,
   });
 }
 
@@ -146,14 +147,15 @@ export function useSanityCheck(entityName: string) {
 }
 
 export function useEntityHistory(entityName: string, id: number | undefined) {
+  const safeId = (id !== undefined && !Number.isNaN(id)) ? id : undefined;
   return useQuery({
-    queryKey: ['entity-history', entityName, id],
+    queryKey: ['entity-history', entityName, safeId],
     queryFn: async () => {
-      if (id === undefined) return null;
-      const result = await fetchEntityHistory(entityName, id);
+      if (safeId === undefined) return null;
+      const result = await fetchEntityHistory(entityName, safeId);
       if (result.error) throw new Error(result.error);
       return result.data as EntityRevisionsResponse;
     },
-    enabled: id !== undefined,
+    enabled: safeId !== undefined,
   });
 }

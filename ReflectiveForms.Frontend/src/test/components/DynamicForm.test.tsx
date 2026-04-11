@@ -18,6 +18,11 @@ vi.mock('sonner', () => ({
   },
 }));
 
+// Mock useLiveUpdates (WebSocket not available in jsdom)
+vi.mock('../../hooks/useLiveUpdates', () => ({
+  useLiveUpdates: () => ({ status: 'disconnected', broadcastUpdate: vi.fn() }),
+}));
+
 const createMockSchema = (fields: EntitySchema['fields'] = []): EntitySchema => ({
   entity_name: 'TestEntity',
   readable_name: {
