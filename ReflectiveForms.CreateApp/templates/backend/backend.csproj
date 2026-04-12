@@ -9,6 +9,10 @@
 
   <ItemGroup>
     <PackageReference Include="ReflectiveForms.Core" Version="0.1.0" />
+    <PackageReference Include="CrossCloudKit.Database.Basic" Version="2025.10.8.50" />
+    <PackageReference Include="CrossCloudKit.File.Basic" Version="2025.10.8.50" />
+    <PackageReference Include="CrossCloudKit.Memory.Basic" Version="2025.10.8.50" />
+    <PackageReference Include="CrossCloudKit.PubSub.Basic" Version="2025.10.8.50" />
   </ItemGroup>
 
 </Project>

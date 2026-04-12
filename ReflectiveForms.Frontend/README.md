@@ -1,6 +1,6 @@
 # @reflectiveforms/frontend
 
-React + TypeScript admin panel library for [ReflectiveForms](../README.md). Renders schema-driven CRUD forms with auto-save, entity locking, display conditions, nested repeaters, searchable selects, and more.
+React + TypeScript admin panel library for [ReflectiveForms](../README.md). Renders schema-driven CRUD forms with auto-save, entity locking, display conditions, nested repeaters, searchable selects, live collaborative editing via WebSocket, and more.
 
 ## Installation
 
@@ -162,8 +162,8 @@ The library exports:
 - **Routes:** `RfRoutes`
 - **Pages:** `LoginPage`, `SsoLoginPage`, `DashboardPage`, `EntityListPage`, `EntityEditPage`, `EntityViewPage`, `RevisionDiffPage`, `RfSheetListPage`, `RfSheetPage`
 - **Components:** `SharingDialog` — reusable sharing dialog for entity types with individual sharing
-- **Hooks:** `useSchema`, `useEntity`, `useEntityLock`, `useAutoSave`
-- **Types:** `RfConfig`, `CustomPage`, `EntitySchema`, `FieldSchema`
+- **Hooks:** `useSchema`, `useAllSchemas`, `useCapabilities`, `useEntity`, `useEntityList`, `useCreateEntity`, `useUpdateEntity`, `useDeleteEntity`, `useSanityCheck`, `useEntityLock`, `useAutoSave`, `useLiveUpdates`, `useAuth`
+- **Types:** `RfConfig`, `CustomPage`, `EntitySchema`, `FieldSchema`, `EntityCapabilities`, `AllCapabilities`, `LiveUpdateRole`, `LiveConnectionStatus`
 - **Utilities:** `schemaToZod`, `conditionParser`, `sanitize`, `formUtils`
 
 ## Project Structure (source)
@@ -177,7 +177,7 @@ src/
 │   ├── layout/AdminLayout.tsx     # Config-driven sidebar layout
 │   ├── sharing/                   # SharingDialog — reusable sharing UI for any shareable entity
 │   └── sheets/                    # EntitySourcePanel, RepeaterDropDialog, SheetSharingDialog (re-export)
-├── hooks/                         # useEntity, useSchema, useAutoSave, useEntityLock
+├── hooks/                         # useEntity, useSchema, useAutoSave, useEntityLock, useLiveUpdates, useRfSheetData
 ├── lib/
 │   ├── createApp.tsx              # createReflectiveFormsApp()
 │   ├── RfConfigProvider.tsx       # React context for config
@@ -187,28 +187,13 @@ src/
 │   ├── schemaToZod.ts             # Schema → Zod conversion
 │   ├── conditionParser.ts         # Display condition evaluator
 │   ├── sanitize.ts                # HTML sanitization
-│   └── rf-sheet-functions.ts      # Custom RF formulas (RF.FIELD, RF.SUM, RF.FILTER, etc.)
+│   ├── formUtils.ts               # Form utility helpers
+│   ├── rf-sheet-functions.ts      # Custom RF formulas (14: RF.FIELD, RF.SUM, RF.FILTER, RF.REPEAT, etc.)
+│   ├── rf-sheet-formatters.ts     # Sheet cell formatters
+│   ├── rf-sheet-schema-validator.ts # Sheet schema validation
+│   └── rf-sheet-export.ts         # Excel export
 ├── pages/                         # Login, SSO, Dashboard, List, Edit, View, RevisionDiff, Sheets
 └── types/schema.ts                # TypeScript schema types
-```
-
-## Testing
-
-### Unit Tests (Vitest)
-
-```bash
-npm run test:run       # 680+ tests
-npm run test:coverage  # With coverage report
-```
-
-### E2E Tests (Playwright)
-
-Requires the sample backend running at `localhost:9000`.
-
-```bash
-npx playwright install
-npm run test:e2e       # 343 tests across 30+ suites (Chromium)
-npm run test:e2e:ui    # Interactive mode
 ```
 
 ## Building the Library
@@ -245,10 +230,10 @@ npm run test:coverage
 ```
 
 Unit tests cover:
-- **Hooks**: `useEntity`, `useEntityLock`, `useSchema`, `useAutoSave`
-- **Components**: `DynamicForm`, `TextField`, `SelectField`, `CheckboxField`, `NumberField`, `RepeaterField`, `WysiwygField`, `SearchableSelect`, `ErrorBoundary`, `AdminLayout`
-- **Libraries**: `conditionParser`, `schemaToZod` (including dynamic defaults)
-- **Pages**: `EntityViewPage` (read-only rendering, metadata section)
+- **Hooks**: `useEntity`, `useEntityLock`, `useSchema`, `useAutoSave`, `useLiveUpdates`, `useCapabilities`
+- **Components**: `DynamicForm`, `TextField`, `SelectField`, `CheckboxField`, `NumberField`, `RepeaterField`, `WysiwygField`, `SearchableSelect`, `ErrorBoundary`, `AdminLayout`, `EntitySourcePanel`, `SharingDialog`
+- **Libraries**: `conditionParser`, `schemaToZod` (including dynamic defaults), `rf-sheet-functions` (14 RF formulas)
+- **Pages**: `EntityViewPage` (read-only rendering, metadata section), `RfSheetPage` (modes, live updates)
 
 ### E2E Tests (Playwright)
 
@@ -292,7 +277,10 @@ E2E test suites:
 - **authorization.spec.ts** - Role-based access control and IAM
 - **list-sort-filter.spec.ts** - Entity list search, sorting, and filtering
 - **revision-diff.spec.ts** - Revision diff comparison page
-- **rf-sheets-sharing.spec.ts** - RF Sheets spreadsheet sharing and access control
+- **live-updates.spec.ts** - WebSocket live update broadcasting and receiving
+- **rf-sheets.spec.ts** - RF Sheets spreadsheet CRUD and formula evaluation
+- **rf-sheets-sharing.spec.ts** - RF Sheets sharing and access control
+- **rf-sheets-live-updates.spec.ts** - RF Sheets real-time collaborative viewing
 
 ### Running All Tests
 

@@ -9,6 +9,7 @@ export default defineConfig({
       '/rf/api': {
         target: 'http://localhost:{{BACKEND_PORT}}',
         changeOrigin: true,
+        ws: true,
       },
     },
   },

@@ -1,12 +1,12 @@
 import type { RfConfig } from '@reflectiveforms/frontend';
 
 export const config: RfConfig = {
-  apiBaseUrl: import.meta.env.VITE_API_URL || 'http://localhost:{{BACKEND_PORT}}/rf/api',
+  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:{{BACKEND_PORT}}/rf/api',
   appName: '{{APP_NAME}}',
   primaryColor: '{{PRIMARY_COLOR}}',
   // logo: '/logo.svg',
 
-  // Uncomment for SSO:
+  // Auth mode (set during scaffolding):
   // auth: {
   //   mode: 'sso',
   //   ssoLoginUrl: '/auth/sso/login',

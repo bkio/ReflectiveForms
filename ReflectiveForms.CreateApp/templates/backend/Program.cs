@@ -3,19 +3,6 @@ using ReflectiveForms.Core;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("Frontend", policy =>
-    {
-        policy.WithOrigins(
-                "http://localhost:{{FRONTEND_PORT}}",
-                "http://127.0.0.1:{{FRONTEND_PORT}}")
-              .AllowAnyMethod()
-              .AllowAnyHeader()
-              .AllowCredentials();
-    });
-});
-
 using var loggerFactory = LoggerFactory.Create(logging =>
 {
     logging.AddConsole();
@@ -35,6 +22,5 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error");
 }
 
-app.UseCors("Frontend");
 app.UseStaticFiles();
 app.Run();

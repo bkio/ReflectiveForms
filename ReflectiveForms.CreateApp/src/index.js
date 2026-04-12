@@ -42,7 +42,6 @@ async function main() {
   const primaryColor = await ask(rl, 'Primary color (hex)', '#2563eb');
   const backendPort = await ask(rl, 'Backend port (dev)', '9000');
   const frontendPort = await ask(rl, 'Frontend port (dev)', '3000');
-  const authMode = await ask(rl, 'Auth mode (local/sso)', 'local');
 
   rl.close();
 
@@ -58,7 +57,6 @@ async function main() {
     PRIMARY_COLOR: primaryColor,
     BACKEND_PORT: backendPort,
     FRONTEND_PORT: frontendPort,
-    AUTH_MODE: authMode,
     CSPROJ_NAME: projectName.replace(/[^a-zA-Z0-9]/g, '.'),
   };
 

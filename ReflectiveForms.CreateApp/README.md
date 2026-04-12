@@ -17,7 +17,6 @@ The CLI will prompt for:
 | Primary color | `#2563eb` | Theme color for the UI |
 | Backend port | `9000` | .NET dev server port |
 | Frontend port | `3000` | Vite dev server port |
-| Auth mode | `local` | `local` (username/password) or `sso` |
 
 You can also pass the project name as an argument:
 
@@ -103,21 +102,31 @@ The scaffolder replaces `{{PLACEHOLDER}}` tokens in all template files:
 | `{{PRIMARY_COLOR}}` | Primary color prompt |
 | `{{BACKEND_PORT}}` | Backend port prompt |
 | `{{FRONTEND_PORT}}` | Frontend port prompt |
-| `{{AUTH_MODE}}` | Auth mode prompt |
 | `{{CSPROJ_NAME}}` | Derived from project name (dots replacing special chars) |
 
 ## Tests
 
 ```bash
-node --test tests/scaffold.test.js   # 16 tests
+node --test tests/scaffold.test.js   # 30 tests
 ```
 
 The test suite verifies:
 - All directories and files are created
 - All placeholders are replaced in every template file
-- Sample entity model is present
-- nginx SPA fallback is configured
+- Sample entity model is present with correct attribute constructors
+- nginx SPA fallback and WebSocket upgrade headers are configured
 - No unreplaced `{{...}}` tokens remain
+- **Sync checks**: templates stay in sync with the actual framework:
+  - RfBuilder.cs sets all required `EntityConfigurationBuilder` properties
+  - .csproj includes all NuGet packages used in RfBuilder.cs (with matching versions)
+  - NoteModel field attributes use correct constructor signatures
+  - Program.cs doesn't duplicate CORS handling
+  - rf.config.ts only uses valid `RfConfig` properties
+  - Vite env variable name matches the real frontend
+  - Vite proxy has WebSocket support
+  - Tailwind config includes `@reflectiveforms/frontend` content path
+- **Build check**: scaffolds a project and runs `dotnet build` to verify the generated backend compiles
+- **Run check**: scaffolds a project, starts the backend with `dotnet run` (verifies it listens on the configured port), and builds the frontend with `tsc + vite build`
 
 ## License
 

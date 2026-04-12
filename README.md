@@ -148,7 +148,8 @@ createReflectiveFormsApp({
 - **Revision diff** — Side-by-side comparison of entity revisions with field-level change highlighting
 - **SSO login** — Dedicated SSO login page with branding
 - **Sharing dialog** — Reusable sharing UI for any entity type with individual sharing enabled
-- **RF Sheets** — Built-in spreadsheet editor (Univer) with custom RF formulas, entity data sources, sharing (user/role/public), and Excel export
+- **RF Sheets** — Built-in spreadsheet editor (Univer) with 14 custom RF formulas, entity data sources, live collaborative viewing via WebSocket, sharing (user/role/public), and Excel export
+- **Live updates** — WebSocket-based real-time broadcasting: editors push snapshots, viewers see changes instantly with scroll preservation
 
 ## Configuration Reference
 
@@ -202,6 +203,7 @@ config.Endpoints.SsoConfiguration = new SsoConfiguration {
 │  • Tailwind CSS 3           │     │  • Entity locking           │
 │  • Configurable branding    │     │  • Sanity check pipeline    │
 │  • RF Sheets (spreadsheets) │     │  • Bulk read endpoint       │
+│  • WebSocket live updates   │     │  • WebSocket live updates   │
 └─────────────────────────────┘     └─────────────────────────────┘
 ```
 
@@ -217,16 +219,16 @@ ReflectiveForms/
 │   ├── Repositories/                 #   DB integration
 │   └── Schema/                       #   JSON schema generator
 │
-├── ReflectiveForms.Core.Tests/       # Backend unit tests (xUnit, 260+)
+├── ReflectiveForms.Core.Tests/       # Backend unit tests (xUnit, 264)
 │
 ├── ReflectiveForms.Frontend/         # React npm library
 │   ├── src/
 │   │   ├── api/                      #   API client
 │   │   ├── components/               #   Fields, form, layout
-│   │   ├── hooks/                    #   useEntity, useSchema, useAutoSave, useLock
+│   │   ├── hooks/                    #   useEntity, useSchema, useAutoSave, useEntityLock, useLiveUpdates
 │   │   ├── lib/                      #   createApp, RfConfigProvider, RF formulas, exports
 │   │   └── pages/                    #   Dashboard, List, Edit, View, RevisionDiff, Sheets, Login, SSO
-│   ├── e2e/                          #   Playwright E2E tests (30 suites)
+│   ├── e2e/                          #   Playwright E2E tests (34 suites)
 │   └── vite.config.lib.ts           #   Library build config
 │
 ├── ReflectiveForms.Sample1/          # Sample backend app (6 entity types)
@@ -234,7 +236,7 @@ ReflectiveForms/
 └── ReflectiveForms.CreateApp/        # CLI scaffolder
     ├── src/index.js                  #   Interactive prompts + template engine
     ├── templates/                    #   Backend, frontend, Docker templates
-    └── tests/                        #   Scaffold integration tests (16)
+    └── tests/                        #   Scaffold integration tests (30)
 ```
 
 ## API Endpoints
@@ -256,6 +258,7 @@ ReflectiveForms/
 | `/rf/api/entity_lock_control?type={name}&id={id}&operation=try_unlock` | POST | Unlock |
 | `/rf/api/entity_lock_control?type={name}&id={id}&operation=heartbeat` | POST | Heartbeat |
 | `/rf/api/bulk_read` | POST | Fetch multiple entities with optional field filtering |
+| `/rf/api/live_updates?type={name}&id={id}` | WebSocket | Real-time entity change broadcasting |
 | `/rf/api/auth_check` | POST | Verify authentication status |
 | `/rf/api/capabilities` | POST | Get user capabilities per entity type |
 | `/rf/api/login` | POST | Authenticate |
@@ -267,14 +270,14 @@ ReflectiveForms/
 
 ```bash
 cd ReflectiveForms.Core.Tests
-dotnet test    # 260+ tests
+dotnet test    # 264 tests
 ```
 
 ### Frontend Unit Tests
 
 ```bash
 cd ReflectiveForms.Frontend
-npm run test:run       # 680+ tests (Vitest)
+npm run test:run       # 739 tests (Vitest)
 ```
 
 ### E2E Tests
@@ -282,14 +285,14 @@ npm run test:run       # 680+ tests (Vitest)
 ```bash
 cd ReflectiveForms.Frontend
 npx playwright install
-npm run test:e2e       # 343 tests across 30+ suites (Playwright, Chromium)
+npm run test:e2e       # 360 tests across 34 suites (Playwright, 3 browsers)
 ```
 
 ### CLI Scaffolder Tests
 
 ```bash
 cd ReflectiveForms.CreateApp
-node --test tests/scaffold.test.js   # 16 tests
+node --test tests/scaffold.test.js   # 30 tests
 ```
 
 ## Sample Entities (in ReflectiveForms.Sample1)

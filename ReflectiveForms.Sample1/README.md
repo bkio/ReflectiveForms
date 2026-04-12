@@ -57,11 +57,13 @@ A comprehensive sample application demonstrating every feature of the **Reflecti
 │  - React Hook Form + Zod for client validation               │
 │  - TanStack Query for data fetching                          │
 │  - Pessimistic entity locking (auto-save with 5s debounce)   │
+│  - WebSocket live updates (editor → viewers, real-time)      │
 │  - Dynamic default values from backend schema                │
 │  - Read-only entity view with relation resolution            │
 │  - Searchable selects and entity list search/sort/filter     │
 │  - Depth-aware nested field rendering (no cards-in-cards)    │
 │  - RF Sheets: spreadsheets with entity data + RF formulas    │
+│  - Live collaborative sheet viewing via WebSocket            │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -149,7 +151,7 @@ This sample registers **6 custom entity types** plus the **6 built-in reserved e
 | Repeater #2 | Emergency Contacts (min: 1, max: 3, `Grid2ElementsInRow`, no accordion) |
 | Relation | Links to `blog-post` entity |
 | DisplayCondition | Office address only visible when `is_remote == false` |
-| Config | SuperAdminOnly, HasAuthor ✗, HasTags ✗, HasCategories ✗, HasParent ✗, TitleUnique ✓ |
+| Config | HasAuthor ✗, HasTags ✗, HasCategories ✗, HasParent ✗, TitleUnique ✓ |
 
 ### 4. Products (E-Commerce)
 > `EntityName: "product"` — A full product catalog model.
@@ -233,7 +235,7 @@ Every ReflectiveForms feature is demonstrated at least once in this sample:
 | **HasCategories** | Objective ✓, Blog Post ✓, Product ✓, Event ✓, Team Member ✗ |
 | **HasParentChildRelationship** | Objective ✓, Product ✓, Blog Post ✗, Team Member ✗, Event ✗ |
 | **HasIndividualSharing** | RF Sheets ✓ (built-in) — see [Individual Sharing](#individual-sharing) |
-| **SupportsFrontendEdit** | `true` for all authorized (5 entities), `false` for some if needed (Team Member) |
+| **SupportsFrontendEdit** | `true` for all 6 custom entities |
 | **PostCreateHook** | Objective, Blog Post, Product |
 | **PostUpdateHook** | Objective, Blog Post |
 | **PostDeleteHook** | Objective, Blog Post |
@@ -329,6 +331,7 @@ All endpoints are served under `/rf/api/`. The framework automatically generates
 | `/rf/api/entity_lock_control?type={entity}&operation=all_locked` | GET | List all locked entities |
 | `/rf/api/sanity_check?type={entity}` | POST | Validate entity data |
 | `/rf/api/bulk_read` | POST | Fetch multiple entities with optional field filtering |
+| `/rf/api/live_updates?type={entity}&id={id}` | WS | Real-time entity change broadcasting |
 | `/rf/api/media` | POST | Upload media files |
 | `/rf/api/auth_check` | POST | Verify authentication status |
 | `/rf/api/capabilities` | POST | Get user capabilities per entity type |
@@ -360,7 +363,8 @@ The frontend is a React single-page application that dynamically renders forms b
 - **Entity locking** — Pessimistic locking with auto-refresh heartbeat
 - **Auto-save** — Debounced auto-save with visual feedback and toast notifications
 - **Depth-aware nesting** — Nested fields inside repeaters and groups render cleanly without redundant card wrappers
-- **RF Sheets** — Built-in spreadsheet editor at `/sheets` with entity data sources, custom RF formulas (RF.FIELD, RF.SUM, RF.FILTER, etc.), sharing (user/role/public), and Excel export
+- **RF Sheets** — Built-in spreadsheet editor at `/sheets` with entity data sources, 14 custom RF formulas (RF.FIELD, RF.TITLE, RF.LIST, RF.LOOKUP, RF.COUNT, RF.SUM, RF.AVG, RF.IDS, RF.FILTER, RF.MATCH, RF.MATCHLIST, RF.REPEAT, RF.REPEATCOUNT, RF.REPEATFIELD), live collaborative viewing via WebSocket, sharing (user/role/public), and Excel export
+- **Live updates** — WebSocket-based real-time broadcasting: editors push workbook snapshots, viewers see changes instantly with scroll/tab preservation
 - **Individual sharing** — Reusable sharing dialog and schema-driven navigation for entity types with `HasIndividualSharing` enabled
 
 ### Running the Frontend
@@ -738,7 +742,7 @@ ReflectiveForms automatically creates and manages these system entities:
 | **Tags** | `tags` | Flat taxonomy for tagging entities |
 | **Categories** | `categories` | Flat taxonomy for categorizing entities |
 | **Media** | `media` | Media library with automatic image resizing (150, 300, 600, 1024px) |
-| **RF Sheets** | `rf-sheets` | Built-in spreadsheet editor with RF formulas, entity data sources, individual sharing (user/role/public), and Excel export. Uses `HasIndividualSharing` for per-entity access control. |
+| **RF Sheets** | `rf-sheets` | Built-in spreadsheet editor with 14 RF formulas, entity data sources, live collaborative viewing via WebSocket, individual sharing (user/role/public), and Excel export. Uses `HasIndividualSharing` for per-entity access control. |
 
 These are always available and do not need to be registered in `EntityTypes`.
 

@@ -1,5 +1,4 @@
 using Newtonsoft.Json;
-using ReflectiveForms.Core.Attributes;
 using ReflectiveForms.Core.Attributes.Fields;
 using ReflectiveForms.Core.Models;
 
@@ -10,14 +9,15 @@ using ReflectiveForms.Core.Models;
 public class NoteModel : EntityFieldsModel
 {
     [JsonProperty("content"),
-     WysiwygEditor(label: "Content", mandatory: true)]
+     WysiwygEditor(label: "Content", instructions: "Write the note content.", mandatory: true)]
     public string Content = "";
 
     [JsonProperty("priority"),
-     Select(label: "Priority", mandatory: true, choices: ["low", "medium", "high"], defaultValue: "medium")]
+     Select(label: "Priority", instructions: "Set the importance level.",
+         defaultValue: "medium", choices: new[] { "low : Low", "medium : Medium", "high : High" })]
     public string Priority = "medium";
 
     [JsonProperty("is_pinned"),
-     Checkbox(label: "Pinned", defaultValue: false)]
+     Checkbox(label: "Pinned", instructions: "Pin this note to the top.", defaultValue: false)]
     public bool IsPinned;
 }

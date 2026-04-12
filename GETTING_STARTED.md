@@ -38,7 +38,6 @@ Display name: My Notes App
 Primary color: #2563eb
 Backend port: 9000
 Frontend port: 3000
-Auth mode: local
 ```
 
 Then start it up:
