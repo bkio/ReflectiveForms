@@ -143,6 +143,9 @@ paket-files/
 .idea/
 *.sln.iml
 
+# Copilot instructions (fetched from upstream CrossCloudKit, not committed)
+.github/copilot-instructions.md
+
 # Test results
 TestResults/
 [Tt]est[Rr]esult*/

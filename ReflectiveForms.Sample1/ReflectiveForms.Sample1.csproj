@@ -11,10 +11,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="CrossCloudKit.Database.Basic" Version="2025.10.8.50" />
-    <PackageReference Include="CrossCloudKit.File.Basic" Version="2025.10.8.50" />
-    <PackageReference Include="CrossCloudKit.Memory.Basic" Version="2025.10.8.50" />
-    <PackageReference Include="CrossCloudKit.PubSub.Basic" Version="2025.10.8.50" />
+    <PackageReference Include="CrossCloudKit.Database.Basic" Version="2026.4.14.56" />
+    <PackageReference Include="CrossCloudKit.File.Basic" Version="2026.4.14.56" />
+    <PackageReference Include="CrossCloudKit.Memory.Basic" Version="2026.4.14.56" />
+    <PackageReference Include="CrossCloudKit.PubSub.Basic" Version="2026.4.14.56" />
   </ItemGroup>
 
 </Project>

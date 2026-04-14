@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# post-merge hook — runs after every `git pull` / `git merge`.
+# Syncs the CrossCloudKit copilot instructions from upstream.
+
+bash "$(dirname "$0")/../../scripts/sync-copilot-instructions.sh" &
