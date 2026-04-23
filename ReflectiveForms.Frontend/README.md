@@ -1,6 +1,6 @@
 # @reflectiveforms/frontend
 
-React + TypeScript admin panel library for [ReflectiveForms](../README.md). Renders schema-driven CRUD forms with auto-save, entity locking, display conditions, nested repeaters, searchable selects, live collaborative editing via WebSocket, and more.
+React + TypeScript admin panel library for [ReflectiveForms](../README.md). Renders schema-driven CRUD forms with auto-save, entity locking, display conditions, nested repeaters, searchable selects, live collaborative editing via WebSocket, AI-powered features (centralized AI assistant with tool-calling, semantic search, NL filtering, sanity checks, diff summaries, relation suggestions), and more.
 
 ## Installation
 
@@ -74,6 +74,8 @@ createReflectiveFormsApp({
 | `auth.ssoLoginUrl` | `string` | No | — | SSO redirect URL |
 | `customPages` | `CustomPage[]` | No | `[]` | Extra sidebar pages |
 | `overrides` | `object` | No | — | Override built-in pages (`LoginPage`, `DashboardPage`) |
+| `ai` | `object` | No | — | AI feature display settings (optional) |
+| `ai.globalSearchEnabled` | `boolean` | No | `true` | Show global AI search in the sidebar/header |
 
 ### Custom Pages
 
@@ -162,8 +164,8 @@ The library exports:
 - **Routes:** `RfRoutes`
 - **Pages:** `LoginPage`, `SsoLoginPage`, `DashboardPage`, `EntityListPage`, `EntityEditPage`, `EntityViewPage`, `RevisionDiffPage`, `RfSheetListPage`, `RfSheetPage`
 - **Components:** `SharingDialog` — reusable sharing dialog for entity types with individual sharing
-- **Hooks:** `useSchema`, `useAllSchemas`, `useCapabilities`, `useEntity`, `useEntityList`, `useCreateEntity`, `useUpdateEntity`, `useDeleteEntity`, `useSanityCheck`, `useEntityLock`, `useAutoSave`, `useLiveUpdates`, `useAuth`
-- **Types:** `RfConfig`, `CustomPage`, `EntitySchema`, `FieldSchema`, `EntityCapabilities`, `AllCapabilities`, `LiveUpdateRole`, `LiveConnectionStatus`
+- **Hooks:** `useSchema`, `useAllSchemas`, `useCapabilities`, `useGlobalSettings`, `useEntity`, `useEntityList`, `useCreateEntity`, `useUpdateEntity`, `useDeleteEntity`, `useSanityCheck`, `useEntityLock`, `useAutoSave`, `useLiveUpdates`, `useAuth`, `useAiSemanticSearch`, `useAiSanityCheck`, `useAiDiffSummary`, `useAiNaturalLanguageFilter`, `useAiRelationSuggest`
+- **Types:** `RfConfig`, `CustomPage`, `EntitySchema`, `FieldSchema`, `EntityCapabilities`, `AllCapabilities`, `GlobalSettings`, `LiveUpdateRole`, `LiveConnectionStatus`, `AiSuggestionSchema`, `AiSanityCheckSchema`, `AiRelationSuggestionSchema`
 - **Utilities:** `schemaToZod`, `conditionParser`, `sanitize`, `formUtils`
 
 ## Project Structure (source)
@@ -176,8 +178,9 @@ src/
 │   ├── form/                      # DynamicForm, SearchableSelect
 │   ├── layout/AdminLayout.tsx     # Config-driven sidebar layout
 │   ├── sharing/                   # SharingDialog — reusable sharing UI for any shareable entity
-│   └── sheets/                    # EntitySourcePanel, RepeaterDropDialog, SheetSharingDialog (re-export)
-├── hooks/                         # useEntity, useSchema, useAutoSave, useEntityLock, useLiveUpdates, useRfSheetData
+│   ├── sheets/                    # EntitySourcePanel, RepeaterDropDialog, SheetSharingDialog (re-export)
+│   └── ai/                        # AI components (assistant chat, search, suggest, sanity, filter, diff, relations)
+├── hooks/                         # useEntity, useSchema, useAutoSave, useEntityLock, useLiveUpdates, useAi, useRfSheetData
 ├── lib/
 │   ├── createApp.tsx              # createReflectiveFormsApp()
 │   ├── RfConfigProvider.tsx       # React context for config
@@ -231,9 +234,9 @@ npm run test:coverage
 
 Unit tests cover:
 - **Hooks**: `useEntity`, `useEntityLock`, `useSchema`, `useAutoSave`, `useLiveUpdates`, `useCapabilities`
-- **Components**: `DynamicForm`, `TextField`, `SelectField`, `CheckboxField`, `NumberField`, `RepeaterField`, `WysiwygField`, `SearchableSelect`, `ErrorBoundary`, `AdminLayout`, `EntitySourcePanel`, `SharingDialog`
+- **Components**: `DynamicForm`, `TextField`, `SelectField`, `CheckboxField`, `NumberField`, `RepeaterField`, `WysiwygField`, `SearchableSelect`, `ErrorBoundary`, `AdminLayout`, `EntitySourcePanel`, `SharingDialog`, `AiGlobalSearch`, `AiAgentChat`, `AiSuggestButton`, `AiSanityCheckBadge`, `AiNaturalLanguageFilter`, `AiDiffSummary`, `AiRelationSuggestions`
 - **Libraries**: `conditionParser`, `schemaToZod` (including dynamic defaults), `rf-sheet-functions` (14 RF formulas)
-- **Pages**: `EntityViewPage` (read-only rendering, metadata section), `RfSheetPage` (modes, live updates)
+- **Pages**: `EntityViewPage` (read-only rendering, metadata section), `EntityListPage` (system-managed entity badges, action hiding), `EntityEditPage` (system-managed redirect), `RfSheetPage` (modes, live updates)
 
 ### E2E Tests (Playwright)
 

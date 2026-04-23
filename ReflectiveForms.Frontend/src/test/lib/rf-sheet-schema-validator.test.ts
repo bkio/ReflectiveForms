@@ -27,6 +27,11 @@ function makeSchemas(fields: string[]): Record<string, EntitySchema> {
         has_parent_child: false,
         require_title_uniqueness: false,
         supports_frontend_edit: true,
+        has_individual_sharing: false,
+        supports_semantic_search: false,
+        supports_ai_generation: false,
+        supports_ai_diff_summary: false,
+        supports_natural_language_filter: false,
       },
       fields: fields.map((name) => fieldOf({ name })),
       api_endpoints: { crud: '', sanity_check: '', entity_lock: '', media: '' },
@@ -320,8 +325,8 @@ describe('extractRequiredFields', () => {
 
   it('returns empty map for empty snapshot', () => {
     expect(extractRequiredFields({})).toEqual(new Map());
-    expect(extractRequiredFields(null as unknown)).toEqual(new Map());
-    expect(extractRequiredFields(undefined as unknown)).toEqual(new Map());
+    expect(extractRequiredFields(null as unknown as Record<string, unknown>)).toEqual(new Map());
+    expect(extractRequiredFields(undefined as unknown as Record<string, unknown>)).toEqual(new Map());
   });
 
   it('deduplicates fields across multiple cells', () => {

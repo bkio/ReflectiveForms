@@ -92,6 +92,8 @@ function createMockDataStore(overrides?: Partial<RfSheetDataStore>): RfSheetData
       if (!rows) return [];
       return Array.from(rows.entries()).map(([id, fields]) => ({ id, fields }));
     },
+    fetchedFields: new Map<string, Set<string>>(),
+    requestFields: vi.fn(),
     ...overrides,
   };
 }
@@ -421,6 +423,7 @@ describe('registerRfFormulas', () => {
           features: {
             has_author: false, has_tags: false, has_categories: false,
             has_parent_child: false, require_title_uniqueness: false, supports_frontend_edit: true,
+            has_individual_sharing: false, supports_semantic_search: false, supports_ai_generation: false, supports_ai_diff_summary: false, supports_natural_language_filter: false,
           },
           fields: [
             fieldOf({ name: 'name', type: 'Text', label: 'Name' }),

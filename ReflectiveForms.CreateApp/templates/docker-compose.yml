@@ -11,6 +11,7 @@ services:
       - API_PUBLIC_URL=${API_PUBLIC_URL:-http://localhost:{{BACKEND_PORT}}/rf/api/}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:{{FRONTEND_PORT}}}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+{{AI_DOCKER_ENV}}
     restart: unless-stopped
 
   frontend:

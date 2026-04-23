@@ -1,6 +1,6 @@
 # ReflectiveForms
 
-A schema-driven admin panel framework. Define entities with C# attributes, get a full CRUD admin panel with a modern React frontend — auto-save, display conditions, nested repeaters, entity relations, locking, SSO, and more.
+A schema-driven admin panel framework. Define entities with C# attributes, get a full CRUD admin panel with a modern React frontend — auto-save, display conditions, nested repeaters, entity relations, locking, SSO, AI-powered features (centralized AI assistant with tool-calling, semantic search, sanity checks, NL filtering), OpenAPI spec generation, and more.
 
 ## Packages
 
@@ -131,8 +131,11 @@ createReflectiveFormsApp({
 - **Sanity checks** — Server-side validation with custom async logic (e.g. uniqueness)
 - **Entity metadata** — Tags, categories, parent-child hierarchy
 - **Role-based access** — IAM with per-entity-type CRUD capabilities
+- **System-managed entities** — Root user, Owner role, and sharing admin roles are immutable; backend rejects UPDATE/DELETE with 403, frontend shows read-only view with "System" badge
 - **Individual sharing** — Per-entity access control: share with specific users/roles, public toggle, auto-generated admin roles
 - **SSO** — OpenID Connect, Azure AD, Google with auto-provisioning and domain filtering
+- **AI features (optional)** — Centralized AI assistant with multi-turn chat and tool-calling (entity creation, updates, deletion, field suggestions, navigation — all with user approval), semantic search (vector indexing), AI sanity checks (`[AISanityCheck]`), AI field suggestions (`[AISuggestion]`), revision diff AI summaries, natural language filtering, AI relation suggestions (`[AIRelationSuggestion]`). All off by default — enable per entity type
+- **OpenAPI spec generation** — Auto-generated OpenAPI 3.1 spec at `/openapi.json`, independent of AI features
 
 ### Admin Panel (Frontend)
 
@@ -142,6 +145,7 @@ createReflectiveFormsApp({
 - **Searchable selects** — Filterable dropdowns for relations and large choice sets
 - **Read-only view** — Public entity view with metadata, grid layouts, resolved relations
 - **View-only mode** — Entities flagged `SupportsFrontendEdit = false` redirect to view page
+- **System-managed entity protection** — System-managed entities (root user, Owner role, sharing admin roles) display a "System" badge, hide edit/delete/clone actions, and redirect edit URLs to the view page
 - **Depth-aware nesting** — Nested fields render without redundant card wrappers
 - **Branding** — Configurable app name, logo, primary color via CSS variable
 - **Custom pages** — Add sidebar pages grouped by section
@@ -150,8 +154,21 @@ createReflectiveFormsApp({
 - **Sharing dialog** — Reusable sharing UI for any entity type with individual sharing enabled
 - **RF Sheets** — Built-in spreadsheet editor (Univer) with 14 custom RF formulas, entity data sources, live collaborative viewing via WebSocket, sharing (user/role/public), and Excel export
 - **Live updates** — WebSocket-based real-time broadcasting: editors push snapshots, viewers see changes instantly with scroll preservation
+- **AI components** — Centralized AI assistant panel (multi-turn chat with tool-calling, entity creation/update/deletion proposals with user approval, field suggestions, navigation), semantic search overlay, AI sanity check badges, NL filter bar, AI diff summary, relation suggestions — all conditionally rendered based on backend feature flags and user capabilities
 
 ## Configuration Reference
+
+### Builder (`RfConfigurationBuilder`)
+
+| Property | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `Logger` | Yes | — | `ILogger` for diagnostics |
+| `RootUserCredentials` | Yes | — | Auto-created admin account |
+| `RepositoryServiceConfiguration` | Yes | — | Database, memory, pubsub, file services |
+| `EndpointConfiguration` | Yes | — | JWT, CORS, root path (see below) |
+| `AiServiceConfiguration` | No | `null` | AI services (see below) |
+| `EntityTypes` | Yes | — | Entity type registrations |
+| `EditInactivityTimeoutMs` | No | `600000` | Inactivity timeout (ms) before a user's edit lock is released and they are redirected to the view page. Also controls the backend lock TTL safety net. |
 
 ### Backend (`EndpointConfiguration`)
 
@@ -162,6 +179,7 @@ createReflectiveFormsApp({
 | `RootPath` | Yes | `"/rf"` | API route prefix |
 | `PublicUrlRootForApi` | Yes | — | Public API URL for schema links |
 | `SsoConfiguration` | No | `null` | SSO settings (see below) |
+| `OpenApi` | No | `null` | OpenAPI 3.1 spec generation settings (see below) |
 
 ### SSO Configuration
 
@@ -175,6 +193,70 @@ config.Endpoints.SsoConfiguration = new SsoConfiguration {
     AutoProvisionUsers = true,
     DefaultRole = "editor",
 };
+```
+
+### OpenAPI Configuration
+
+```csharp
+config.Endpoints.OpenApi = new OpenApiConfiguration
+{
+    Title = "My API",
+    Version = "1.0.0",
+    Description = "My ReflectiveForms API",
+    ContactEmail = "admin@example.com",
+    IncludeAuthEndpoints = true,     // Include login/logout/auth_check
+    IncludeSchemaEndpoints = true,   // Include /schema
+    IncludeMediaEndpoints = true,    // Include /media
+    IncludeRfExtensions = true,      // Include x-rf-* properties
+    IncludeAiEndpoints = true,       // Include AI endpoints (requires AiServiceConfiguration)
+    RequireAuthentication = false,   // true = requires JWT/Cookie to access spec
+};
+```
+
+### AI Configuration (`AiServiceConfiguration`)
+
+AI is fully optional. Set `AiServiceConfiguration` on `RfConfigurationBuilder` to enable AI features:
+
+```csharp
+// Uses CrossCloudKit ILLMService + IVectorService
+var llm = new LLMServiceOpenAI("http://localhost:11434/v1", "", "gemma3:12b", "nomic-embed-text:v1.5");
+var vector = new VectorServiceBasic();
+
+return new RfConfigurationBuilder
+{
+    // ... existing config ...
+    AiServiceConfiguration = new AiServiceConfiguration(
+        HeavyLlmService: llm,    // Complex tasks: entity generation, diff summaries
+        LightLlmService: llm,    // Fast tasks: suggestions, sanity checks, NL filters, embeddings
+        VectorService: vector),
+};
+```
+
+Then enable per entity type:
+
+```csharp
+new EntityConfigurationBuilder<BlogPostModel>
+{
+    // ... existing config ...
+    EntityDescription = "A blog article with rich-text content, SEO metadata, and publication workflow.",
+    SupportsSemanticSearch = true,          // Vector indexing on save
+    SupportsAiGeneration = true,            // "Create with AI" endpoint
+    SupportsAiDiffSummary = true,           // AI revision diff summaries
+    SupportsNaturalLanguageFilter = true,   // NL → filter conditions
+}
+```
+
+Field-level AI attributes:
+
+```csharp
+[AISuggestion("Summarize in 2 sentences", "title", "content")]
+public string Summary = "";
+
+[AISanityCheck("Is this professional and free of spelling errors?", AISanityCheckSeverity.Warning)]
+public string Description = "";
+
+[AIRelationSuggestion(topK: 5)]  // On Relation fields — requires target entity to have SupportsSemanticSearch
+public int RelatedAuthor;
 ```
 
 ### Frontend (`RfConfig`)
@@ -204,6 +286,8 @@ config.Endpoints.SsoConfiguration = new SsoConfiguration {
 │  • Configurable branding    │     │  • Sanity check pipeline    │
 │  • RF Sheets (spreadsheets) │     │  • Bulk read endpoint       │
 │  • WebSocket live updates   │     │  • WebSocket live updates   │
+│  • AI components (optional) │     │  • AI endpoints (optional)  │
+│                             │     │  • OpenAPI 3.1 generation   │
 └─────────────────────────────┘     └─────────────────────────────┘
 ```
 
@@ -212,12 +296,13 @@ config.Endpoints.SsoConfiguration = new SsoConfiguration {
 ```
 ReflectiveForms/
 ├── ReflectiveForms.Core/             # .NET NuGet library
-│   ├── Attributes/Fields/            #   Field attribute definitions
-│   ├── Endpoints/                    #   API endpoints, SSO, auth
+│   ├── Ai/                           #   AI services, vector sync, handlers, config
+│   ├── Attributes/Fields/            #   Field attribute definitions (+ AI attributes)
+│   ├── Endpoints/                    #   API endpoints, SSO, auth, AI, OpenAPI
 │   ├── Models/                       #   Entity base models
 │   ├── Operation/                    #   Locking, sanity checks, defaults
 │   ├── Repositories/                 #   DB integration
-│   └── Schema/                       #   JSON schema generator
+│   └── Schema/                       #   JSON schema + OpenAPI generator
 │
 ├── ReflectiveForms.Core.Tests/       # Backend unit tests (xUnit, 264)
 │
@@ -225,9 +310,10 @@ ReflectiveForms/
 │   ├── src/
 │   │   ├── api/                      #   API client
 │   │   ├── components/               #   Fields, form, layout
-│   │   ├── hooks/                    #   useEntity, useSchema, useAutoSave, useEntityLock, useLiveUpdates
+│   ├── hooks/                    #   useEntity, useSchema, useAutoSave, useEntityLock, useLiveUpdates, useAi
 │   │   ├── lib/                      #   createApp, RfConfigProvider, RF formulas, exports
-│   │   └── pages/                    #   Dashboard, List, Edit, View, RevisionDiff, Sheets, Login, SSO
+│   │   └── components/ai/            #   AI components (assistant chat, search, suggest, sanity, etc.)
+│   └── pages/                    #   Dashboard, List, Edit, View, RevisionDiff, Sheets, Login, SSO
 │   ├── e2e/                          #   Playwright E2E tests (34 suites)
 │   └── vite.config.lib.ts           #   Library build config
 │
@@ -261,8 +347,19 @@ ReflectiveForms/
 | `/rf/api/live_updates?type={name}&id={id}` | WebSocket | Real-time entity change broadcasting |
 | `/rf/api/auth_check` | POST | Verify authentication status |
 | `/rf/api/capabilities` | POST | Get user capabilities per entity type |
+| `/rf/api/frontend_settings` | POST | Frontend configuration (inactivity timeout, etc.) |
 | `/rf/api/login` | POST | Authenticate |
 | `/rf/api/logout` | POST | Logout |
+| `/rf/api/openapi.json` | GET | OpenAPI 3.1 spec (requires `OpenApi` config) |
+| `/rf/api/ai/semantic_search` | POST | Semantic search across entity types |
+| `/rf/api/ai/generate` | POST | NL → entity draft (requires `CREATE`) |
+| `/rf/api/ai/suggest` | POST | AI field suggestion (requires `UPDATE`) |
+| `/rf/api/ai/sanity_check` | POST | AI field validation (requires `UPDATE`) |
+| `/rf/api/ai/diff_summary` | POST | AI revision diff summary (requires `READ`) |
+| `/rf/api/ai/nl_filter` | POST | NL → filter + results (requires `PEEK_ALL`) |
+| `/rf/api/ai/relation_suggest` | POST | AI relation suggestions (requires `READ` + `PEEK_ALL`) |
+| `/rf/api/ai/chat` | POST | AI assistant multi-turn chat with tool-calling (requires auth) |
+| `/rf/api/ai/reindex` | POST | Rebuild vector index (root user only) |
 
 ## Testing
 
@@ -270,14 +367,14 @@ ReflectiveForms/
 
 ```bash
 cd ReflectiveForms.Core.Tests
-dotnet test    # 264 tests
+dotnet test    # 553 tests
 ```
 
 ### Frontend Unit Tests
 
 ```bash
 cd ReflectiveForms.Frontend
-npm run test:run       # 739 tests (Vitest)
+npm run test:run       # 895 tests (Vitest)
 ```
 
 ### E2E Tests
@@ -305,6 +402,8 @@ node --test tests/scaffold.test.js   # 30 tests
 | **Product** | 3 nested Repeaters, DynamicChoicesRuntimeAsync (category → subcategory) |
 | **Event** | Nested Groups, DisplayCondition, DynamicDefaultValueAsync (dates) |
 | **Survey** | 3-level nesting (Sections → Questions → Choices), DisplayCondition at every level |
+
+Entity types in the sample with AI enabled: Objective (semantic search, generation, diff summary, NL filter), Blog Post (semantic search, generation, diff summary, NL filter), Survey (diff summary), Team Member (semantic search), Product (semantic search).
 
 ## Technical Details
 

@@ -1,46 +1,50 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { EntitySourcePanel } from '../../components/sheets/EntitySourcePanel';
 import type { AllCapabilities, EntitySchema } from '../../types/schema';
 
 const mockSchemas: Record<string, EntitySchema> = {
   employee: {
+    entity_name: 'employee',
     readable_name: { singular: 'Employee', plural: 'Employees' },
-    endpoints: { create: '', read: '', update: '', delete: '' },
-    features: { has_tags: false, has_categories: false, has_author: false, has_parent_child: false },
+    features: { has_tags: false, has_categories: false, has_author: false, has_parent_child: false, require_title_uniqueness: false, supports_frontend_edit: true, has_individual_sharing: false, supports_semantic_search: false, supports_ai_generation: false, supports_ai_diff_summary: false, supports_natural_language_filter: false },
     fields: [
       { name: 'name', type: 'Text', label: 'Full Name', required: true, has_dynamic_choices_runtime: false, has_dynamic_choices_compile_time: false, has_logic_sanity_check: false },
       { name: 'email', type: 'Email', label: 'Email Address', required: true, has_dynamic_choices_runtime: false, has_dynamic_choices_compile_time: false, has_logic_sanity_check: false },
       { name: 'salary', type: 'Number', label: 'Salary', required: false, has_dynamic_choices_runtime: false, has_dynamic_choices_compile_time: false, has_logic_sanity_check: false },
     ],
+    api_endpoints: { crud: '', sanity_check: '', entity_lock: '', media: '' },
+    schema_version: '1.0',
   } as EntitySchema,
   department: {
+    entity_name: 'department',
     readable_name: { singular: 'Department', plural: 'Departments' },
-    endpoints: { create: '', read: '', update: '', delete: '' },
-    features: { has_tags: false, has_categories: false, has_author: false, has_parent_child: false },
+    features: { has_tags: false, has_categories: false, has_author: false, has_parent_child: false, require_title_uniqueness: false, supports_frontend_edit: true, has_individual_sharing: false, supports_semantic_search: false, supports_ai_generation: false, supports_ai_diff_summary: false, supports_natural_language_filter: false },
     fields: [
       { name: 'dept_name', type: 'Text', label: 'Department Name', required: true, has_dynamic_choices_runtime: false, has_dynamic_choices_compile_time: false, has_logic_sanity_check: false },
       { name: 'budget', type: 'Number', label: 'Budget', required: false, has_dynamic_choices_runtime: false, has_dynamic_choices_compile_time: false, has_logic_sanity_check: false },
     ],
+    api_endpoints: { crud: '', sanity_check: '', entity_lock: '', media: '' },
+    schema_version: '1.0',
   } as EntitySchema,
   'rf-sheets': {
+    entity_name: 'rf-sheets',
     readable_name: { singular: 'Sheet', plural: 'Sheets' },
-    endpoints: { create: '', read: '', update: '', delete: '' },
-    features: { has_tags: false, has_categories: false, has_author: false, has_parent_child: false },
+    features: { has_tags: false, has_categories: false, has_author: false, has_parent_child: false, require_title_uniqueness: false, supports_frontend_edit: true, has_individual_sharing: false, supports_semantic_search: false, supports_ai_generation: false, supports_ai_diff_summary: false, supports_natural_language_filter: false },
     fields: [],
+    api_endpoints: { crud: '', sanity_check: '', entity_lock: '', media: '' },
+    schema_version: '1.0',
   } as EntitySchema,
 };
 
 describe('EntitySourcePanel', () => {
   let onAddSource: ReturnType<typeof vi.fn>;
   let onRemoveSource: ReturnType<typeof vi.fn>;
-  let onFieldDragStart: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     onAddSource = vi.fn();
     onRemoveSource = vi.fn();
-    onFieldDragStart = vi.fn();
   });
 
   function renderPanel(activeSources: string[] = [], unauthorizedEntities = new Set<string>(), capabilities?: AllCapabilities) {
@@ -52,7 +56,6 @@ describe('EntitySourcePanel', () => {
         capabilities={capabilities}
         onAddSource={onAddSource}
         onRemoveSource={onRemoveSource}
-        onFieldDragStart={onFieldDragStart}
       />,
     );
   }

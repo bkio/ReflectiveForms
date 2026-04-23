@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 import { createElement } from 'react';
 import { useLiveUpdates } from '../../hooks/useLiveUpdates';
 
@@ -439,7 +439,7 @@ describe('useLiveUpdates', () => {
   });
 
   it('should cancel pending reconnect timer on unmount', () => {
-    const { result, unmount } = renderHook(
+    const { unmount } = renderHook(
       () => useLiveUpdates({ entityName: 'test', entityId: 1, role: 'viewer' }),
       { wrapper: TestWrapper },
     );

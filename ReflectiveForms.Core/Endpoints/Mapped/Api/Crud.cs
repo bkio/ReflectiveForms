@@ -88,6 +88,20 @@ internal class Crud: BaseEndpoint
             result.Data!["access_level"] = access.ToString().ToLowerInvariant();
         }
 
+        if (RootManager.IsSystemManagedEntity(entityName, id))
+            result.Data!["is_system_managed"] = true;
+
+        // Indicate whether the requesting user can edit the author field
+        if (RfConfiguration.EntityNameToConfiguration[entityName].EntityConfiguration.HasAuthor)
+        {
+            var requester = RequesterUser.NotNull();
+            var isAdmin = RootManager.HasEntityAdminRole(entityName, requester.Fields);
+            var isAuthor = result.Data!.TryGetValue(EntityModelAttributes.Author, out var authorToken)
+                           && authorToken.Type == JTokenType.Integer
+                           && authorToken.Value<int>() == requester.Id;
+            result.Data!["can_edit_author"] = isAdmin || isAuthor;
+        }
+
         return result.Data.ToResult();
     }
 
@@ -97,7 +111,9 @@ internal class Crud: BaseEndpoint
             return await HandlePeekAllWithSharing(entityName, cancellationToken);
 
         var result = await RfConfiguration.RepositoryService.PeekAllAsync(entityName, cancellationToken);
-        return !result.IsSuccessful ? result.ErrorMessage.ToResult() : result.Data.ToResult();
+        if (!result.IsSuccessful) return result.ErrorMessage.ToResult();
+        AnnotateSystemManagedEntities(entityName, result.Data.NotNull());
+        return result.Data.ToResult();
     }
 
     private async Task<IResult> HandlePeekAllPaginated(HttpRequest request, string entityName, CancellationToken cancellationToken)
@@ -123,19 +139,20 @@ internal class Crud: BaseEndpoint
 
         var result = await RfConfiguration.RepositoryService.PeekAllPaginatedAsync(
             entityName, pageSize, pageToken, cancellationToken);
-        return !result.IsSuccessful
-            ? result.StatusCode.ToResult(result.ErrorMessage)
-            : result.Data.ToResult();
+        if (!result.IsSuccessful)
+            return result.StatusCode.ToResult(result.ErrorMessage);
+        if (result.Data!["items"] is JArray paginatedItems)
+            AnnotateSystemManagedEntities(entityName, paginatedItems);
+        return result.Data.ToResult();
     }
 
     private async Task<IResult> HandleCreate(string entityName, CrudMethodInfo crudMethodInfo, CancellationToken cancellationToken)
     {
         var body = RequestBodyJsonObject.NotNull();
 
-        // Automatically set the author to the requesting user for entities with HasAuthor.
-        // This ensures the creator is always recorded even if the client omits the field.
-        if (RfConfiguration.EntityNameToConfiguration[entityName].EntityConfiguration.HasAuthor
-            && !body.ContainsKey(EntityModelAttributes.Author))
+        // Always set the author to the requesting user for entities with HasAuthor.
+        // This prevents author impersonation — the client-provided value is overridden.
+        if (RfConfiguration.EntityNameToConfiguration[entityName].EntityConfiguration.HasAuthor)
         {
             body[EntityModelAttributes.Author] = RequesterUser.NotNull().Id;
         }
@@ -153,14 +170,25 @@ internal class Crud: BaseEndpoint
         if (!RequestBodyJsonObject.NotNull().TryGetValue("id", out var idToken) || !int.TryParse(idToken.ToString(), out var id))
             return HttpStatusCode.BadRequest.ToResult("Request body should contain -id- field.");
 
-        if (RfConfiguration.EntityNameToConfiguration[entityName].EntityConfiguration.HasIndividualSharing)
+        if (RootManager.IsSystemManagedEntity(entityName, id))
+            return HttpStatusCode.Forbidden.ToResult("This entity is managed by the system and cannot be modified.");
+
+        var entityConfig = RfConfiguration.EntityNameToConfiguration[entityName].EntityConfiguration;
+
+        // Fetch existing entity when needed for access control (sharing or author protection)
+        JObject? existingEntity = null;
+        if (entityConfig.HasIndividualSharing || entityConfig.HasAuthor)
         {
             var existing = await RfConfiguration.RepositoryService.GetOneAsync(entityName, id, cancellationToken);
             if (!existing.IsSuccessful) return existing.StatusCode.ToResult(existing.ErrorMessage);
+            existingEntity = existing.Data.NotNull();
+        }
 
-            var access = GetEntitySharingAccessLevel(entityName, existing.Data.NotNull(), RequesterUser.NotNull());
+        if (entityConfig.HasIndividualSharing)
+        {
+            var access = GetEntitySharingAccessLevel(entityName, existingEntity!, RequesterUser.NotNull());
             if (access < SharingAccessLevel.Edit)
-                return HttpStatusCode.Forbidden.ToResult($"You do not have edit access to this {RfConfiguration.EntityNameToConfiguration[entityName].EntityConfiguration.EntityReadableNameSingular.ToLowerInvariant()}.");
+                return HttpStatusCode.Forbidden.ToResult($"You do not have edit access to this {entityConfig.EntityReadableNameSingular.ToLowerInvariant()}.");
 
             // Only the owner can change sharing settings
             if (access != SharingAccessLevel.Owner)
@@ -172,6 +200,21 @@ internal class Crud: BaseEndpoint
                     fieldsObj.Remove("shared_users");
                     fieldsObj.Remove("shared_roles");
                 }
+            }
+        }
+
+        // Protect author field: only admin or the current author can change it
+        if (entityConfig.HasAuthor)
+        {
+            var requester = RequesterUser.NotNull();
+            var isAdmin = RootManager.HasEntityAdminRole(entityName, requester.Fields);
+            var isAuthor = existingEntity!.TryGetValue(EntityModelAttributes.Author, out var authorToken)
+                           && authorToken.Type == JTokenType.Integer
+                           && authorToken.Value<int>() == requester.Id;
+
+            if (!isAdmin && !isAuthor)
+            {
+                RequestBodyJsonObject.NotNull().Remove(EntityModelAttributes.Author);
             }
         }
 
@@ -189,6 +232,9 @@ internal class Crud: BaseEndpoint
     {
         if (!RequestBodyJsonObject.NotNull().TryGetValue("id", out var idToken) || !int.TryParse(idToken.ToString(), out var id))
             return HttpStatusCode.BadRequest.ToResult("Request body should contain -id- field.");
+
+        if (RootManager.IsSystemManagedEntity(entityName, id))
+            return HttpStatusCode.Forbidden.ToResult("This entity is managed by the system and cannot be deleted.");
 
         if (RfConfiguration.EntityNameToConfiguration[entityName].EntityConfiguration.HasIndividualSharing)
         {
@@ -348,6 +394,9 @@ internal class Crud: BaseEndpoint
             // Include access level so the frontend knows the user's permission
             peek["access_level"] = access.ToString().ToLowerInvariant();
 
+            if (RootManager.IsSystemManagedEntity(entityName, peek[EntityModelAttributes.Id]!.Value<int>()))
+                peek["is_system_managed"] = true;
+
             accessible.Add(peek);
         }
 
@@ -408,5 +457,19 @@ internal class Crud: BaseEndpoint
             ["users"] = candidateUsers,
             ["roles"] = candidateRoles
         }.ToResult();
+    }
+
+    private static void AnnotateSystemManagedEntities(string entityName, JArray items)
+    {
+        foreach (var item in items)
+        {
+            if (item is JObject obj
+                && obj.TryGetValue(EntityModelAttributes.Id, out var idVal)
+                && idVal.Type == JTokenType.Integer
+                && RootManager.IsSystemManagedEntity(entityName, idVal.Value<int>()))
+            {
+                obj["is_system_managed"] = true;
+            }
+        }
     }
 }

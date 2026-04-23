@@ -5,6 +5,7 @@ using System.Reflection;
 using CrossCloudKit.Interfaces;
 using CrossCloudKit.Utilities.Common;
 using Microsoft.Extensions.Logging;
+using ReflectiveForms.Core.Ai;
 using ReflectiveForms.Core.Endpoints;
 using ReflectiveForms.Core.Models;
 using ReflectiveForms.Core.Repositories;
@@ -51,6 +52,18 @@ public class RfConfigurationBuilder
     private readonly EntityRepositoryService? _repositoryService;
 
     public required EndpointConfiguration EndpointConfiguration { get; init; }
+
+    /// <summary>
+    /// Optional AI service configuration. When null, all AI features are disabled
+    /// and the system behaves identically to a non-AI setup.
+    /// </summary>
+    public AiServiceConfiguration? AiServiceConfiguration { get; init; }
+
+    /// <summary>
+    /// Inactivity timeout in milliseconds before a user's edit lock is released and they are
+    /// redirected from the entity edit page to the view page. Defaults to 600 000 (10 minutes).
+    /// </summary>
+    public int EditInactivityTimeoutMs { get; init; } = 600_000;
 
     public required IReadOnlyList<EntityConfigurationBuilderBase> EntityTypes
     {

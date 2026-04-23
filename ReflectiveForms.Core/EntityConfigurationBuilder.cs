@@ -86,6 +86,42 @@ public abstract class EntityConfigurationBuilderBase
     /// Example: "/sheets" for rf-sheets.
     /// </summary>
     public string? CustomFrontendListRoute { get; init; }
+
+    /// <summary>
+    /// A short plain-text description of what this entity type represents.
+    /// Used by the LLM as context during AI entity generation, semantic search,
+    /// and other AI features. Required when any AI feature is enabled for this entity type.
+    /// Example: "A blog post with rich-text content, SEO metadata, and publication workflow."
+    /// </summary>
+    public string? EntityDescription { get; init; }
+
+    /// <summary>
+    /// Enable semantic search for this entity type.
+    /// Embeds text-bearing fields on every save and indexes them in the vector DB.
+    /// Requires <see cref="Ai.AiServiceConfiguration"/> to be set on <see cref="RfConfigurationBuilder"/>.
+    /// </summary>
+    public bool SupportsSemanticSearch { get; init; }
+
+    /// <summary>
+    /// Enable natural-language entity creation for this entity type.
+    /// Adds a "Create with AI" capability to the frontend.
+    /// Requires <see cref="Ai.AiServiceConfiguration"/> to be set on <see cref="RfConfigurationBuilder"/>.
+    /// </summary>
+    public bool SupportsAiGeneration { get; init; }
+
+    /// <summary>
+    /// Enable AI-powered revision diff summaries for this entity type.
+    /// Adds an "AI Summary" section to the revision diff page.
+    /// Requires <see cref="Ai.AiServiceConfiguration"/> to be set on <see cref="RfConfigurationBuilder"/>.
+    /// </summary>
+    public bool SupportsAiDiffSummary { get; init; }
+
+    /// <summary>
+    /// Enable natural-language filtering for this entity type.
+    /// Allows users to type filters in plain English on the entity list page.
+    /// Requires <see cref="Ai.AiServiceConfiguration"/> to be set on <see cref="RfConfigurationBuilder"/>.
+    /// </summary>
+    public bool SupportsNaturalLanguageFilter { get; init; }
 }
 
 public sealed class EntityConfigurationBuilder<T>() : EntityConfigurationBuilderBase(typeof(T))

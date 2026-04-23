@@ -189,6 +189,7 @@ describe('useAutoSave', () => {
 
     await act(async () => { result.current.saveNow(); });
     expect(onSave).toHaveBeenCalledOnce();
+    // Manual save shows "Saving..." then transitions to "Saved!"
     expect(result.current.status).toBe('saved');
   });
 

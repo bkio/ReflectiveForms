@@ -2,12 +2,14 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs';
 import path from 'path';
-import { execSync, spawn, spawn } from 'child_process';
+import { execSync, spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATES_DIR = path.join(__dirname, '..', 'templates');
 const REPO_ROOT = path.join(__dirname, '..', '..');
+
+import { aiReplacements } from '../src/index.js';
 
 // Inline copyTemplate since the CLI mixes prompts with logic
 function copyTemplate(src, dest, replacements) {
@@ -34,6 +36,17 @@ const REPLACEMENTS = {
   BACKEND_PORT: '4000',
   FRONTEND_PORT: '4001',
   CSPROJ_NAME: 'test.app',
+  ...aiReplacements(false),
+};
+
+const AI_REPLACEMENTS = {
+  PROJECT_NAME: 'test-app',
+  APP_NAME: 'Test App',
+  PRIMARY_COLOR: '#ff6600',
+  BACKEND_PORT: '4000',
+  FRONTEND_PORT: '4001',
+  CSPROJ_NAME: 'test.app',
+  ...aiReplacements(true),
 };
 
 describe('scaffold', () => {
@@ -155,8 +168,172 @@ describe('scaffold', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Sync-check: verify CreateApp templates stay up-to-date with actual codebase
+// AI-enabled scaffold: verify AI templates are applied correctly
 // ─────────────────────────────────────────────────────────────────────────────
+
+const AI_TEST_DIR = path.join(__dirname, '..', '.test-ai-output');
+
+describe('scaffold (AI enabled)', () => {
+  before(() => {
+    if (fs.existsSync(AI_TEST_DIR)) {
+      fs.rmSync(AI_TEST_DIR, { recursive: true });
+    }
+    copyTemplate(TEMPLATES_DIR, AI_TEST_DIR, AI_REPLACEMENTS);
+  });
+
+  after(() => {
+    if (fs.existsSync(AI_TEST_DIR)) {
+      fs.rmSync(AI_TEST_DIR, { recursive: true });
+    }
+  });
+
+  it('RfBuilder.cs includes AI using statements', () => {
+    const rfBuilder = fs.readFileSync(path.join(AI_TEST_DIR, 'backend', 'RfBuilder.cs'), 'utf-8');
+    assert.ok(rfBuilder.includes('using CrossCloudKit.LLM.Basic;'));
+    assert.ok(rfBuilder.includes('using CrossCloudKit.Vector.Basic;'));
+    assert.ok(rfBuilder.includes('using ReflectiveForms.Core.Ai;'));
+  });
+
+  it('RfBuilder.cs initialises AI services', () => {
+    const rfBuilder = fs.readFileSync(path.join(AI_TEST_DIR, 'backend', 'RfBuilder.cs'), 'utf-8');
+    assert.ok(rfBuilder.includes('new LLMServiceBasic()'));
+    assert.ok(rfBuilder.includes('new VectorServiceBasic()'));
+  });
+
+  it('RfBuilder.cs sets AiServiceConfiguration on builder', () => {
+    const rfBuilder = fs.readFileSync(path.join(AI_TEST_DIR, 'backend', 'RfBuilder.cs'), 'utf-8');
+    assert.ok(rfBuilder.includes('AiServiceConfiguration = new AiServiceConfiguration('));
+    assert.ok(rfBuilder.includes('HeavyLlmService: llmService'));
+    assert.ok(rfBuilder.includes('LightLlmService: llmService'));
+    assert.ok(rfBuilder.includes('VectorService: vectorService'));
+  });
+
+  it('RfBuilder.cs sets AI entity flags', () => {
+    const rfBuilder = fs.readFileSync(path.join(AI_TEST_DIR, 'backend', 'RfBuilder.cs'), 'utf-8');
+    assert.ok(rfBuilder.includes('EntityDescription ='), 'AI entity should have EntityDescription');
+    assert.ok(rfBuilder.includes('SupportsSemanticSearch = true'));
+    assert.ok(rfBuilder.includes('SupportsAiGeneration = true'));
+    assert.ok(rfBuilder.includes('SupportsAiDiffSummary = true'));
+    assert.ok(rfBuilder.includes('SupportsNaturalLanguageFilter = true'));
+  });
+
+  it('NoteModel.cs includes AI attributes', () => {
+    const noteModel = fs.readFileSync(path.join(AI_TEST_DIR, 'backend', 'Models', 'NoteModel.cs'), 'utf-8');
+    assert.ok(noteModel.includes('[AISanityCheck('));
+    assert.ok(noteModel.includes('[AISuggestion('));
+    assert.ok(noteModel.includes('using ReflectiveForms.Core.Attributes;'),
+      'NoteModel should import ReflectiveForms.Core.Attributes for AI attributes');
+  });
+
+  it('backend.csproj includes AI NuGet packages', () => {
+    const csproj = fs.readFileSync(path.join(AI_TEST_DIR, 'backend', 'backend.csproj'), 'utf-8');
+    assert.ok(csproj.includes('"CrossCloudKit.LLM.Basic"'));
+    assert.ok(csproj.includes('"CrossCloudKit.Vector.Basic"'));
+  });
+
+  it('.env.example includes AI section', () => {
+    const env = fs.readFileSync(path.join(AI_TEST_DIR, '.env.example'), 'utf-8');
+    assert.ok(env.includes('LLM_BASE_URL'));
+    assert.ok(env.includes('LLM_MODEL'));
+  });
+
+  it('README.md includes AI features documentation', () => {
+    const readme = fs.readFileSync(path.join(AI_TEST_DIR, 'README.md'), 'utf-8');
+    assert.ok(readme.includes('## AI Features'));
+    assert.ok(readme.includes('Semantic Search'));
+    assert.ok(readme.includes('AI Generation'));
+    assert.ok(readme.includes('LLMServiceOpenAI'));
+  });
+
+  it('no remaining placeholders in any file', () => {
+    function checkDir(dir) {
+      for (const entry of fs.readdirSync(dir)) {
+        const full = path.join(dir, entry);
+        if (fs.statSync(full).isDirectory()) {
+          checkDir(full);
+        } else {
+          const content = fs.readFileSync(full, 'utf-8');
+          const match = content.match(/\{\{[A-Z_]+\}\}/);
+          assert.equal(match, null, `Found unreplaced placeholder ${match?.[0]} in ${full}`);
+        }
+      }
+    }
+    checkDir(AI_TEST_DIR);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI-disabled scaffold: verify AI placeholders are cleaned up
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('scaffold (AI disabled)', () => {
+  before(() => {
+    if (fs.existsSync(TEST_DIR)) {
+      fs.rmSync(TEST_DIR, { recursive: true });
+    }
+    copyTemplate(TEMPLATES_DIR, TEST_DIR, REPLACEMENTS);
+  });
+
+  after(() => {
+    if (fs.existsSync(TEST_DIR)) {
+      fs.rmSync(TEST_DIR, { recursive: true });
+    }
+  });
+
+  it('RfBuilder.cs does NOT include AI using statements', () => {
+    const rfBuilder = fs.readFileSync(path.join(TEST_DIR, 'backend', 'RfBuilder.cs'), 'utf-8');
+    assert.ok(!rfBuilder.includes('CrossCloudKit.LLM'));
+    assert.ok(!rfBuilder.includes('CrossCloudKit.Vector'));
+    assert.ok(!rfBuilder.includes('ReflectiveForms.Core.Ai'));
+  });
+
+  it('RfBuilder.cs does NOT set AiServiceConfiguration', () => {
+    const rfBuilder = fs.readFileSync(path.join(TEST_DIR, 'backend', 'RfBuilder.cs'), 'utf-8');
+    assert.ok(!rfBuilder.includes('AiServiceConfiguration'));
+    assert.ok(!rfBuilder.includes('LLMServiceBasic'));
+    assert.ok(!rfBuilder.includes('VectorServiceBasic'));
+  });
+
+  it('RfBuilder.cs does NOT set AI entity flags', () => {
+    const rfBuilder = fs.readFileSync(path.join(TEST_DIR, 'backend', 'RfBuilder.cs'), 'utf-8');
+    assert.ok(!rfBuilder.includes('SupportsSemanticSearch'));
+    assert.ok(!rfBuilder.includes('SupportsAiGeneration'));
+    assert.ok(!rfBuilder.includes('SupportsAiDiffSummary'));
+    assert.ok(!rfBuilder.includes('SupportsNaturalLanguageFilter'));
+  });
+
+  it('NoteModel.cs does NOT include AI attributes', () => {
+    const noteModel = fs.readFileSync(path.join(TEST_DIR, 'backend', 'Models', 'NoteModel.cs'), 'utf-8');
+    assert.ok(!noteModel.includes('AISanityCheck'));
+    assert.ok(!noteModel.includes('AISuggestion'));
+  });
+
+  it('backend.csproj does NOT include AI packages', () => {
+    const csproj = fs.readFileSync(path.join(TEST_DIR, 'backend', 'backend.csproj'), 'utf-8');
+    assert.ok(!csproj.includes('CrossCloudKit.LLM'));
+    assert.ok(!csproj.includes('CrossCloudKit.Vector'));
+  });
+
+  it('README.md shows AI as optional', () => {
+    const readme = fs.readFileSync(path.join(TEST_DIR, 'README.md'), 'utf-8');
+    assert.ok(readme.includes('AI Features (Optional)'));
+    assert.ok(!readme.includes('LLMServiceOpenAI'));
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sync-check: verify CreateApp templates stay up-to-date with actual codebase
+// Uses AI-enabled rendered output to check the "full-featured" template path.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Read a template file with AI-enabled replacements applied */
+function readRenderedTemplate(relPath) {
+  let content = fs.readFileSync(path.join(TEMPLATES_DIR, relPath), 'utf-8');
+  for (const [placeholder, value] of Object.entries(AI_REPLACEMENTS)) {
+    content = content.replaceAll(`{{${placeholder}}}`, value);
+  }
+  return content;
+}
 
 describe('sync-check: templates match framework', () => {
 
@@ -164,8 +341,7 @@ describe('sync-check: templates match framework', () => {
   it('template RfBuilder.cs sets all required EntityConfigurationBuilder properties', () => {
     const ecbSource = fs.readFileSync(
       path.join(REPO_ROOT, 'ReflectiveForms.Core', 'EntityConfigurationBuilder.cs'), 'utf-8');
-    const templateRfBuilder = fs.readFileSync(
-      path.join(TEMPLATES_DIR, 'backend', 'RfBuilder.cs'), 'utf-8');
+    const templateRfBuilder = readRenderedTemplate('backend/RfBuilder.cs');
 
     // Extract all "public required ... PropertyName { get; init; }" from the base class
     const requiredProps = [...ecbSource.matchAll(/public required \S+ (\w+)\s*\{/g)]
@@ -182,13 +358,12 @@ describe('sync-check: templates match framework', () => {
 
   // ── Backend: NuGet packages match using statements ───────────────────────
   it('template csproj includes all NuGet packages used by RfBuilder.cs', () => {
-    const templateRfBuilder = fs.readFileSync(
-      path.join(TEMPLATES_DIR, 'backend', 'RfBuilder.cs'), 'utf-8');
-    const templateCsproj = fs.readFileSync(
-      path.join(TEMPLATES_DIR, 'backend', 'backend.csproj'), 'utf-8');
+    const templateRfBuilder = readRenderedTemplate('backend/RfBuilder.cs');
+    const templateCsproj = readRenderedTemplate('backend/backend.csproj');
 
-    // Every "using CrossCloudKit.X.Y;" in RfBuilder means "CrossCloudKit.X.Y" package needed
-    const crossCloudKitUsings = [...templateRfBuilder.matchAll(/using (CrossCloudKit\.\w+\.\w+);/g)]
+    // Every "using CrossCloudKit.X.Y[.Z];" in RfBuilder means a package is needed
+    // Package name = using namespace (e.g. CrossCloudKit.LLM.Basic)
+    const crossCloudKitUsings = [...templateRfBuilder.matchAll(/using (CrossCloudKit(?:\.\w+)+);/g)]
       .map(m => m[1]);
     assert.ok(crossCloudKitUsings.length > 0, 'RfBuilder.cs should have CrossCloudKit using statements');
 
@@ -208,8 +383,7 @@ describe('sync-check: templates match framework', () => {
 
   // ── Backend: CrossCloudKit package versions match Sample1 ────────────────
   it('template CrossCloudKit package versions match Sample1', () => {
-    const templateCsproj = fs.readFileSync(
-      path.join(TEMPLATES_DIR, 'backend', 'backend.csproj'), 'utf-8');
+    const templateCsproj = readRenderedTemplate('backend/backend.csproj');
     const sample1Csproj = fs.readFileSync(
       path.join(REPO_ROOT, 'ReflectiveForms.Sample1', 'ReflectiveForms.Sample1.csproj'), 'utf-8');
 
@@ -236,8 +410,7 @@ describe('sync-check: templates match framework', () => {
 
   // ── Backend: field attribute constructors include instructions ────────────
   it('template NoteModel uses correct field attribute constructor signatures', () => {
-    const noteModel = fs.readFileSync(
-      path.join(TEMPLATES_DIR, 'backend', 'Models', 'NoteModel.cs'), 'utf-8');
+    const noteModel = readRenderedTemplate('backend/Models/NoteModel.cs');
 
     // Read all field attribute classes to extract required constructor params
     const fieldsDir = path.join(REPO_ROOT, 'ReflectiveForms.Core', 'Attributes', 'Fields');
@@ -364,27 +537,31 @@ describe('sync-check: templates match framework', () => {
 const BUILD_DIR = path.join(__dirname, '..', '.test-build-output');
 const CORE_CSPROJ = path.join(REPO_ROOT, 'ReflectiveForms.Core', 'ReflectiveForms.Core.csproj');
 
+/**
+ * Swap NuGet PackageReference for ReflectiveForms.Core with a local
+ * ProjectReference so we can build/run without a published package.
+ */
+function patchCsproj(dir) {
+  const csprojPath = path.join(dir, 'backend', 'backend.csproj');
+  let csproj = fs.readFileSync(csprojPath, 'utf-8');
+  csproj = csproj.replace(
+    /\s*<PackageReference Include="ReflectiveForms\.Core"[^/]*\/>\s*/,
+    ''
+  );
+  csproj = csproj.replace(
+    '</Project>',
+    `  <ItemGroup>\n    <ProjectReference Include="${CORE_CSPROJ.replace(/\\/g, '/')}" />\n  </ItemGroup>\n\n</Project>`
+  );
+  fs.writeFileSync(csprojPath, csproj);
+}
+
 describe('build-check: scaffolded backend compiles', () => {
   before(() => {
     if (fs.existsSync(BUILD_DIR)) {
       fs.rmSync(BUILD_DIR, { recursive: true });
     }
     copyTemplate(TEMPLATES_DIR, BUILD_DIR, REPLACEMENTS);
-
-    // Swap the NuGet PackageReference for ReflectiveForms.Core with a
-    // ProjectReference to the local source so we can build without publishing.
-    const csprojPath = path.join(BUILD_DIR, 'backend', 'backend.csproj');
-    let csproj = fs.readFileSync(csprojPath, 'utf-8');
-    csproj = csproj.replace(
-      /\s*<PackageReference Include="ReflectiveForms\.Core"[^/]*\/>\s*/,
-      ''
-    );
-    // Insert the ProjectReference in a new ItemGroup
-    csproj = csproj.replace(
-      '</Project>',
-      `  <ItemGroup>\n    <ProjectReference Include="${CORE_CSPROJ.replace(/\\/g, '/')}" />\n  </ItemGroup>\n\n</Project>`
-    );
-    fs.writeFileSync(csprojPath, csproj);
+    patchCsproj(BUILD_DIR);
   });
 
   after(() => {
@@ -410,122 +587,38 @@ describe('build-check: scaffolded backend compiles', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Run-check: scaffold, start the backend, and build the frontend
+// Build-check (AI enabled): scaffold with AI and verify the backend compiles
 // ─────────────────────────────────────────────────────────────────────────────
 
-const RUN_DIR = path.join(__dirname, '..', '.test-run-output');
-const RUN_REPLACEMENTS = {
-  ...REPLACEMENTS,
-  BACKEND_PORT: '19876',   // Use uncommon ports to avoid conflicts
-  FRONTEND_PORT: '19877',
-};
+const AI_BUILD_DIR = path.join(__dirname, '..', '.test-ai-build-output');
 
-/**
- * Swap NuGet PackageReference for ReflectiveForms.Core with a local
- * ProjectReference so we can build/run without a published package.
- */
-function patchCsproj(dir) {
-  const csprojPath = path.join(dir, 'backend', 'backend.csproj');
-  let csproj = fs.readFileSync(csprojPath, 'utf-8');
-  csproj = csproj.replace(
-    /\s*<PackageReference Include="ReflectiveForms\.Core"[^/]*\/>/,
-    ''
-  );
-  csproj = csproj.replace(
-    '</Project>',
-    `  <ItemGroup>\n    <ProjectReference Include="${CORE_CSPROJ.replace(/\\/g, '/')}" />\n  </ItemGroup>\n\n</Project>`
-  );
-  fs.writeFileSync(csprojPath, csproj);
-}
-
-describe('run-check: scaffolded apps start and build', () => {
+describe('build-check: scaffolded AI-enabled backend compiles', () => {
   before(() => {
-    if (fs.existsSync(RUN_DIR)) fs.rmSync(RUN_DIR, { recursive: true });
-    copyTemplate(TEMPLATES_DIR, RUN_DIR, RUN_REPLACEMENTS);
-    patchCsproj(RUN_DIR);
-
-    // Ensure the RF frontend library has been built
-    const frontendLibDir = path.join(REPO_ROOT, 'ReflectiveForms.Frontend');
-    if (!fs.existsSync(path.join(frontendLibDir, 'dist', 'index.es.js'))) {
-      execSync('npm run build:lib', {
-        cwd: frontendLibDir, stdio: 'pipe', timeout: 120_000,
-      });
+    if (fs.existsSync(AI_BUILD_DIR)) {
+      fs.rmSync(AI_BUILD_DIR, { recursive: true });
     }
-
-    // Point the scaffolded frontend at the local library instead of npm
-    const pkgPath = path.join(RUN_DIR, 'frontend', 'package.json');
-    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-    pkg.dependencies['@reflectiveforms/frontend'] = `file:${frontendLibDir}`;
-    fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
-
-    // Install frontend dependencies
-    execSync('npm install', {
-      cwd: path.join(RUN_DIR, 'frontend'),
-      stdio: 'pipe',
-      timeout: 120_000,
-    });
+    copyTemplate(TEMPLATES_DIR, AI_BUILD_DIR, AI_REPLACEMENTS);
+    patchCsproj(AI_BUILD_DIR);
   });
 
   after(() => {
-    if (fs.existsSync(RUN_DIR)) fs.rmSync(RUN_DIR, { recursive: true });
+    if (fs.existsSync(AI_BUILD_DIR)) {
+      fs.rmSync(AI_BUILD_DIR, { recursive: true });
+    }
   });
 
-  it('backend starts and listens on configured port', { timeout: 90_000 }, async () => {
-    const backendDir = path.join(RUN_DIR, 'backend');
-    await new Promise((resolve, reject) => {
-      const proc = spawn('dotnet', ['run'], {
-        cwd: backendDir,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
-      let output = '';
-      let settled = false;
-
-      const timer = setTimeout(() => {
-        if (!settled) {
-          settled = true;
-          proc.kill('SIGTERM');
-          reject(new Error(`Backend did not start within 60s. Output:\n${output}`));
-        }
-      }, 60_000);
-
-      const onData = (data) => {
-        output += data.toString();
-        if (!settled && output.includes('Now listening on')) {
-          settled = true;
-          clearTimeout(timer);
-          proc.kill('SIGTERM');
-          assert.ok(
-            output.includes('19876'),
-            `Should listen on configured port 19876, got:\n${output}`
-          );
-          resolve();
-        }
-      };
-
-      proc.stdout.on('data', onData);
-      proc.stderr.on('data', onData);
-
-      proc.on('close', (code) => {
-        if (!settled) {
-          settled = true;
-          clearTimeout(timer);
-          reject(new Error(`Backend exited with code ${code} before listening:\n${output}`));
-        }
-      });
-    });
-  });
-
-  it('frontend builds successfully (tsc + vite)', { timeout: 120_000 }, () => {
+  it('dotnet build succeeds on AI-enabled scaffolded backend', () => {
+    const backendDir = path.join(AI_BUILD_DIR, 'backend');
     try {
-      execSync('npm run build', {
-        cwd: path.join(RUN_DIR, 'frontend'),
+      execSync('dotnet build --nologo --verbosity quiet', {
+        cwd: backendDir,
         stdio: 'pipe',
         timeout: 120_000,
       });
     } catch (err) {
       const stderr = err.stderr?.toString() || '';
       const stdout = err.stdout?.toString() || '';
-      assert.fail(`Frontend build failed:\n${stderr}\n${stdout}`);
+      assert.fail(`dotnet build failed:\n${stderr}\n${stdout}`);
     }
   });
 });
@@ -540,24 +633,6 @@ const RUN_REPLACEMENTS = {
   BACKEND_PORT: '19876',   // Use uncommon ports to avoid conflicts
   FRONTEND_PORT: '19877',
 };
-
-/**
- * Swap NuGet PackageReference for ReflectiveForms.Core with a local
- * ProjectReference so we can build/run without a published package.
- */
-function patchCsproj(dir) {
-  const csprojPath = path.join(dir, 'backend', 'backend.csproj');
-  let csproj = fs.readFileSync(csprojPath, 'utf-8');
-  csproj = csproj.replace(
-    /\s*<PackageReference Include="ReflectiveForms\.Core"[^/]*\/>/,
-    ''
-  );
-  csproj = csproj.replace(
-    '</Project>',
-    `  <ItemGroup>\n    <ProjectReference Include="${CORE_CSPROJ.replace(/\\/g, '/')}" />\n  </ItemGroup>\n\n</Project>`
-  );
-  fs.writeFileSync(csprojPath, csproj);
-}
 
 describe('run-check: scaffolded apps start and build', () => {
   before(() => {

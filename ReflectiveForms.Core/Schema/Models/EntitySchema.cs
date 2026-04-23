@@ -65,6 +65,18 @@ public class EntityFeatures
 
     [JsonProperty("custom_frontend_list_route")]
     public string? CustomFrontendListRoute { get; init; }
+
+    [JsonProperty("supports_semantic_search")]
+    public bool SupportsSemanticSearch { get; init; }
+
+    [JsonProperty("supports_ai_generation")]
+    public bool SupportsAiGeneration { get; init; }
+
+    [JsonProperty("supports_ai_diff_summary")]
+    public bool SupportsAiDiffSummary { get; init; }
+
+    [JsonProperty("supports_natural_language_filter")]
+    public bool SupportsNaturalLanguageFilter { get; init; }
 }
 
 public class ApiEndpoints
@@ -80,6 +92,39 @@ public class ApiEndpoints
 
     [JsonProperty("media")]
     public required string Media { get; init; }
+
+    [JsonProperty("ai")]
+    public AiApiEndpoints? Ai { get; init; }
+
+    [JsonProperty("openapi")]
+    public string? OpenApi { get; init; }
+}
+
+public class AiApiEndpoints
+{
+    [JsonProperty("semantic_search")]
+    public required string SemanticSearch { get; init; }
+
+    [JsonProperty("generate")]
+    public required string Generate { get; init; }
+
+    [JsonProperty("suggest")]
+    public required string Suggest { get; init; }
+
+    [JsonProperty("sanity_check")]
+    public required string SanityCheck { get; init; }
+
+    [JsonProperty("diff_summary")]
+    public required string DiffSummary { get; init; }
+
+    [JsonProperty("nl_filter")]
+    public required string NlFilter { get; init; }
+
+    [JsonProperty("relation_suggest")]
+    public required string RelationSuggest { get; init; }
+
+    [JsonProperty("chat")]
+    public required string Chat { get; init; }
 }
 
 /// <summary>
@@ -143,6 +188,15 @@ public class FieldSchema
 
     [JsonProperty("has_logic_sanity_check")]
     public bool HasLogicSanityCheck { get; init; }
+
+    [JsonProperty("ai_suggestion")]
+    public AiSuggestionSchema? AiSuggestion { get; init; }
+
+    [JsonProperty("ai_sanity_checks")]
+    public List<AiSanityCheckSchema>? AiSanityChecks { get; init; }
+
+    [JsonProperty("ai_relation_suggestion")]
+    public AiRelationSuggestionSchema? AiRelationSuggestion { get; init; }
 }
 
 public enum FieldSchemaType
@@ -291,6 +345,35 @@ public class MediaFieldOptions
 
     [JsonProperty("preview_enabled")]
     public bool PreviewEnabled { get; init; } = true;
+}
+
+#endregion
+
+#region AI Schema Types
+
+public class AiSuggestionSchema
+{
+    [JsonProperty("prompt")]
+    public required string Prompt { get; init; }
+
+    [JsonProperty("source_fields")]
+    public required string[] SourceFields { get; init; }
+}
+
+public class AiSanityCheckSchema
+{
+    [JsonProperty("prompt")]
+    public required string Prompt { get; init; }
+
+    [JsonProperty("severity")]
+    [JsonConverter(typeof(StringEnumConverter))]
+    public required Attributes.AISanityCheckSeverity Severity { get; init; }
+}
+
+public class AiRelationSuggestionSchema
+{
+    [JsonProperty("top_k")]
+    public int TopK { get; init; }
 }
 
 #endregion

@@ -1,12 +1,17 @@
-import { useParams, useSearchParams, Navigate, useNavigate, Link } from 'react-router-dom';
+import { useParams, useSearchParams, Navigate, useNavigate, Link, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
 import { useSchema, useEntity, useCapabilities, useEntityHistory } from '../hooks/useEntity';
 import { DynamicForm } from '../components/form/DynamicForm';
+import type { EntityData } from '../types/schema';
+import type { FieldSchema } from '../types/schema';
 import { GitCompare } from 'lucide-react';
+import { useAiAssistantOptional } from '../lib/AiAssistantContext';
 
 export function EntityEditPage() {
   const { entityName } = useParams<{ entityName: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const idParam = searchParams.get('id');
 
   // Parse ID: 'new' = create, number = edit, 'clone_from_X' = clone
@@ -44,6 +49,16 @@ export function EntityEditPage() {
   // Fetch revision history for edit mode only (not new/clone)
   const { data: historyData } = useEntityHistory(entityName ?? '', entityId);
   const hasRevisions = (historyData?.revisions_count ?? 0) > 0;
+
+  // Push context to AI assistant on page load / entity change
+  const assistant = useAiAssistantOptional();
+  useEffect(() => {
+    assistant?.setContext({
+      current_page: entityId ? 'entity-edit' : 'entity-create',
+      entity_type: entityName,
+      entity_id: entityId,
+    });
+  }, [entityName, entityId, assistant]);
 
   // Loading state
   if (schemaLoading) {
@@ -117,6 +132,31 @@ export function EntityEditPage() {
   // Prepare initial data
   let initialData = entityData ?? undefined;
 
+  // Convert yyyyMMdd date strings to yyyy-MM-dd for HTML date inputs in edit/clone mode
+  if (initialData?.fields && schema) {
+    initialData = {
+      ...initialData,
+      fields: normalizeDateFields(initialData.fields as Record<string, unknown>, schema.fields),
+    };
+  }
+
+  // For AI-generated create: use pre-populated fields from navigation state
+  const aiPrefill = (location.state as Record<string, unknown> | null)?.aiPrefill as
+    | { title?: string; fields?: Record<string, unknown> }
+    | undefined;
+  if (!entityId && !cloneFromId && aiPrefill) {
+    initialData = {
+      id: -1,
+      title: aiPrefill.title ? { rendered: aiPrefill.title } : undefined,
+      fields: (aiPrefill.fields ?? {}) as Record<string, unknown>,
+    } as EntityData;
+  }
+
+  // Redirect to view page when editing a system-managed entity (root user, owner role, etc.)
+  if (entityId && entityData?.is_system_managed) {
+    return <Navigate to={`/entities-view/${entityName}?id=${entityId}`} replace />;
+  }
+
   // For clone mode, reset ID
   if (cloneFromId && initialData) {
     initialData = {
@@ -157,6 +197,7 @@ export function EntityEditPage() {
 
         {/* Form */}
         <DynamicForm
+          key={`${entityId ?? 'new'}-${entityData ? 'loaded' : 'pending'}`}
           schema={schema}
           initialData={initialData}
           entityId={entityId}
@@ -170,4 +211,28 @@ export function EntityEditPage() {
       </div>
     </div>
   );
+}
+
+function normalizeDateFields(
+  fields: Record<string, unknown>,
+  fieldSchemas: FieldSchema[],
+): Record<string, unknown> {
+  const result = { ...fields };
+  for (const fs of fieldSchemas) {
+    const val = result[fs.name];
+    if (val == null) continue;
+
+    if (fs.type === 'DatePicker' && typeof val === 'string' && /^\d{8}$/.test(val)) {
+      result[fs.name] = `${val.slice(0, 4)}-${val.slice(4, 6)}-${val.slice(6, 8)}`;
+    } else if (fs.type === 'Group' && fs.group_options?.child_schema && typeof val === 'object' && !Array.isArray(val)) {
+      result[fs.name] = normalizeDateFields(val as Record<string, unknown>, fs.group_options.child_schema);
+    } else if (fs.type === 'Repeater' && fs.repeater_options?.item_schema && Array.isArray(val)) {
+      result[fs.name] = val.map((item) =>
+        typeof item === 'object' && item != null
+          ? normalizeDateFields(item as Record<string, unknown>, fs.repeater_options!.item_schema)
+          : item,
+      );
+    }
+  }
+  return result;
 }

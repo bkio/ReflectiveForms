@@ -24,6 +24,10 @@ export interface EntityFeatures {
   supports_frontend_edit: boolean;
   has_individual_sharing: boolean;
   custom_frontend_list_route?: string | null;
+  supports_semantic_search: boolean;
+  supports_ai_generation: boolean;
+  supports_ai_diff_summary: boolean;
+  supports_natural_language_filter: boolean;
 }
 
 export interface EntityCapabilities {
@@ -36,11 +40,30 @@ export interface EntityCapabilities {
 
 export type AllCapabilities = Record<string, EntityCapabilities>;
 
+/** Global frontend settings served by the backend /frontend_settings endpoint. */
+export interface GlobalSettings {
+  edit_inactivity_timeout_ms?: number;
+}
+
 export interface ApiEndpoints {
   crud: string;
   sanity_check: string;
   entity_lock: string;
   media: string;
+  ai?: AiApiEndpoints;
+  openapi?: string;
+}
+
+export interface AiApiEndpoints {
+  semantic_search: string;
+  generate: string;
+  suggest: string;
+  sanity_check: string;
+  diff_summary: string;
+  nl_filter: string;
+  relation_suggest: string;
+  reindex: string;
+  chat?: string;
 }
 
 export type FieldSchemaType =
@@ -71,6 +94,11 @@ export interface FieldSchema {
   has_dynamic_choices_compile_time: boolean;
   has_logic_sanity_check: boolean;
 
+  // AI field-level schema
+  ai_suggestion?: AiSuggestionSchema;
+  ai_sanity_checks?: AiSanityCheckSchema[];
+  ai_relation_suggestion?: AiRelationSuggestionSchema;
+
   // Type-specific options
   text_options?: TextFieldOptions;
   select_options?: SelectFieldOptions;
@@ -80,6 +108,20 @@ export interface FieldSchema {
   repeater_options?: RepeaterFieldOptions;
   group_options?: GroupFieldOptions;
   media_options?: MediaFieldOptions;
+}
+
+export interface AiSuggestionSchema {
+  prompt: string;
+  source_fields: string[];
+}
+
+export interface AiSanityCheckSchema {
+  prompt: string;
+  severity: 'Warning' | 'Error';
+}
+
+export interface AiRelationSuggestionSchema {
+  top_k: number;
 }
 
 export interface TextFieldOptions {
@@ -156,6 +198,8 @@ export interface EntityData {
   tags?: number[];
   categories?: number[];
   access_level?: 'owner' | 'edit' | 'view';
+  is_system_managed?: boolean;
+  can_edit_author?: boolean;
 }
 
 export interface PeekEntity {
@@ -173,6 +217,7 @@ export interface PeekEntity {
   parent?: string;
   parent_id?: number;
   access_level?: 'owner' | 'edit' | 'view';
+  is_system_managed?: boolean;
 }
 
 export interface PaginatedPeekResponse {

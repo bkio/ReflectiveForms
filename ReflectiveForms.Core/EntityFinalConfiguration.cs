@@ -5,7 +5,10 @@ using System.Net;
 using System.Reflection;
 using CrossCloudKit.Interfaces.Classes;
 using CrossCloudKit.Utilities.Common;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using ReflectiveForms.Core.Ai;
+using ReflectiveForms.Core.Attributes;
 using ReflectiveForms.Core.Models;
 using ReflectiveForms.Core.Operation;
 using ReflectiveForms.Core.Repositories;
@@ -55,6 +58,19 @@ public sealed class EntityFinalConfiguration<T> : EntityFinalConfigurationBase w
         EntityModelType = config.ToEntityModelType();
         var defaultInstance = (EntityModel<T>)Activator.CreateInstance(EntityModelType, nonPublic: true).NotNull();
 
+        // Pre-compute fields with [AISanityCheck] attributes for save-pipeline integration
+        var fieldsWithAiSanityChecks = new List<(string JsonPropertyName, IReadOnlyList<AISanityCheck> Checks)>();
+        foreach (var member in typeof(T).GetMembers(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                     .Where(m => m is FieldInfo or PropertyInfo))
+        {
+            var aiChecks = member.GetCustomAttributes<AISanityCheck>(true).ToList();
+            if (aiChecks.Count == 0) continue;
+
+            var jsonPropAttr = member.GetCustomAttribute<JsonPropertyAttribute>(true);
+            var fieldName = jsonPropAttr?.PropertyName ?? member.Name;
+            fieldsWithAiSanityChecks.Add((fieldName, aiChecks));
+        }
+
         UpsertSanityCheck = async pair =>
         {
             var (entityObject, cancellationToken) = pair;
@@ -103,7 +119,35 @@ public sealed class EntityFinalConfiguration<T> : EntityFinalConfigurationBase w
             if (config.HasAuthor && !EntitySanityChecker.AuthorFieldSanityCheck(entityObject, out var authorFieldSanityCheckError))
                 return OperationResult<bool>.Failure(authorFieldSanityCheckError, HttpStatusCode.BadRequest);
 
-            return await EntitySanityChecker.FieldsSanityCheckAsync(config.EntityName, entityObject, cancellationToken);
+            var fieldsResult = await EntitySanityChecker.FieldsSanityCheckAsync(config.EntityName, entityObject, cancellationToken);
+            if (!fieldsResult.IsSuccessful)
+                return fieldsResult;
+
+            // AI sanity checks — only if AI is configured and this entity has [AISanityCheck] fields
+            if (RfConfiguration.AiServiceConfiguration != null && fieldsWithAiSanityChecks.Count > 0)
+            {
+                try
+                {
+                    foreach (var (fieldName, checks) in fieldsWithAiSanityChecks)
+                    {
+                        var fieldValue = entityObject.SelectToken($"fields.{fieldName}");
+                        if (fieldValue == null) continue;
+
+                        var aiResults = await AiSanityCheckHandler.CheckFieldAsync(
+                            config.EntityName, fieldName, fieldValue, checks, cancellationToken);
+
+                        foreach (var result in aiResults.Where(r => !r.Passed && r.Severity == AISanityCheckSeverity.Error))
+                            return OperationResult<bool>.Failure(result.Message ?? result.Check, HttpStatusCode.BadRequest);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // LLM failures must not block saves — log and continue
+                    RfConfiguration.LogError(ex);
+                }
+            }
+
+            return OperationResult<bool>.Success(true);
         };
 
         DefaultJObject = defaultInstance.FromObjectWithPolymorphism();

@@ -1,4 +1,5 @@
 using Newtonsoft.Json;
+using ReflectiveForms.Core.Attributes;
 using ReflectiveForms.Core.Attributes.Fields;
 using ReflectiveForms.Core.Models;
 
@@ -9,7 +10,7 @@ using ReflectiveForms.Core.Models;
 public class NoteModel : EntityFieldsModel
 {
     [JsonProperty("content"),
-     WysiwygEditor(label: "Content", instructions: "Write the note content.", mandatory: true)]
+     WysiwygEditor(label: "Content", instructions: "Write the note content.", mandatory: true)]{{AI_NOTE_ATTRIBUTES}}
     public string Content = "";
 
     [JsonProperty("priority"),

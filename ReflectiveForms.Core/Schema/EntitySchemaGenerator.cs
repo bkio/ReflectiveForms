@@ -53,7 +53,11 @@ public static class EntitySchemaGenerator
                 RequireTitleUniqueness = config.RequireGlobalTitleUniqueness,
                 SupportsFrontendEdit = config.SupportsFrontendEdit,
                 HasIndividualSharing = config.HasIndividualSharing,
-                CustomFrontendListRoute = config.CustomFrontendListRoute
+                CustomFrontendListRoute = config.CustomFrontendListRoute,
+                SupportsSemanticSearch = config.SupportsSemanticSearch && RfConfiguration.AiServiceConfiguration != null,
+                SupportsAiGeneration = config.SupportsAiGeneration && RfConfiguration.AiServiceConfiguration != null,
+                SupportsAiDiffSummary = config.SupportsAiDiffSummary && RfConfiguration.AiServiceConfiguration != null,
+                SupportsNaturalLanguageFilter = config.SupportsNaturalLanguageFilter && RfConfiguration.AiServiceConfiguration != null
             },
             Fields = fields,
             ApiEndpoints = new ApiEndpoints
@@ -61,7 +65,23 @@ public static class EntitySchemaGenerator
                 Crud = RfEndpointMapper.PublicCrudEndpoint,
                 SanityCheck = RfEndpointMapper.PublicSanityCheckEndpoint,
                 EntityLock = RfEndpointMapper.PublicEntityLockControlEndpoint,
-                Media = RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + "media"
+                Media = RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + "media",
+                Ai = RfConfiguration.AiServiceConfiguration != null
+                    ? new AiApiEndpoints
+                    {
+                        SemanticSearch = RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + "ai/semantic_search",
+                        Generate = RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + "ai/generate",
+                        Suggest = RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + "ai/suggest",
+                        SanityCheck = RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + "ai/sanity_check",
+                        DiffSummary = RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + "ai/diff_summary",
+                        NlFilter = RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + "ai/nl_filter",
+                        RelationSuggest = RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + "ai/relation_suggest",
+                        Chat = RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + "ai/chat"
+                    }
+                    : null,
+                OpenApi = RfConfiguration.EndpointConfiguration.OpenApi != null
+                    ? RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + "openapi.json"
+                    : null
             }
         };
 
@@ -219,7 +239,10 @@ public static class EntitySchemaGenerator
             RelationOptions = GetRelationOptions(fieldAttribute),
             RepeaterOptions = GetRepeaterOptions(fieldAttribute),
             GroupOptions = GetGroupOptions(fieldAttribute),
-            MediaOptions = GetMediaOptions(fieldAttribute)
+            MediaOptions = GetMediaOptions(fieldAttribute),
+            AiSuggestion = GetAiSuggestion(member),
+            AiSanityChecks = GetAiSanityChecks(member),
+            AiRelationSuggestion = GetAiRelationSuggestion(member)
         };
 
         return schema;
@@ -441,5 +464,40 @@ public static class EntitySchemaGenerator
 
         var value = field.GetValue(obj);
         return value is T typed ? typed : default;
+    }
+
+    private static AiSuggestionSchema? GetAiSuggestion(MemberInfo member)
+    {
+        var attr = member.GetCustomAttribute<AISuggestion>(true);
+        if (attr == null) return null;
+
+        return new AiSuggestionSchema
+        {
+            Prompt = attr.Prompt,
+            SourceFields = attr.SourceFields
+        };
+    }
+
+    private static List<AiSanityCheckSchema>? GetAiSanityChecks(MemberInfo member)
+    {
+        var attrs = member.GetCustomAttributes<AISanityCheck>(true).ToList();
+        if (attrs.Count == 0) return null;
+
+        return attrs.Select(a => new AiSanityCheckSchema
+        {
+            Prompt = a.CheckPrompt,
+            Severity = a.Severity
+        }).ToList();
+    }
+
+    private static AiRelationSuggestionSchema? GetAiRelationSuggestion(MemberInfo member)
+    {
+        var attr = member.GetCustomAttribute<AIRelationSuggestion>(true);
+        if (attr == null) return null;
+
+        return new AiRelationSuggestionSchema
+        {
+            TopK = attr.TopK
+        };
     }
 }

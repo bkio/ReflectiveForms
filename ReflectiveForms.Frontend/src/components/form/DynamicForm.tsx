@@ -1,17 +1,30 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { useForm, FormProvider, UseFormReturn } from 'react-hook-form';
+import { useCallback, useEffect, useRef, createContext, useContext } from 'react';
+import { useForm, useWatch, FormProvider, UseFormReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Lock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { EntitySchema, EntityData } from '../../types/schema';
 import { schemaToZod, generateDefaults } from '../../lib/schemaToZod';
 import { FormField } from '../fields/FormField';
-import { useSanityCheck, useCreateEntity, useUpdateEntity } from '../../hooks/useEntity';
+import { useSanityCheck, useCreateEntity, useUpdateEntity, useGlobalSettings } from '../../hooks/useEntity';
 import { useEntityLock } from '../../hooks/useEntityLock';
 import { useAutoSave } from '../../hooks/useAutoSave';
 import { useLiveUpdates } from '../../hooks/useLiveUpdates';
 import { AutoSaveIndicator } from './AutoSaveIndicator';
 import { SearchableSelect } from './SearchableSelect';
+import { useAiAssistantOptional } from '../../lib/AiAssistantContext';
+
+/** Context providing entity-level info to nested field components (AI integrations, etc.) */
+interface EntityFormContextValue {
+  entityName: string;
+  canUpdate: boolean;
+}
+
+const EntityFormContext = createContext<EntityFormContextValue | null>(null);
+
+export function useEntityFormContext(): EntityFormContextValue | null {
+  return useContext(EntityFormContext);
+}
 
 interface DynamicFormProps {
   schema: EntitySchema;
@@ -24,6 +37,7 @@ export function DynamicForm({ schema, initialData, entityId, onSuccess }: Dynami
   const isCreateMode = entityId === undefined || Number.isNaN(entityId) || entityId < 0;
   const formRef = useRef<HTMLFormElement>(null);
   const navigate = useNavigate();
+  const globalSettings = useGlobalSettings();
 
   // Entity locking for edit mode
   const { lockStatus, lockedBy, signalActivity } = useEntityLock(
@@ -31,6 +45,11 @@ export function DynamicForm({ schema, initialData, entityId, onSuccess }: Dynami
     entityId,
     {
       enabled: !isCreateMode,
+      inactivityTimeout: globalSettings.edit_inactivity_timeout_ms,
+      onLockFailed: () => {
+        // Another tab/user holds the lock — redirect to view-only page
+        navigate(`/entities-view/${schema.entity_name}?id=${entityId}`);
+      },
       onLockLost: () => {
         // Redirect to view-only page when lock expires due to inactivity
         navigate(`/entities-view/${schema.entity_name}?id=${entityId}`);
@@ -60,6 +79,60 @@ export function DynamicForm({ schema, initialData, entityId, onSuccess }: Dynami
   const sanityCheck = useSanityCheck(schema.entity_name);
   const createMutation = useCreateEntity(schema.entity_name);
   const updateMutation = useUpdateEntity(schema.entity_name);
+
+  // Push form errors to AI assistant context (debounced)
+  const assistant = useAiAssistantOptional();
+  const formErrors = form.formState.errors;
+  useEffect(() => {
+    if (!assistant) return;
+    const errorMessages: string[] = [];
+    const collectErrors = (errs: Record<string, unknown>, prefix = '') => {
+      for (const [key, val] of Object.entries(errs)) {
+        if (val && typeof val === 'object' && 'message' in (val as Record<string, unknown>)) {
+          errorMessages.push(`${prefix}${key}: ${(val as { message?: string }).message}`);
+        } else if (val && typeof val === 'object') {
+          collectErrors(val as Record<string, unknown>, `${prefix}${key}.`);
+        }
+      }
+    };
+    collectErrors(formErrors as unknown as Record<string, unknown>);
+    assistant.setContext({
+      errors: errorMessages.length > 0 ? errorMessages : undefined,
+    });
+  }, [formErrors, assistant]);
+
+  // Push current form field values to AI assistant context (debounced 1s)
+  const watchedFields = useWatch({ control: form.control, name: 'fields' });
+  const fieldsPushTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => {
+    if (!assistant) return;
+    clearTimeout(fieldsPushTimerRef.current);
+    fieldsPushTimerRef.current = setTimeout(() => {
+      assistant.setContext({
+        current_fields: watchedFields as Record<string, unknown> | undefined,
+      });
+    }, 1000);
+    return () => clearTimeout(fieldsPushTimerRef.current);
+  }, [watchedFields, assistant]);
+
+  // Handle set_field actions from AI assistant (apply suggested values to form)
+  useEffect(() => {
+    if (!assistant) return;
+    return assistant.subscribeAutoAction((action) => {
+      if (action.action_type === 'set_field' && action.payload) {
+        const fieldName = (action.payload as Record<string, unknown>).field_name as string;
+        const value = (action.payload as Record<string, unknown>).suggested_value;
+        if (fieldName === '__title__') {
+          // Special: set the entity title
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          form.setValue('title.rendered' as any, value as any, { shouldDirty: true });
+        } else if (fieldName) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          form.setValue(`fields.${fieldName}` as any, value as any, { shouldDirty: true });
+        }
+      }
+    });
+  }, [assistant, form]);
 
   // Check if form should be disabled
   const isFormDisabled = !isCreateMode && lockStatus === 'failed';
@@ -226,6 +299,7 @@ export function DynamicForm({ schema, initialData, entityId, onSuccess }: Dynami
   }, [autoSave]);
 
   return (
+    <EntityFormContext.Provider value={{ entityName: schema.entity_name, canUpdate: !isFormDisabled }}>
     <FormProvider {...form}>
       {/* Lock warning banner */}
       {isFormDisabled && (
@@ -271,9 +345,9 @@ export function DynamicForm({ schema, initialData, entityId, onSuccess }: Dynami
           )}
         </div>
 
-        {/* Author field (when entity has author feature) */}
-        {schema.features.has_author && (
-          <AuthorSelect form={form} disabled={isFormDisabled} />
+        {/* Author field (when entity has author feature, edit mode only — author is server-assigned on create) */}
+        {schema.features.has_author && !isCreateMode && (
+          <AuthorSelect form={form} disabled={isFormDisabled || !(initialData?.can_edit_author ?? false)} />
         )}
 
         {/* Tags field (when entity has tags feature) */}
@@ -314,6 +388,7 @@ export function DynamicForm({ schema, initialData, entityId, onSuccess }: Dynami
         </div>
       </form>
     </FormProvider>
+    </EntityFormContext.Provider>
   );
 }
 

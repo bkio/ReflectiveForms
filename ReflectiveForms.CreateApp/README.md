@@ -91,6 +91,41 @@ The generated project includes a `NoteModel` entity with:
 
 This demonstrates the basic ReflectiveForms workflow. Add your own entities by creating model classes in `backend/Models/` and registering them in `backend/RfBuilder.cs`.
 
+## AI Features (Not Included in Scaffold)
+
+The generated project does **not** include AI services or OpenAPI configuration — the template is intentionally minimal. To add AI features:
+
+1. Add NuGet packages to `backend/backend.csproj`:
+   ```xml
+   <PackageReference Include="CrossCloudKit.LLM.Basic" Version="..." />
+   <PackageReference Include="CrossCloudKit.Vector.Basic" Version="..." />
+   ```
+
+2. Configure AI in `backend/RfBuilder.cs`:
+   ```csharp
+   using CrossCloudKit.LLM.Basic;
+   using CrossCloudKit.Vector.Basic;
+   using ReflectiveForms.Core.Ai;
+
+   var llmService = new LLMServiceBasic();
+   var vectorService = new VectorServiceBasic();
+
+   return new RfConfigurationBuilder
+   {
+       // ... existing config ...
+       AiServiceConfiguration = new AiServiceConfiguration(
+           HeavyLlmService: llmService,
+           LightLlmService: llmService,
+           VectorService: vectorService),
+   };
+   ```
+
+3. Enable per entity: `SupportsSemanticSearch = true`, `SupportsAiGeneration = true`, etc.
+
+4. Optionally add `OpenApi = new OpenApiConfiguration { ... }` to `EndpointConfiguration`.
+
+See the [sample project](../ReflectiveForms.Sample1/) for a fully configured example.
+
 ## Template Placeholders
 
 The scaffolder replaces `{{PLACEHOLDER}}` tokens in all template files:
@@ -125,6 +160,7 @@ The test suite verifies:
   - Vite env variable name matches the real frontend
   - Vite proxy has WebSocket support
   - Tailwind config includes `@reflectiveforms/frontend` content path
+  - Template does not include AI config (intentionally minimal)
 - **Build check**: scaffolds a project and runs `dotnet build` to verify the generated backend compiles
 - **Run check**: scaffolds a project, starts the backend with `dotnet run` (verifies it listens on the configured port), and builds the frontend with `tsc + vite build`
 

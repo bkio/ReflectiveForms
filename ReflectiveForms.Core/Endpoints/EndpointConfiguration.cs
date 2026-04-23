@@ -4,6 +4,7 @@
 using System.Text;
 using CrossCloudKit.Utilities.Common;
 using Microsoft.IdentityModel.Tokens;
+using ReflectiveForms.Core.Ai;
 
 namespace ReflectiveForms.Core.Endpoints;
 
@@ -41,6 +42,13 @@ public sealed class EndpointConfiguration
     /// When null, only username/password authentication is available.
     /// </summary>
     public SsoConfiguration? SsoConfiguration { get; init; }
+
+    /// <summary>
+    /// When non-null, serves an OpenAPI 3.1 spec at /rf/api/openapi.json.
+    /// The spec is auto-generated from entity registrations and endpoint definitions.
+    /// No AI services required — works independently.
+    /// </summary>
+    public OpenApiConfiguration? OpenApi { get; init; }
 
     /// <summary>
     /// The secret key used for signing and validating JSON Web Tokens (JWT) within the application.

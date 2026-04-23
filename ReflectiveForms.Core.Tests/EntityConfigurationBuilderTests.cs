@@ -82,4 +82,45 @@ public class EntityConfigurationBuilderTests
 
         builder.OptionalTitleSanityCheck.Should().NotBeNull();
     }
+
+    [Fact]
+    public void EntityConfigurationBuilder_EntityDescription_CanBeSet()
+    {
+        var builder = new EntityConfigurationBuilder<EntityFieldsModel>
+        {
+            EntityName = "described-entity",
+            EntityReadableNameSingular = "Described",
+            EntityReadableNamePlural = "Described",
+            SupportsFrontendEdit = false,
+            HasParentChildRelationship = false,
+            HasAuthor = false,
+            HasTags = false,
+            HasCategories = false,
+            RequireGlobalTitleUniqueness = false,
+            OptionalTitleSanityCheck = null,
+            EntityDescription = "A test entity with a description."
+        };
+
+        builder.EntityDescription.Should().Be("A test entity with a description.");
+    }
+
+    [Fact]
+    public void EntityConfigurationBuilder_EntityDescription_DefaultsToNull()
+    {
+        var builder = new EntityConfigurationBuilder<EntityFieldsModel>
+        {
+            EntityName = "no-desc",
+            EntityReadableNameSingular = "NoDesc",
+            EntityReadableNamePlural = "NoDescs",
+            SupportsFrontendEdit = false,
+            HasParentChildRelationship = false,
+            HasAuthor = false,
+            HasTags = false,
+            HasCategories = false,
+            RequireGlobalTitleUniqueness = false,
+            OptionalTitleSanityCheck = null
+        };
+
+        builder.EntityDescription.Should().BeNull();
+    }
 }

@@ -56,14 +56,14 @@ export function useAutoSave({
       clearInterval(countdownRef.current);
       countdownRef.current = null;
     }
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-      saveTimeoutRef.current = null;
-    }
   }, []);
 
   const performSave = useCallback(async () => {
     clearTimers();
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
     statusRef.current = 'saving';
     setStatus(prev => ({ ...prev, status: 'saving', countdownRemaining: 0 }));
     try {
@@ -142,8 +142,8 @@ export function useAutoSave({
   const triggerAutoSave = useCallback(() => {
     if (!enabled) return;
 
-    // Don't interrupt an active save or sanity check
-    if (statusRef.current === 'saving' || statusRef.current === 'checking') return;
+    // Don't interrupt an active save, sanity check, or the "Saved!" display period
+    if (statusRef.current === 'saving' || statusRef.current === 'checking' || statusRef.current === 'saved') return;
 
     clearTimers();
 
@@ -156,11 +156,37 @@ export function useAutoSave({
     }, waitDuration);
   }, [enabled, clearTimers, setStatus, waitDuration, startSanityAndCountdown]);
 
-  // Immediate save (e.g. save button)
+  // Immediate save (e.g. save button) — shows "Saving..." then "Saved!" or error.
   const saveNow = useCallback(async () => {
     clearTimers();
-    await performSave();
-  }, [clearTimers, performSave]);
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    statusRef.current = 'saving';
+    setStatus(prev => ({ ...prev, status: 'saving', countdownRemaining: 0 }));
+    try {
+      await onSave();
+      setStatus({
+        status: 'saved',
+        lastSaved: new Date(),
+        error: null,
+        validationErrors: [],
+        countdownRemaining: 0,
+        countdownTotal: countdownDuration,
+      });
+      // Auto-dismiss after 2s
+      saveTimeoutRef.current = setTimeout(() => {
+        setStatus(prev => (prev.status === 'saved' ? { ...prev, status: 'idle' } : prev));
+      }, 2000);
+    } catch (err) {
+      setStatus(prev => ({
+        ...prev,
+        status: 'error',
+        error: err instanceof Error ? err.message : 'Save failed',
+      }));
+    }
+  }, [clearTimers, onSave, countdownDuration, setStatus]);
 
   // Cancel pending save
   const cancel = useCallback(() => {

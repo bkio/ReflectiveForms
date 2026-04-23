@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save, RefreshCw, PanelLeftClose, PanelLeft, Download, AlertTriangle, Share2, Lock, Eye, Radio } from 'lucide-react';
-import { useEntity, useAllSchemas, useCapabilities } from '../hooks/useEntity';
+import { useEntity, useAllSchemas, useCapabilities, useGlobalSettings } from '../hooks/useEntity';
 import { createEntity, updateEntity, fetchLockStatus } from '../api/client';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -22,6 +22,7 @@ import { SharingDialog } from '../components/sharing/SharingDialog';
 import type { SharingState } from '../components/sharing/SharingDialog';
 import type { BulkReadSource, FieldSchema } from '../types/schema';
 import { useLiveUpdates } from '../hooks/useLiveUpdates';
+import { useAiAssistantOptional } from '../lib/AiAssistantContext';
 
 // Univer imports
 import { UniverSheetsCorePreset } from '@univerjs/preset-sheets-core';
@@ -83,6 +84,7 @@ function stripFormulaCachedValues(snapshot: Record<string, unknown>): Record<str
 export function RfSheetPage() {
   const { sheetId } = useParams<{ sheetId: string }>();
   const navigate = useNavigate();
+  const globalSettings = useGlobalSettings();
   const isNew = sheetId === 'new';
   const parsed = isNew ? NaN : Number(sheetId);
   const numericId = Number.isNaN(parsed) ? undefined : parsed;
@@ -92,6 +94,12 @@ export function RfSheetPage() {
   const { data: capabilities } = useCapabilities();
   const { user: currentUser } = useAuth();
   const queryClient = useQueryClient();
+
+  // Push context to AI assistant
+  const assistant = useAiAssistantOptional();
+  useEffect(() => {
+    assistant?.setContext({ current_page: 'sheet-edit', entity_type: 'rf-sheets', entity_id: numericId });
+  }, [assistant, numericId]);
   const [title, setTitle] = useState('');
   const [saving, setSaving] = useState(false);
   const [showPanel, setShowPanel] = useState(true);
@@ -157,6 +165,7 @@ export function RfSheetPage() {
     numericId,
     {
       enabled: hasEditRight && !isNew,
+      inactivityTimeout: globalSettings.edit_inactivity_timeout_ms,
       onLockLost: () => {
         // Stay on same page but in view-only mode (lockStatus becomes 'failed')
       },

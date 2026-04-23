@@ -1,10 +1,13 @@
 import { useParams, Link, Navigate } from 'react-router-dom';
-import { Trash2, Edit, Copy, Plus, ChevronLeft, ChevronRight, Eye, Search, X, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown as ChevronDownIcon, ChevronRight as ChevronRightIcon, Filter, Lock } from 'lucide-react';
+import { Trash2, Edit, Copy, Plus, ChevronLeft, ChevronRight, Eye, Search, X, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown as ChevronDownIcon, ChevronRight as ChevronRightIcon, Filter, Lock, Sparkles, ShieldCheck } from 'lucide-react';
 import { useSchema, useAllSchemas, useEntityList, useDeleteEntity, useCapabilities } from '../hooks/useEntity';
 import { useLockedEntities } from '../hooks/useLockedEntities';
 import { toast } from 'sonner';
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { PeekEntity } from '../types/schema';
+import { AiNaturalLanguageFilter } from '../components/ai/AiNaturalLanguageFilter';
+import { useAiSemanticSearch } from '../hooks/useAi';
+import { useAiAssistantOptional } from '../lib/AiAssistantContext';
 
 const PAGE_SIZE = 20;
 
@@ -124,6 +127,46 @@ export function EntityListPage() {
   const hasTags = schema?.features.has_tags ?? false;
   const hasCategories = schema?.features.has_categories ?? false;
 
+  // AI feature flags
+  const supportsAiGeneration = schema?.features.supports_ai_generation ?? false;
+  const supportsNlFilter = schema?.features.supports_natural_language_filter ?? false;
+  const supportsSemanticSearch = schema?.features.supports_semantic_search ?? false;
+  const [nlFilterDescription, setNlFilterDescription] = useState<string | null>(null);
+  const [nlFilterEntityIds, setNlFilterEntityIds] = useState<Set<number> | null>(null);
+  const [nlUsedVectorFallback, setNlUsedVectorFallback] = useState(false);
+  const [semanticSearchActive, setSemanticSearchActive] = useState(false);
+  const [semanticQuery, setSemanticQuery] = useState('');
+  const [debouncedSemanticQuery, setDebouncedSemanticQuery] = useState('');
+  const semanticTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const [showAiCreateDialog, setShowAiCreateDialog] = useState(false);
+  const [aiCreatePrompt, setAiCreatePrompt] = useState('');
+
+  // Semantic search hook
+  const { data: semanticResults, isLoading: semanticLoading } = useAiSemanticSearch(
+    debouncedSemanticQuery,
+    entityName,
+    semanticSearchActive ? schema : null,
+  );
+
+  // AI assistant context push
+  const assistant = useAiAssistantOptional();
+  useEffect(() => {
+    assistant?.setContext({
+      current_page: 'entity-list',
+      entity_type: entityName,
+      entity_id: undefined,
+      current_fields: undefined,
+      errors: undefined,
+      selected_field: undefined,
+    });
+  }, [entityName, assistant]);
+
+  const handleSemanticQueryChange = useCallback((value: string) => {
+    setSemanticQuery(value);
+    clearTimeout(semanticTimerRef.current);
+    semanticTimerRef.current = setTimeout(() => setDebouncedSemanticQuery(value), 300);
+  }, []);
+
   // Extract unique filter values from all entities
   const uniqueAuthors = useMemo(() => {
     if (!allEntities || !hasAuthor) return [];
@@ -165,6 +208,11 @@ export function EntityListPage() {
   const filteredAndSorted = useMemo(() => {
     if (!allEntities) return [];
     let result = [...allEntities];
+
+    // NL filter — restrict to matched entity IDs
+    if (nlFilterEntityIds) {
+      result = result.filter(e => nlFilterEntityIds.has(e.id));
+    }
 
     // Text search filter
     if (searchTerm.trim()) {
@@ -222,7 +270,7 @@ export function EntityListPage() {
     });
 
     return result;
-  }, [allEntities, searchTerm, sortConfig, selectedAuthors, selectedCategories, selectedTags]);
+  }, [allEntities, searchTerm, sortConfig, selectedAuthors, selectedCategories, selectedTags, nlFilterEntityIds]);
 
   // Build tree for hierarchical entities
   const entityTree = useMemo(() => {
@@ -351,39 +399,121 @@ export function EntityListPage() {
             <p className="mt-1 text-sm text-gray-500">{totalAll} total</p>
           </div>
           {canCreate && (
-            <Link
-              to={`/entities-admin/${entityName}?id=new`}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Add New
-            </Link>
+            <div className="flex items-center gap-2">
+              {supportsAiGeneration && assistant && (
+                <button
+                  onClick={() => {
+                    setAiCreatePrompt('');
+                    setShowAiCreateDialog(true);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
+                  data-testid="ai-generate-button"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Create with AI
+                </button>
+              )}
+              <Link
+                to={`/entities-admin/${entityName}?id=new`}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Add New
+              </Link>
+            </div>
           )}
         </div>
 
+        {/* AI Natural Language Filter */}
+        {supportsNlFilter && caps?.can_peek_all && (
+          <div className="mb-4">
+            <AiNaturalLanguageFilter
+              entityName={entityName!}
+              onFilterApplied={(result) => {
+                setNlFilterDescription(result.natural_language_interpretation);
+                setNlFilterEntityIds(new Set(result.results.map(r => r.id)));
+                setNlUsedVectorFallback(result.used_vector_fallback ?? false);
+                setCurrentPage(0);
+              }}
+              onFilterCleared={() => {
+                setNlFilterDescription(null);
+                setNlFilterEntityIds(null);
+                setNlUsedVectorFallback(false);
+              }}
+            />
+            {nlFilterDescription && (
+              <p className={`mt-1 text-xs ${nlUsedVectorFallback ? 'text-amber-600 dark:text-amber-400' : 'text-purple-600 dark:text-purple-400'}`} data-testid="nl-filter-description">
+                {nlUsedVectorFallback && <span className="font-medium">Semantic fallback: </span>}
+                {nlFilterDescription}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Search */}
         <div className="mb-4 relative">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search by title or author..."
-              value={searchTerm}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              className="w-full sm:w-80 pl-10 pr-10 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              data-testid="search-input"
-            />
-            {searchTerm && (
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1 sm:flex-none">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder={semanticSearchActive ? 'AI semantic search...' : 'Search by title or author...'}
+                value={semanticSearchActive ? semanticQuery : searchTerm}
+                onChange={(e) => semanticSearchActive ? handleSemanticQueryChange(e.target.value) : handleSearchChange(e.target.value)}
+                className={`w-full sm:w-80 pl-10 pr-10 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${semanticSearchActive ? 'border-purple-300 bg-purple-50/50' : 'border-gray-300'}`}
+                data-testid="search-input"
+              />
+              {(semanticSearchActive ? semanticQuery : searchTerm) && (
+                <button
+                  onClick={() => semanticSearchActive ? handleSemanticQueryChange('') : handleSearchChange('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  data-testid="search-clear"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            {supportsSemanticSearch && caps?.can_peek_all && (
               <button
-                onClick={() => handleSearchChange('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                data-testid="search-clear"
+                onClick={() => {
+                  setSemanticSearchActive((prev) => !prev);
+                  setSemanticQuery('');
+                  setDebouncedSemanticQuery('');
+                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-md border transition-colors ${
+                  semanticSearchActive
+                    ? 'bg-purple-100 border-purple-300 text-purple-700 dark:bg-purple-900/30 dark:border-purple-600 dark:text-purple-300'
+                    : 'border-gray-300 text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700'
+                }`}
+                title={semanticSearchActive ? 'Switch to text search' : 'Switch to AI semantic search'}
+                data-testid="semantic-search-toggle"
               >
-                <X className="w-4 h-4" />
+                <Sparkles className="w-4 h-4" />
+                AI
               </button>
             )}
           </div>
-          {(searchTerm || hasActiveFilters) && (
+          {semanticSearchActive && semanticLoading && (
+            <p className="mt-1 text-xs text-purple-500" data-testid="semantic-search-loading">Searching...</p>
+          )}
+          {semanticSearchActive && semanticResults && semanticResults.length > 0 && (
+            <div className="mt-2 bg-white dark:bg-gray-800 border border-purple-200 dark:border-purple-700 rounded-md shadow-sm" data-testid="semantic-search-results">
+              {semanticResults.map((r) => (
+                <Link
+                  key={`${r.entity_name}-${r.entity_id}`}
+                  to={`/entities-view/${r.entity_name}?id=${r.entity_id}`}
+                  className="flex items-center justify-between px-3 py-2 text-sm hover:bg-purple-50 dark:hover:bg-purple-900/20 border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                >
+                  <span className="text-gray-900 dark:text-gray-100">{r.title}</span>
+                  <span className="text-xs text-gray-400 tabular-nums">{Math.round(r.score * 100)}%</span>
+                </Link>
+              ))}
+            </div>
+          )}
+          {semanticSearchActive && semanticResults && semanticResults.length === 0 && debouncedSemanticQuery && !semanticLoading && (
+            <p className="mt-1 text-xs text-gray-500" data-testid="semantic-search-empty">No semantic matches found.</p>
+          )}
+          {!semanticSearchActive && (searchTerm || hasActiveFilters) && (
             <p className="mt-1 text-xs text-gray-500" data-testid="filter-count">
               Showing {totalFiltered} of {totalAll}
             </p>
@@ -484,6 +614,7 @@ export function EntityListPage() {
                 const hasChildren = hasParentChild ? (item as TreeNode).children.length > 0 : false;
                 const isExpanded = expanded.has(entity.id);
                 const lockInfo = lockedEntities.get(entity.id);
+                const isSystemManaged = entity.is_system_managed === true;
 
                 return (
                 <tr key={entity.id} className="hover:bg-gray-50 transition-colors" data-testid={`entity-row-${entity.id}`} data-depth={depth}>
@@ -503,7 +634,9 @@ export function EntityListPage() {
                         </button>
                       )}
                       <Link
-                        to={canUpdate && !lockInfo
+                        to={isSystemManaged
+                          ? `/entities-view/${entityName}?id=${entity.id}`
+                          : canUpdate && !lockInfo
                           ? `/entities-admin/${entityName}?id=${entity.id}`
                           : canRead
                           ? `/entities-view/${entityName}?id=${entity.id}`
@@ -512,6 +645,16 @@ export function EntityListPage() {
                       >
                         {entity.title ?? entity.name ?? `ID: ${entity.id}`}
                       </Link>
+                      {isSystemManaged && (
+                        <span
+                          className="inline-flex items-center gap-1 ml-2 px-2 py-0.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-full"
+                          title="This entity is managed by the system and cannot be modified"
+                          data-testid={`system-badge-${entity.id}`}
+                        >
+                          <ShieldCheck className="w-3 h-3" />
+                          System
+                        </span>
+                      )}
                       {lockInfo && (
                         <span
                           className="inline-flex items-center gap-1 ml-2 px-2 py-0.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full"
@@ -543,7 +686,7 @@ export function EntityListPage() {
                           <Eye className="w-4 h-4" />
                         </Link>
                       )}
-                      {canUpdate && (
+                      {canUpdate && !isSystemManaged && (
                         lockInfo ? (
                           <span
                             className="p-2 text-gray-300 cursor-not-allowed"
@@ -561,7 +704,7 @@ export function EntityListPage() {
                           </Link>
                         )
                       )}
-                      {canCreate && (
+                      {canCreate && !isSystemManaged && (
                           <Link
                             to={`/entities-admin/${entityName}?id=clone_from_${entity.id}`}
                             className="p-2 text-gray-500 hover:text-green-600 rounded-md hover:bg-green-50 transition-colors"
@@ -570,7 +713,7 @@ export function EntityListPage() {
                             <Copy className="w-4 h-4" />
                           </Link>
                       )}
-                      {canDelete && (
+                      {canDelete && !isSystemManaged && (
                           lockInfo ? (
                             <span
                               className="p-2 text-gray-300 cursor-not-allowed"
@@ -642,6 +785,65 @@ export function EntityListPage() {
           )}
         </div>
       </div>
+      {/* AI Create dialog */}
+      {showAiCreateDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" data-testid="ai-create-dialog">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Sparkles className="w-5 h-5 text-purple-600" />
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Create {schema?.readable_name.singular ?? entityName} with AI
+              </h2>
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              Describe the {schema?.readable_name.singular.toLowerCase() ?? 'entity'} you want to create. The AI will generate content based on your description.
+            </p>
+            <textarea
+              value={aiCreatePrompt}
+              onChange={e => setAiCreatePrompt(e.target.value)}
+              placeholder={`e.g. "A blog post about renewable energy trends in 2026"`}
+              rows={3}
+              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-purple-500"
+              autoFocus
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey && aiCreatePrompt.trim()) {
+                  e.preventDefault();
+                  setShowAiCreateDialog(false);
+                  assistant!.triggerMessage(
+                    `I want to create a new ${schema!.readable_name.singular}. Here is what I want: ${aiCreatePrompt.trim()}`,
+                    { current_page: 'entity-list', entity_type: entityName },
+                  );
+                }
+              }}
+              data-testid="ai-create-prompt"
+            />
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                onClick={() => setShowAiCreateDialog(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (!aiCreatePrompt.trim()) return;
+                  setShowAiCreateDialog(false);
+                  assistant!.triggerMessage(
+                    `I want to create a new ${schema!.readable_name.singular}. Here is what I want: ${aiCreatePrompt.trim()}`,
+                    { current_page: 'entity-list', entity_type: entityName },
+                  );
+                }}
+                disabled={!aiCreatePrompt.trim()}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                data-testid="ai-create-submit"
+              >
+                <Sparkles className="w-4 h-4" />
+                Generate
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

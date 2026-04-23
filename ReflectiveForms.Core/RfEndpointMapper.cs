@@ -35,6 +35,7 @@ public static class RfEndpointMapper
     internal const string CapabilitiesEndpoint = "capabilities";
     internal const string SchemaEndpoint = "schema";
     internal const string BulkReadEndpoint = "bulk_read";
+    internal const string FrontendSettingsEndpoint = "frontend_settings";
     internal const string LiveEndpointPattern = "live/{entityName}/{entityId}";
 
     public static string PublicCrudEndpoint => RfConfiguration.EndpointConfiguration.PublicUrlRootForApi + CrudEndpoint;
@@ -60,6 +61,27 @@ public static class RfEndpointMapper
         MapEndpoint(group, AuthCheckEndpoint, new AuthCheck());
         MapEndpoint(group, CapabilitiesEndpoint, new Capabilities());
         MapEndpoint(group, BulkReadEndpoint, new BulkRead());
+        MapEndpoint(group, FrontendSettingsEndpoint, new FrontendSettings());
+
+        // OpenAPI spec — independent of AI
+        if (RfConfiguration.EndpointConfiguration.OpenApi != null)
+        {
+            MapEndpoint(group, "openapi.json", new OpenApiEndpoint());
+        }
+
+        // AI endpoints — only registered if AiServiceConfiguration is set
+        if (RfConfiguration.AiServiceConfiguration != null)
+        {
+            MapEndpoint(group, "ai/semantic_search", new AiSemanticSearchEndpoint());
+            MapEndpoint(group, "ai/reindex", new AiReIndexEndpoint());
+            MapEndpoint(group, "ai/generate", new AiGenerateEndpoint());
+            MapEndpoint(group, "ai/suggest", new AiSuggestFieldEndpoint());
+            MapEndpoint(group, "ai/sanity_check", new AiSanityCheckEndpoint());
+            MapEndpoint(group, "ai/diff_summary", new AiDiffSummaryEndpoint());
+            MapEndpoint(group, "ai/nl_filter", new AiNaturalLanguageFilterEndpoint());
+            MapEndpoint(group, "ai/relation_suggest", new AiRelationSuggestEndpoint());
+            MapEndpoint(group, "ai/chat", new AiAgentChatEndpoint());
+        }
 
         // WebSocket endpoint for live entity updates (editor → viewers relay)
         group.Map(ApiRouteSegment + LiveEndpointPattern, LiveUpdateWebSocket.HandleAsync)

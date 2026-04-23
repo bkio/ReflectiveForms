@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RfSheetPage } from '../../pages/RfSheetPage';
 
 // Capture the onCommandExecuted callback so tests can simulate Univer edits
-let capturedCommandListener: (() => void) | null = null;
+let capturedCommandListener: ((params: { id: string; type: number }) => void) | null = null;
 
 vi.mock('@univerjs/preset-sheets-core', () => ({
   UniverSheetsCorePreset: vi.fn(() => ({})),
@@ -19,7 +19,7 @@ vi.mock('@univerjs/presets', () => ({
       createWorkbook: vi.fn(),
       dispose: vi.fn(),
       addEvent: vi.fn(() => ({ dispose: vi.fn() })),
-      onCommandExecuted: vi.fn((cb: () => void) => {
+      onCommandExecuted: vi.fn((cb: (params: { id: string; type: number }) => void) => {
         capturedCommandListener = cb;
         return { dispose: vi.fn() };
       }),
@@ -59,6 +59,7 @@ vi.mock('../../hooks/useEntity', () => ({
   useEntity: vi.fn(),
   useAllSchemas: vi.fn(() => stableSchemas),
   useCapabilities: vi.fn(() => stableCapabilities),
+  useGlobalSettings: vi.fn(() => ({})),
 }));
 
 vi.mock('../../hooks/useAuth', () => ({

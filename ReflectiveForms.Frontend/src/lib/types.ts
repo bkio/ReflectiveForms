@@ -23,4 +23,10 @@ export interface RfConfig {
     LoginPage?: ComponentType;
     DashboardPage?: ComponentType;
   };
+  ai?: {
+    /** Override the AI endpoint base. Defaults to apiBaseUrl + '/ai'. */
+    aiEndpointBase?: string;
+    /** Disable all AI features on the frontend regardless of backend schema flags. */
+    disabled?: boolean;
+  };
 }

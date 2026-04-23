@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect } from 'react';
 import type { RfConfig } from './types';
-import { setApiBaseUrl } from '../api/client';
+import { setApiBaseUrl, setAiBaseUrl, setAiDisabled } from '../api/client';
 
 const RfConfigContext = createContext<RfConfig | null>(null);
 
@@ -21,6 +21,12 @@ export function RfConfigProvider({ config, children }: RfConfigProviderProps) {
   useEffect(() => {
     setApiBaseUrl(config.apiBaseUrl);
   }, [config.apiBaseUrl]);
+
+  // Wire AI configuration
+  useEffect(() => {
+    setAiBaseUrl(config.ai?.aiEndpointBase ?? null);
+    setAiDisabled(config.ai?.disabled ?? false);
+  }, [config.ai?.aiEndpointBase, config.ai?.disabled]);
 
   // Apply primary color CSS variable
   useEffect(() => {

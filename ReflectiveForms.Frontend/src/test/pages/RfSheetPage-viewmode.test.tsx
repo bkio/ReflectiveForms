@@ -53,6 +53,7 @@ vi.mock('../../hooks/useEntity', () => ({
   useEntity: vi.fn(),
   useAllSchemas: vi.fn(() => stableSchemas),
   useCapabilities: vi.fn(() => stableCapabilities),
+  useGlobalSettings: vi.fn(() => ({})),
 }));
 
 vi.mock('../../hooks/useAuth', () => ({

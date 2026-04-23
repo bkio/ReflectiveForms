@@ -1,10 +1,12 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
-import { useSchema, useEntity, useEntityHistory, useEntityList } from '../hooks/useEntity';
+import { useSchema, useEntity, useEntityHistory, useEntityList, useCapabilities } from '../hooks/useEntity';
 import { RevisionEntry, FieldSchema, EntitySchema, EntityData } from '../types/schema';
 import { sanitizeHtml } from '../lib/sanitize';
 import { evaluateCompoundCondition } from '../lib/conditionParser';
 import { ArrowLeft, ChevronDown, Search } from 'lucide-react';
+import { AiDiffSummary } from '../components/ai/AiDiffSummary';
+import { useAiAssistantOptional } from '../lib/AiAssistantContext';
 
 /** Recursively collect all unique relation entity names from the field schema tree. */
 function collectRelationEntityNames(fields: FieldSchema[]): string[] {
@@ -88,10 +90,22 @@ export function RevisionDiffPage() {
   const { data: schema, isLoading: schemaLoading, error: schemaError } = useSchema(entityName ?? '');
   const { data: entityData, isLoading: entityLoading, error: entityError } = useEntity(entityName ?? '', entityId);
   const { data: historyData, isLoading: historyLoading, error: historyError } = useEntityHistory(entityName ?? '', entityId);
+  const { data: capabilities } = useCapabilities();
+  const canRead = entityName ? (capabilities?.[entityName]?.can_read ?? true) : true;
 
   const [leftValue, setLeftValue] = useState<string>('');
   const [rightValue, setRightValue] = useState<string>('');
   const [sameRevisionError, setSameRevisionError] = useState(false);
+
+  // Push context to AI assistant
+  const assistant = useAiAssistantOptional();
+  useEffect(() => {
+    assistant?.setContext({
+      current_page: 'revision-diff',
+      entity_type: entityName,
+      entity_id: entityId,
+    });
+  }, [entityName, entityId, assistant]);
 
   // Collect all unique relation entity names from the schema
   const relationEntityNames = useMemo(
@@ -244,6 +258,21 @@ export function RevisionDiffPage() {
 
         {/* Divider between selectors and diff content */}
         <div className="border-t border-gray-300 dark:border-gray-600 my-6" />
+
+        {/* AI Diff Summary */}
+        {schema.features.supports_ai_diff_summary && canRead && entityId && leftValue && rightValue && !sameRevisionError && (
+          <div className="mb-6">
+            <AiDiffSummary
+              entityName={entityName!}
+              entityId={entityId}
+              revisionIndex={Math.min(
+                leftValue === 'latest' ? Infinity : parseInt(leftValue, 10),
+                rightValue === 'latest' ? Infinity : parseInt(rightValue, 10),
+              )}
+              schema={schema}
+            />
+          </div>
+        )}
 
         {/* Diff content */}
         <div className="grid grid-cols-2 gap-6">

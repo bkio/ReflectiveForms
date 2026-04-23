@@ -6,21 +6,25 @@ import type { EntitySchema } from '../../types/schema';
 
 const mockSchemas: Record<string, EntitySchema> = {
   employee: {
+    entity_name: 'employee',
     readable_name: { singular: 'Employee', plural: 'Employees' },
-    endpoints: { create: '', read: '', update: '', delete: '' },
-    features: { has_tags: false, has_categories: false, has_author: false, has_parent_child: false },
+    features: { has_tags: false, has_categories: false, has_author: false, has_parent_child: false, require_title_uniqueness: false, supports_frontend_edit: true, has_individual_sharing: false, supports_semantic_search: false, supports_ai_generation: false, supports_ai_diff_summary: false, supports_natural_language_filter: false },
     fields: [
       { name: 'name', type: 'Text', label: 'Full Name', required: true, has_dynamic_choices_runtime: false, has_dynamic_choices_compile_time: false, has_logic_sanity_check: false },
       { name: 'salary', type: 'Number', label: 'Salary', required: false, has_dynamic_choices_runtime: false, has_dynamic_choices_compile_time: false, has_logic_sanity_check: false },
     ],
+    api_endpoints: { crud: '', sanity_check: '', entity_lock: '', media: '' },
+    schema_version: '1.0',
   } as EntitySchema,
   department: {
+    entity_name: 'department',
     readable_name: { singular: 'Department', plural: 'Departments' },
-    endpoints: { create: '', read: '', update: '', delete: '' },
-    features: { has_tags: false, has_categories: false, has_author: false, has_parent_child: false },
+    features: { has_tags: false, has_categories: false, has_author: false, has_parent_child: false, require_title_uniqueness: false, supports_frontend_edit: true, has_individual_sharing: false, supports_semantic_search: false, supports_ai_generation: false, supports_ai_diff_summary: false, supports_natural_language_filter: false },
     fields: [
       { name: 'dept_name', type: 'Text', label: 'Department Name', required: true, has_dynamic_choices_runtime: false, has_dynamic_choices_compile_time: false, has_logic_sanity_check: false },
     ],
+    api_endpoints: { crud: '', sanity_check: '', entity_lock: '', media: '' },
+    schema_version: '1.0',
   } as EntitySchema,
 };
 

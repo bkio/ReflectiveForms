@@ -77,6 +77,11 @@ public abstract class BaseEndpoint
             await context.Request.Body.CopyToAsync(mStream, cancellationToken);
             RequestBodyRawBytes = mStream.ToArray();
         }
+        catch (OperationCanceledException)
+        {
+            // Client disconnected — let ASP.NET handle gracefully
+            throw;
+        }
         catch (Exception e)
         {
             RfConfiguration.LogError("Request failed during body-read. Error: {Exception}", e);

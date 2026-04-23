@@ -166,6 +166,8 @@ public static class RfBuilder
 }
 ```
 
+> **Tip:** You can also set `EditInactivityTimeoutMs` on the builder (default: `600000` = 10 minutes) to control how long a user can be idle before their edit lock is released.
+
 Create `NoteModel.cs`:
 
 ```csharp
@@ -442,8 +444,103 @@ new EntityConfigurationBuilder<TaskModel>
     // Validation
     RequireGlobalTitleUniqueness = true, // No duplicate titles
     OptionalTitleSanityCheck = null,     // No custom title check
+
+    // AI features (requires AiServiceConfiguration on the builder)
+    SupportsSemanticSearch = false,          // Vector indexing on save
+    SupportsAiGeneration = false,            // "Create with AI" endpoint
+    SupportsAiDiffSummary = false,           // AI revision diff summaries
+    SupportsNaturalLanguageFilter = false,   // NL → filter conditions
+    EntityDescription = null,                // Required when any AI feature is enabled
 }
 ```
+
+---
+
+## Enabling AI Features (Optional)
+
+ReflectiveForms includes optional AI-powered features: semantic search, a centralized AI assistant (multi-turn chat with tool-calling for entity creation, updates, deletion, field suggestions, and navigation — all with user approval), AI sanity checks, revision diff summaries, NL filtering, and AI relation suggestions. All are off by default.
+
+### Step 1: Add AI services to your builder
+
+```csharp
+// In RfBuilder.cs — add these alongside your existing services
+using CrossCloudKit.LLM.Basic;
+using CrossCloudKit.Vector.Basic;
+using ReflectiveForms.Core.Ai;
+
+// Bundled SmolLM2-135M + MiniLM for local dev (zero external dependencies)
+var llmService = new LLMServiceBasic();
+var vectorService = new VectorServiceBasic();
+
+// For production, use OpenAI-compatible providers:
+// var llm = new LLMServiceOpenAI("http://localhost:11434/v1", "", "gemma3:12b", "nomic-embed-text:v1.5");
+// var vector = new VectorServiceQdrant(host: "localhost", grpcPort: 6334);
+
+return new RfConfigurationBuilder
+{
+    // ... existing config ...
+    AiServiceConfiguration = new AiServiceConfiguration(
+        HeavyLlmService: llmService,    // Complex tasks: entity generation, diff summaries
+        LightLlmService: llmService,    // Fast tasks: suggestions, sanity checks, embeddings
+        VectorService: vectorService),
+};
+```
+
+### Step 2: Enable features per entity type
+
+```csharp
+new EntityConfigurationBuilder<NoteModel>
+{
+    // ... existing config ...
+    EntityDescription = "A simple note with rich-text content.",
+    SupportsSemanticSearch = true,          // Index in vector DB on save
+    SupportsAiGeneration = true,            // AI assistant can create entities of this type
+    SupportsAiDiffSummary = true,           // AI summary on revision diffs
+    SupportsNaturalLanguageFilter = true,   // NL → filter conditions
+}
+```
+
+### Step 3: Add field-level AI attributes (optional)
+
+```csharp
+using ReflectiveForms.Core.Attributes;
+
+public class NoteModel : EntityFieldsModel
+{
+    [JsonProperty("content"),
+     WysiwygEditor(label: "Content", instructions: "", mandatory: true)]
+    [AISanityCheck("Is the content well-written and professional?", AISanityCheckSeverity.Warning)]
+    public string Content = "";
+
+    [JsonProperty("summary"),
+     TextArea(label: "Summary", instructions: "", mandatory: false, placeholderText: "")]
+    [AISuggestion("Summarize the content in 2 sentences", "content")]
+    public string Summary = "";
+}
+```
+
+The frontend automatically shows AI buttons/badges for fields with these attributes, gated by user capabilities. Entity creation, updates, and field suggestions are routed through the centralized AI assistant with user approval.
+
+---
+
+## Enabling OpenAPI Spec Generation (Optional)
+
+Add `OpenApi` to your endpoint configuration to serve an auto-generated OpenAPI 3.1 spec:
+
+```csharp
+EndpointConfiguration = new EndpointConfiguration
+{
+    // ... existing config ...
+    OpenApi = new OpenApiConfiguration
+    {
+        Title = "My Notes API",
+        Version = "1.0.0",
+        Description = "Auto-generated from entity schemas",
+    },
+},
+```
+
+The spec is available at `GET /rf/api/openapi.json`. It includes all CRUD endpoints, field schemas, auth endpoints, and (if AI is enabled) AI endpoints. No AI services required — OpenAPI works independently.
 
 ---
 
@@ -639,6 +736,6 @@ This starts the backend on port 9000 and the frontend (via nginx) on port 3000.
 
 ## Next Steps
 
-- Browse the [sample app](../ReflectiveForms.Sample1/) for advanced examples (nested repeaters, dynamic choices, sanity checks)
+- Browse the [sample app](../ReflectiveForms.Sample1/) for advanced examples (nested repeaters, dynamic choices, sanity checks, AI features)
 - Read the [frontend library docs](../ReflectiveForms.Frontend/README.md) for the full configuration reference
 - See the [main README](../README.md) for the complete API endpoint reference

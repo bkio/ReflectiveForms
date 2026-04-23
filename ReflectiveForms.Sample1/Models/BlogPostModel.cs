@@ -93,6 +93,8 @@ internal class ExternalLinkModel : BaseModel
 internal class BlogPostModel : EntityFieldsModel
 {
     [JsonProperty("content"),
+     AISanityCheck("Is this content professional, well-written, and free of major spelling or grammar errors?"),
+     AISanityCheck("Does this content avoid containing personally identifiable information (PII) such as phone numbers or home addresses?", AISanityCheckSeverity.Error),
      WysiwygEditor(
          label: "Post Content",
          instructions: "Write your blog post content here. Supports rich text formatting.",
@@ -100,6 +102,7 @@ internal class BlogPostModel : EntityFieldsModel
     public string Content = "";
 
     [JsonProperty("excerpt"),
+     AISuggestion("Write a concise 1-2 sentence summary of the blog post content, suitable for previews and SEO.", "content"),
      TextArea(
          label: "Excerpt",
          instructions: "A short summary displayed in post listings and previews.",

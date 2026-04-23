@@ -103,6 +103,8 @@ See `frontend/src/rf.config.ts` for frontend configuration (branding, colors, cu
 
 See `backend/RfBuilder.cs` for backend configuration (entities, auth, SSO).
 
+{{AI_README_SECTION}}
+
 ## License
 
 Private — powered by ReflectiveForms (AGPL-3.0).

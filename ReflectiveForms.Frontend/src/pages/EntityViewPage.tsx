@@ -1,11 +1,14 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { useSchema, useEntity, useEntityList, useCapabilities, useEntityHistory } from '../hooks/useEntity';
+import { useAiAssistantOptional } from '../lib/AiAssistantContext';
 import { FieldSchema, EntitySchema, PeekEntity, GroupRenderStyle } from '../types/schema';
 import { sanitizeHtml } from '../lib/sanitize';
 import { evaluateCompoundCondition } from '../lib/conditionParser';
-import { ArrowLeft, Edit, Tag, FolderTree, User, GitBranch, GitCompare, Radio } from 'lucide-react';
+import { ArrowLeft, Edit, Tag, FolderTree, User, GitBranch, GitCompare, Radio, Lock } from 'lucide-react';
 import { useLiveUpdates } from '../hooks/useLiveUpdates';
+import { useQuery } from '@tanstack/react-query';
+import { fetchLockStatus } from '../api/client';
 
 /** Recursively collect all unique relation entity names from the field schema tree. */
 function collectRelationEntityNames(fields: FieldSchema[]): string[] {
@@ -41,6 +44,25 @@ export function EntityViewPage() {
   const { data: schema, isLoading: schemaLoading, error: schemaError } = useSchema(entityName ?? '');
   const { data: entityData, isLoading: entityLoading, error: entityError } = useEntity(entityName ?? '', entityId);
   const { data: capabilities } = useCapabilities();
+
+  // Push context to AI assistant
+  const assistant = useAiAssistantOptional();
+  useEffect(() => {
+    assistant?.setContext({ current_page: 'entity-view', entity_type: entityName, entity_id: entityId });
+  }, [assistant, entityName, entityId]);
+
+  // Poll lock status so the Edit button is hidden while the entity is being edited
+  const { data: lockData } = useQuery({
+    queryKey: ['entity-lock-status', entityName, entityId],
+    queryFn: async () => {
+      const res = await fetchLockStatus(entityName!, entityId!);
+      return res.data ?? null;
+    },
+    enabled: !!entityName && entityId !== undefined,
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
+  });
+  const isLocked = lockData != null;
 
   // Live updates: receive real-time changes from the editing user
   const [liveData, setLiveData] = useState<Record<string, unknown> | null>(null);
@@ -164,7 +186,16 @@ export function EntityViewPage() {
                 Compare Revisions
               </Link>
             )}
-            {schema.features.supports_frontend_edit && (capabilities?.[entityName!]?.can_update ?? true) && (
+            {isLocked && (
+              <span
+                className="flex items-center gap-2 px-4 py-2 text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-md"
+                data-testid="lock-indicator"
+              >
+                <Lock className="w-4 h-4" />
+                Being edited by {lockData?.locked_by_user_name ?? 'another user'}
+              </span>
+            )}
+            {schema.features.supports_frontend_edit && !entityData?.is_system_managed && !isLocked && (capabilities?.[entityName!]?.can_update ?? true) && (
               <Link
                 to={`/entities-admin/${entityName}?id=${entityId}`}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"

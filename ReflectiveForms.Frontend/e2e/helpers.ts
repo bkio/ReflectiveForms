@@ -142,6 +142,79 @@ export class ApiHelper {
       }>;
     };
   }
+
+  // -----------------------------------------------------------------
+  // AI API helpers
+  // -----------------------------------------------------------------
+
+  async aiSemanticSearch(query: string, entityName?: string, topK?: number) {
+    const body: Record<string, unknown> = { query };
+    if (entityName) body.entity_name = entityName;
+    if (topK) body.top_k = topK;
+    const res = await this.request.post(`${API_BASE}/ai/semantic_search`, { data: body });
+    return { status: res.status(), body: await res.json() };
+  }
+
+  async aiGenerate(entityName: string, prompt: string) {
+    const res = await this.request.post(
+      `${API_BASE}/ai/generate?type=${encodeURIComponent(entityName)}`,
+      { data: { prompt }, timeout: 120000 },
+    );
+    return { status: res.status(), body: await res.json() };
+  }
+
+  async aiSuggestField(entityName: string, targetField: string, fields: Record<string, unknown>) {
+    const res = await this.request.post(
+      `${API_BASE}/ai/suggest?type=${encodeURIComponent(entityName)}`,
+      { data: { target_field: targetField, fields } },
+    );
+    return { status: res.status(), body: await res.json() };
+  }
+
+  async aiSanityCheck(entityName: string, fieldName: string, fieldValue: unknown) {
+    const res = await this.request.post(
+      `${API_BASE}/ai/sanity_check?type=${encodeURIComponent(entityName)}`,
+      { data: { field_name: fieldName, field_value: fieldValue } },
+    );
+    return { status: res.status(), body: await res.json() };
+  }
+
+  async aiDiffSummary(entityName: string, entityId: number, revisionIndex: number) {
+    const res = await this.request.post(
+      `${API_BASE}/ai/diff_summary?type=${encodeURIComponent(entityName)}`,
+      { data: { entity_id: entityId, revision_index: revisionIndex } },
+    );
+    return { status: res.status(), body: await res.json() };
+  }
+
+  async aiNlFilter(entityName: string, query: string) {
+    const res = await this.request.post(
+      `${API_BASE}/ai/nl_filter?type=${encodeURIComponent(entityName)}`,
+      { data: { query } },
+    );
+    return { status: res.status(), body: await res.json() };
+  }
+
+  async aiRelationSuggest(entityName: string, relationField: string, currentText: string) {
+    const res = await this.request.post(
+      `${API_BASE}/ai/relation_suggest?type=${encodeURIComponent(entityName)}`,
+      { data: { relation_field: relationField, current_text: currentText } },
+    );
+    return { status: res.status(), body: await res.json() };
+  }
+
+  async aiReindex(entityName: string, mode: 'full' | 'incremental' = 'full') {
+    const res = await this.request.post(
+      `${API_BASE}/ai/reindex?type=${encodeURIComponent(entityName)}&mode=${mode}`,
+      { data: {} },
+    );
+    return { status: res.status(), body: await res.text().catch(() => '') };
+  }
+
+  async getOpenApiSpec() {
+    const res = await this.request.get(`${API_BASE}/openapi.json`);
+    return { status: res.status(), body: await res.json() };
+  }
 }
 
 // -----------------------------------------------------------------

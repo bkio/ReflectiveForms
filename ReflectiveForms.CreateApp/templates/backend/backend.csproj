@@ -9,10 +9,11 @@
 
   <ItemGroup>
     <PackageReference Include="ReflectiveForms.Core" Version="0.1.0" />
-    <PackageReference Include="CrossCloudKit.Database.Basic" Version="2026.4.14.56" />
-    <PackageReference Include="CrossCloudKit.File.Basic" Version="2026.4.14.56" />
-    <PackageReference Include="CrossCloudKit.Memory.Basic" Version="2026.4.14.56" />
-    <PackageReference Include="CrossCloudKit.PubSub.Basic" Version="2026.4.14.56" />
+    <PackageReference Include="CrossCloudKit.Database.Basic" Version="2026.4.22.71" />
+    <PackageReference Include="CrossCloudKit.File.Basic" Version="2026.4.22.71" />
+    <PackageReference Include="CrossCloudKit.Memory.Basic" Version="2026.4.22.71" />
+    <PackageReference Include="CrossCloudKit.PubSub.Basic" Version="2026.4.22.71" />
+{{AI_CSPROJ_PACKAGES}}
   </ItemGroup>
 
 </Project>

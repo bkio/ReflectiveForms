@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { exportWorkbookToXlsx } from '../../lib/rf-sheet-export';
 
 // Mock xlsx module

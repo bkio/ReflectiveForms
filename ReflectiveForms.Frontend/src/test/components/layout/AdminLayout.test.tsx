@@ -22,6 +22,9 @@ vi.mock('../../../hooks/useEntity', async () => {
 vi.mock('../../../api/client', () => ({
   setApiBaseUrl: vi.fn(),
   getApiBaseUrl: vi.fn(() => 'http://test/rf/api'),
+  setAiBaseUrl: vi.fn(),
+  setAiDisabled: vi.fn(),
+  aiAgentChat: vi.fn().mockResolvedValue({ data: { response: '', tool_calls_made: [], proposed_actions: [] } }),
 }));
 
 const defaultConfig: RfConfig = {

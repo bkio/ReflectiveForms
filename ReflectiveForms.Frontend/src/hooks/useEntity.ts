@@ -10,9 +10,11 @@ import {
   deleteEntity,
   sanityCheck,
   fetchCapabilities,
+  fetchFrontendSettings,
   fetchEntityHistory,
 } from '../api/client';
-import { EntityData, EntitySchema, PaginatedPeekResponse, AllCapabilities, EntityRevisionsResponse } from '../types/schema';
+import type { FrontendSettingsResponse } from '../api/client';
+import { EntityData, EntitySchema, PaginatedPeekResponse, AllCapabilities, EntityRevisionsResponse, GlobalSettings } from '../types/schema';
 
 // Schema hooks
 export function useSchema(entityName: string) {
@@ -51,6 +53,21 @@ export function useCapabilities() {
     staleTime: 1000 * 60 * 5, // Cache for 5 minutes
     retry: 3,
   });
+}
+
+/** Derives global frontend settings from the capabilities response (_settings key). */
+export function useGlobalSettings(): GlobalSettings {
+  const { data } = useQuery({
+    queryKey: ['frontend-settings'],
+    queryFn: async () => {
+      const result = await fetchFrontendSettings();
+      if (result.error) throw new Error(result.error);
+      return result.data as FrontendSettingsResponse;
+    },
+    staleTime: 1000 * 60 * 60, // Settings rarely change, cache for 1 hour
+    retry: 3,
+  });
+  return (data as GlobalSettings) ?? {};
 }
 
 // Entity hooks

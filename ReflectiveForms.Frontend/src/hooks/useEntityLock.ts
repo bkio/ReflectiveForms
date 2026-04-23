@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { tryLockEntity, unlockEntity, fetchLockStatus, getApiBaseUrl } from '../api/client';
 
 const HEARTBEAT_CHECK_INTERVAL = 15000; // Check every 15 seconds
-const INACTIVITY_TIMEOUT = 60000; // Lock expires after 60 seconds of no save activity
+const DEFAULT_INACTIVITY_TIMEOUT = 600000; // Lock expires after 10 minutes of no save activity
 const TAB_ID_KEY = '__rf_tab_id';
 
 /**
@@ -31,6 +31,8 @@ interface UseEntityLockOptions {
   enabled?: boolean;
   onLockFailed?: (lockedBy: string) => void;
   onLockLost?: () => void;
+  /** Inactivity timeout in ms before releasing the lock. Defaults to 600000. */
+  inactivityTimeout?: number;
 }
 
 export function useEntityLock(
@@ -38,7 +40,7 @@ export function useEntityLock(
   entityId: number | undefined,
   options: UseEntityLockOptions = {}
 ) {
-  const { enabled = true, onLockFailed, onLockLost } = options;
+  const { enabled = true, onLockFailed, onLockLost, inactivityTimeout = DEFAULT_INACTIVITY_TIMEOUT } = options;
 
   // Stable per-tab identifier — survives F5 refresh, unique across tabs
   const tabIdRef = useRef(getTabId());
@@ -134,13 +136,13 @@ export function useEntityLock(
   }, []);
 
   // Heartbeat: only refreshes the lock if there has been recent save activity.
-  // If the user has been idle longer than INACTIVITY_TIMEOUT, release the lock
+  // If the user has been idle longer than inactivityTimeout, release the lock
   // and notify via onLockLost so the page can redirect to view-only.
   const heartbeat = useCallback(async (): Promise<void> => {
     if (!isLockedRef.current) return;
 
     const elapsed = Date.now() - lastActivityRef.current;
-    if (elapsed >= INACTIVITY_TIMEOUT) {
+    if (elapsed >= inactivityTimeout) {
       // User has been idle too long — release lock and redirect
       await releaseLock();
       handleLockLost();
@@ -153,7 +155,7 @@ export function useEntityLock(
       // Lock was taken by someone else (e.g. expired briefly during a network blip)
       handleLockLost();
     }
-  }, [acquireLock, releaseLock, handleLockLost]);
+  }, [acquireLock, releaseLock, handleLockLost, inactivityTimeout]);
 
   // Acquire lock on mount, run heartbeat periodically, release on unmount.
   // Only depends on entityId and enabled — callbacks are accessed via refs or

@@ -24,6 +24,9 @@ internal static class RootManager
     private static int _ownerRoleId = -1;
     internal static int OwnerRoleId => _ownerRoleId;
 
+    private static int _rootUserId = -1;
+    internal static int RootUserId => _rootUserId;
+
     // ── Sharing admin roles (one per entity type with HasIndividualSharing) ──
     // Key: entity name, Value: role id
     private static readonly Dictionary<string, int> SharingAdminRoleIds = new();
@@ -37,6 +40,28 @@ internal static class RootManager
     internal static bool IsSharingAdminRoleTitle(string title)
     {
         return SharingAdminRoleTitles.Values.Contains(title);
+    }
+
+    /// <summary>
+    /// Returns true if the given entity (identified by entity type name and ID) is a system-managed
+    /// entity created by the framework (root user, owner role, sharing admin roles).
+    /// System-managed entities must not be updated or deleted by any user.
+    /// </summary>
+    internal static bool IsSystemManagedEntity(string entityName, int entityId)
+    {
+        if (entityName == RfReservedEntities.UsersEntityName && _rootUserId > 0 && entityId == _rootUserId)
+            return true;
+
+        if (entityName == RfReservedEntities.IamRoleEntityName)
+        {
+            if (_ownerRoleId > 0 && entityId == _ownerRoleId)
+                return true;
+
+            if (SharingAdminRoleIds.Values.Contains(entityId))
+                return true;
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -162,6 +187,8 @@ internal static class RootManager
         {
             if (rootUser != null)
             {
+                _rootUserId = rootUser.Id;
+
                 var fields = rootUser.Fields;
                 if (fields.EmailAddress == newEmail
                     && fields.PasswordSha256 == newPasswordSha256)
@@ -203,8 +230,11 @@ internal static class RootManager
                         }
                     }.FromObjectWithPolymorphism(),
                     cancellationToken);
-                if (!putResult.IsSuccessful)
+                if (!putResult.IsSuccessful
+                    || !putResult.Data.TryGetTypedValue(EntityModelAttributes.Id, out int rootId))
                     throw new Exception($"Failed to create root user with email {newEmail}. Error: {putResult.ErrorMessage}");
+
+                _rootUserId = rootId;
             }
         }
         finally

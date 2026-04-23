@@ -4,6 +4,9 @@ import { FieldSchema } from '../../types/schema';
 import { evaluateCompoundCondition } from '../../lib/conditionParser';
 import { sanitizeHtml } from '../../lib/sanitize';
 import { FieldComponentProps } from './types';
+import { useEntityFormContext } from '../form/DynamicForm';
+import { AiSuggestButton } from '../ai/AiSuggestButton';
+import { AiSanityCheckBadge } from '../ai/AiSanityCheckBadge';
 
 // Import all field components
 import { TextField, TextAreaField } from './TextField';
@@ -44,8 +47,13 @@ interface FormFieldProps {
 }
 
 export function FormField({ fieldSchema, basePath = 'fields', depth = 0 }: FormFieldProps) {
-  const { control } = useFormContext();
+  const { control, getValues } = useFormContext();
   const formValues = useWatch({ control });
+  const entityFormCtx = useEntityFormContext();
+
+  // Watch the current field value for sanity check
+  const fieldPath = basePath ? `${basePath}.${fieldSchema.name}` : fieldSchema.name;
+  const fieldValue = useWatch({ control, name: fieldPath });
 
   // Evaluate display condition scoped to the current item path.
   // For fields inside repeaters, basePath is e.g. "fields.sections.0" so we
@@ -75,22 +83,41 @@ export function FormField({ fieldSchema, basePath = 'fields', depth = 0 }: FormF
     return null;
   }
 
-  const fieldPath = basePath ? `${basePath}.${fieldSchema.name}` : fieldSchema.name;
-
   const isTopLevel = depth === 0;
   const cardClass = isTopLevel
     ? 'bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4'
     : 'mb-3';
+
+  // AI integration flags
+  const showAiSuggest = !!entityFormCtx?.canUpdate && !!fieldSchema.ai_suggestion;
+  const showAiSanityCheck = !!entityFormCtx?.canUpdate && !!fieldSchema.ai_sanity_checks?.length;
 
   return (
     <div className={`field-wrapper field-type-${fieldSchema.type.toLowerCase()} ${depth > 0 ? '' : ''}`}>
       <div className={cardClass}>
         {/* Field header */}
         <div className="mb-2">
-          <label className="block text-sm font-medium text-gray-700">
-            {fieldSchema.label}
-            {fieldSchema.required && <span className="text-red-500 ml-1">*</span>}
-          </label>
+          <div className="flex items-center gap-2">
+            <label className="block text-sm font-medium text-gray-700">
+              {fieldSchema.label}
+              {fieldSchema.required && <span className="text-red-500 ml-1">*</span>}
+            </label>
+            {showAiSuggest && (
+              <AiSuggestButton
+                entityName={entityFormCtx!.entityName}
+                targetField={fieldSchema.name}
+                currentFields={(getValues('fields') ?? {}) as Record<string, unknown>}
+              />
+            )}
+            {showAiSanityCheck && (
+              <AiSanityCheckBadge
+                entityName={entityFormCtx!.entityName}
+                fieldName={fieldSchema.name}
+                fieldValue={fieldValue}
+                checks={fieldSchema.ai_sanity_checks!}
+              />
+            )}
+          </div>
           {fieldSchema.instructions && (
             <p
               className="mt-1 text-sm text-gray-500"

@@ -1,6 +1,6 @@
 # ReflectiveForms Sample Project
 
-A comprehensive sample application demonstrating every feature of the **ReflectiveForms** framework — an attribute-driven, reflection-based system that generates dynamic CRUD admin forms from C# entity definitions, served to a React SPA frontend.
+A comprehensive sample application demonstrating every feature of the **ReflectiveForms** framework — an attribute-driven, reflection-based system that generates dynamic CRUD admin forms from C# entity definitions, served to a React SPA frontend. Includes AI-powered features (centralized AI assistant with tool-calling, semantic search, sanity checks, NL filtering) and auto-generated OpenAPI 3.1 spec.
 
 ## Table of Contents
 
@@ -47,8 +47,8 @@ A comprehensive sample application demonstrating every feature of the **Reflecti
 │  - EntitySchemaGenerator → JSON Schema                       │
 │  - EntityRepositoryService → CRUD operations                 │
 │  - EntitySanityChecker → Validation pipeline                 │
-│  - Endpoint mapper → REST API routes                         │
-└────────────────────────┬─────────────────────────────────────┘
+│  - Endpoint mapper → REST API routes                         ││  - AI handlers → AI assistant chat, semantic search, suggestions     │
+│  - OpenAPI generator → Auto-generated spec                   │└────────────────────────┬─────────────────────────────────────┘
                          │  HTTP JSON API (localhost:9000/rf/api)
                          ▼
 ┌──────────────────────────────────────────────────────────────┐
@@ -64,6 +64,7 @@ A comprehensive sample application demonstrating every feature of the **Reflecti
 │  - Depth-aware nested field rendering (no cards-in-cards)    │
 │  - RF Sheets: spreadsheets with entity data + RF formulas    │
 │  - Live collaborative sheet viewing via WebSocket            │
+│  - AI components: search, generate, suggest, sanity, filter  │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -125,6 +126,7 @@ This sample registers **6 custom entity types** plus the **6 built-in reserved e
 | Title sanity check | Rejects "Forbidden title example" |
 | Entity hooks | PostCreate, PostUpdate, PostDelete (logging) |
 | Config | HasAuthor ✓, HasTags ✓, HasCategories ✓, HasParent ✓, TitleUnique ✓ |
+| AI | SupportsSemanticSearch ✓, SupportsAiGeneration ✓, SupportsAiDiffSummary ✓, SupportsNaturalLanguageFilter ✓ |
 
 ### 2. Blog Posts
 > `EntityName: "blog-post"` — A content management model.
@@ -139,6 +141,7 @@ This sample registers **6 custom entity types** plus the **6 built-in reserved e
 | Custom validation | `LogicSanityCheckAsync` — ensures URL slug uniqueness |
 | Entity hooks | PostCreate, PostUpdate, PostDelete (logging) |
 | Config | HasAuthor ✓, HasTags ✓, HasCategories ✓, HasParent ✗, TitleUnique ✓ |
+| AI | SupportsSemanticSearch ✓, SupportsAiGeneration ✓, SupportsAiDiffSummary ✓, SupportsNaturalLanguageFilter ✓ |
 
 ### 3. Team Members
 > `EntityName: "team-member"` — An HR/people directory model.
@@ -152,6 +155,7 @@ This sample registers **6 custom entity types** plus the **6 built-in reserved e
 | Relation | Links to `blog-post` entity |
 | DisplayCondition | Office address only visible when `is_remote == false` |
 | Config | HasAuthor ✗, HasTags ✗, HasCategories ✗, HasParent ✗, TitleUnique ✓ |
+| AI | SupportsSemanticSearch ✓ |
 
 ### 4. Products (E-Commerce)
 > `EntityName: "product"` — A full product catalog model.
@@ -167,6 +171,7 @@ This sample registers **6 custom entity types** plus the **6 built-in reserved e
 | Relation | Links to `team-member` entity |
 | Entity hooks | PostCreate only |
 | Config | HasAuthor ✓, HasTags ✓, HasCategories ✓, HasParent ✓, TitleUnique ✗ |
+| AI | SupportsSemanticSearch ✓ |
 
 ### 5. Events
 > `EntityName: "event"` — A conference/event management model.
@@ -190,6 +195,7 @@ This sample registers **6 custom entity types** plus the **6 built-in reserved e
 | DisplayCondition at every level | `passing_score` visible when `has_scoring == true`, `choices` visible when `question_type == choice`, `help_text` when `is_required == true` |
 | Repeater constraints | Sections (1–10), Questions (1–20), Choices (2–8) |
 | Config | HasAuthor ✓, HasTags ✗, HasCategories ✗, HasParent ✗, TitleUnique ✗ |
+| AI | SupportsAiDiffSummary ✓ |
 
 ---
 
@@ -236,6 +242,12 @@ Every ReflectiveForms feature is demonstrated at least once in this sample:
 | **HasParentChildRelationship** | Objective ✓, Product ✓, Blog Post ✗, Team Member ✗, Event ✗ |
 | **HasIndividualSharing** | RF Sheets ✓ (built-in) — see [Individual Sharing](#individual-sharing) |
 | **SupportsFrontendEdit** | `true` for all 6 custom entities |
+| **SupportsSemanticSearch** | Objective ✓, Blog Post ✓, Team Member ✓, Product ✓ |
+| **SupportsAiGeneration** | Objective ✓, Blog Post ✓ |
+| **SupportsAiDiffSummary** | Objective ✓, Blog Post ✓, Survey ✓ |
+| **SupportsNaturalLanguageFilter** | Objective ✓, Blog Post ✓ |
+| **AI Attributes** | `[AISuggestion]`, `[AISanityCheck]`, `[AIRelationSuggestion]` on applicable fields |
+| **OpenAPI** | Enabled via `OpenApiConfiguration` — spec at `/rf/api/openapi.json` |
 | **PostCreateHook** | Objective, Blog Post, Product |
 | **PostUpdateHook** | Objective, Blog Post |
 | **PostDeleteHook** | Objective, Blog Post |
@@ -260,7 +272,7 @@ The server starts on `http://localhost:9000` using Kestrel. Data is stored in th
 ```
 ReflectiveForms.Sample1/
 ├── Program.cs                        # ASP.NET host configuration, CORS, Kestrel
-├── RfBuilder.cs                      # ReflectiveForms configuration (entities, hooks, services)
+├── RfBuilder.cs                      # ReflectiveForms configuration (entities, hooks, services, AI, OpenAPI)
 ├── RfObjectiveExampleModel.cs        # Objective entity model (original example)
 ├── Models/
 │   ├── BlogPostModel.cs              # Blog post entity + SEO metadata + external links
@@ -300,6 +312,11 @@ new EntityConfigurationBuilder<YourModel>
     OptionalTitleSanityCheck = async title => ...,        // Custom title validation
     HasIndividualSharing = false,                         // Per-entity sharing (see below)
     CustomFrontendListRoute = null,                       // Custom sidebar route for sharing entities
+    EntityDescription = "...",                             // What this entity is (required when AI enabled)
+    SupportsSemanticSearch = false,                       // Vector indexing on save (requires AI)
+    SupportsAiGeneration = false,                         // "Create with AI" (requires AI)
+    SupportsAiDiffSummary = false,                        // AI revision diff summaries (requires AI)
+    SupportsNaturalLanguageFilter = false,                // NL → filter conditions (requires AI)
     HooksSetup = new EntityOnChangedHooksSetup<YourModel> // Lifecycle hooks
     {
         PostCreateHook = (p, ct) => ...,
@@ -335,8 +352,19 @@ All endpoints are served under `/rf/api/`. The framework automatically generates
 | `/rf/api/media` | POST | Upload media files |
 | `/rf/api/auth_check` | POST | Verify authentication status |
 | `/rf/api/capabilities` | POST | Get user capabilities per entity type |
+| `/rf/api/frontend_settings` | POST | Frontend configuration (inactivity timeout, etc.) |
 | `/rf/api/login` | POST | Authenticate and receive JWT |
 | `/rf/api/logout` | POST | Invalidate session |
+| `/rf/api/openapi.json` | GET | Auto-generated OpenAPI 3.1 spec |
+| `/rf/api/ai/semantic_search` | POST | Semantic search across entity types |
+| `/rf/api/ai/generate` | POST | NL → entity draft (requires CREATE) |
+| `/rf/api/ai/suggest` | POST | AI field suggestion (requires UPDATE) |
+| `/rf/api/ai/sanity_check` | POST | AI field validation (requires UPDATE) |
+| `/rf/api/ai/diff_summary` | POST | AI revision diff summary (requires READ) |
+| `/rf/api/ai/nl_filter` | POST | NL → filter + results (requires PEEK_ALL) |
+| `/rf/api/ai/relation_suggest` | POST | AI relation suggestions |
+| `/rf/api/ai/chat` | POST | AI assistant multi-turn chat with tool-calling |
+| `/rf/api/ai/reindex` | POST | Rebuild vector index (root user only) |
 
 ### Authentication
 
@@ -346,8 +374,37 @@ The backend uses JWT + Cookie authentication:
 - **PublicFrontendBaseUrl**: Required — the frontend URL for CORS (e.g. `"http://localhost:3000"`)
 - **Root user**: Auto-created on first startup with credentials from `RootUserCredentials`
 - **IAM Roles**: Built-in role-based access control with capabilities per entity type
+- **System-managed entities**: Root user, Owner role, and sharing admin roles are immutable — UPDATE/DELETE via the CRUD API returns 403
 - **Frontend auth**: JWT token stored in browser cookie, automatically sent with requests
 - **SSO**: Optional — configure via `EndpointConfiguration.SsoConfiguration` with OpenID Connect, Azure AD, or Google providers
+
+### AI Configuration
+
+This sample has AI fully enabled using bundled local models (zero external dependencies):
+
+- **LLM**: `LLMServiceBasic` — SmolLM2-135M (Q8_0) + all-MiniLM-L6-v2 embeddings (384-dim)
+- **Vector DB**: `VectorServiceBasic` — in-memory vector store
+- **Same instance** for both heavy and light LLM (cost-insensitive dev setup)
+
+For production, replace with `LLMServiceOpenAI` pointing to OpenAI, Ollama, Azure, etc. and `VectorServiceQdrant` for persistent vector storage.
+
+AI endpoints map to existing IAM capabilities — no new roles needed:
+
+| AI Endpoint | Required Capability |
+|---|---|
+| Semantic search | `PEEK_ALL` |
+| AI assistant chat | Authenticated user |
+| Generate entity | `CREATE` |
+| Field suggestion | `UPDATE` |
+| AI sanity check | `UPDATE` |
+| Diff summary | `READ` |
+| NL filter | `PEEK_ALL` |
+| Relation suggest | `READ` + `PEEK_ALL` (target) |
+| Reindex | Root user only |
+
+### OpenAPI
+
+The OpenAPI 3.1 spec is available at `http://localhost:9000/rf/api/openapi.json`. It includes all CRUD, auth, schema, media, and AI endpoints with full entity field schemas.
 
 ---
 
@@ -366,6 +423,7 @@ The frontend is a React single-page application that dynamically renders forms b
 - **RF Sheets** — Built-in spreadsheet editor at `/sheets` with entity data sources, 14 custom RF formulas (RF.FIELD, RF.TITLE, RF.LIST, RF.LOOKUP, RF.COUNT, RF.SUM, RF.AVG, RF.IDS, RF.FILTER, RF.MATCH, RF.MATCHLIST, RF.REPEAT, RF.REPEATCOUNT, RF.REPEATFIELD), live collaborative viewing via WebSocket, sharing (user/role/public), and Excel export
 - **Live updates** — WebSocket-based real-time broadcasting: editors push workbook snapshots, viewers see changes instantly with scroll/tab preservation
 - **Individual sharing** — Reusable sharing dialog and schema-driven navigation for entity types with `HasIndividualSharing` enabled
+- **AI components** — Semantic search overlay (`AiGlobalSearch`), "Create with AI" dialog (`AiGenerateDialog`), field suggestion buttons (`AiSuggestButton`), AI sanity check badges (`AiSanityCheckBadge`), NL filter bar (`AiNaturalLanguageFilter`), AI diff summary (`AiDiffSummary`), relation suggestions (`AiRelationSuggestions`) — all conditionally rendered based on backend feature flags and user capabilities
 
 ### Running the Frontend
 
@@ -745,6 +803,8 @@ ReflectiveForms automatically creates and manages these system entities:
 | **RF Sheets** | `rf-sheets` | Built-in spreadsheet editor with 14 RF formulas, entity data sources, live collaborative viewing via WebSocket, individual sharing (user/role/public), and Excel export. Uses `HasIndividualSharing` for per-entity access control. |
 
 These are always available and do not need to be registered in `EntityTypes`.
+
+> **System-managed entities:** The root user, the Owner IAM role, and sharing admin roles (one per entity type with `HasIndividualSharing`) are created and maintained by the framework at startup. These entities are **immutable** — the backend rejects UPDATE and DELETE requests with HTTP 403, and the frontend displays them as read-only with a "System" badge (no edit, clone, or delete actions).
 
 ---
 

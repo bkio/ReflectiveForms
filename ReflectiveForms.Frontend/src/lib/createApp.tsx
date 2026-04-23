@@ -80,7 +80,7 @@ export function createReflectiveFormsApp(config: RfConfig) {
                 </Routes>
               </BrowserRouter>
             </AuthProvider>
-            <Toaster position="top-right" richColors />
+            <Toaster position="top-right" richColors offset="72px" />
           </QueryClientProvider>
         </RfConfigProvider>
       </ErrorBoundary>

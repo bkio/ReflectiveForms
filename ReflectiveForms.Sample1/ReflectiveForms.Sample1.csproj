@@ -7,14 +7,23 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="CrossCloudKit.LLM.OpenAI" Version="2026.4.22.71" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\ReflectiveForms.Core\ReflectiveForms.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="CrossCloudKit.Database.Basic" Version="2026.4.14.56" />
-    <PackageReference Include="CrossCloudKit.File.Basic" Version="2026.4.14.56" />
-    <PackageReference Include="CrossCloudKit.Memory.Basic" Version="2026.4.14.56" />
-    <PackageReference Include="CrossCloudKit.PubSub.Basic" Version="2026.4.14.56" />
+    <InternalsVisibleTo Include="ReflectiveForms.Sample1.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CrossCloudKit.Database.Basic" Version="2026.4.22.71" />
+    <PackageReference Include="CrossCloudKit.File.Basic" Version="2026.4.22.71" />
+    <PackageReference Include="CrossCloudKit.Memory.Basic" Version="2026.4.22.71" />
+    <PackageReference Include="CrossCloudKit.PubSub.Basic" Version="2026.4.22.71" />
+    <PackageReference Include="CrossCloudKit.Vector.Basic" Version="2026.4.22.71" />
   </ItemGroup>
 
 </Project>

@@ -158,9 +158,15 @@ public static class EntityLockController
         EntityLockState newLockObject,
         CancellationToken cancellationToken)
     {
+        // Lock TTL = configured inactivity timeout + 60 s buffer.
+        // The frontend heartbeats every ~15 s, refreshing this TTL each time.
+        // When the user goes inactive the frontend releases explicitly; the TTL
+        // is only a safety net for browser crashes / network drops.
+        var lockTtl = TimeSpan.FromMilliseconds(RfConfiguration.EditInactivityTimeoutMs + 60_000);
+
         var setExpireResult = await RfConfiguration.RepositoryService.MemoryServiceInstance.SetKeyExpireTimeAsync(
             memoryScope,
-            TimeSpan.FromSeconds(65),
+            lockTtl,
             cancellationToken);
         if (!setExpireResult.IsSuccessful)
             return OperationResult<bool>.Failure(setExpireResult.ErrorMessage, setExpireResult.StatusCode);

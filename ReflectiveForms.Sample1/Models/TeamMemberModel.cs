@@ -245,6 +245,7 @@ internal class TeamMemberModel : EntityFieldsModel
     public AddressModel OfficeAddress = new();
 
     [JsonProperty("bio"),
+     AISuggestion("Write a professional biography paragraph based on the team member's name, department, job title, and years of experience.", "department", "job_title", "years_of_experience"),
      WysiwygEditor(
          label: "Biography",
          instructions: "A short bio that appears on the team page. Supports rich text.",
@@ -274,6 +275,7 @@ internal class TeamMemberModel : EntityFieldsModel
     public List<EmergencyContactModel> EmergencyContacts = [];
 
     [JsonProperty("favorite_blog_post"),
+     AIRelationSuggestion(topK: 5),
      Relation(
          label: "Favorite Blog Post",
          instructions: "Link to this member's favorite blog post (optional).",

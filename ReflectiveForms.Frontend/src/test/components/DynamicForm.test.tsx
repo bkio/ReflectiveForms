@@ -36,6 +36,11 @@ const createMockSchema = (fields: EntitySchema['fields'] = []): EntitySchema => 
     has_parent_child: false,
     require_title_uniqueness: false,
     supports_frontend_edit: true,
+    has_individual_sharing: false,
+    supports_semantic_search: false,
+    supports_ai_generation: false,
+    supports_ai_diff_summary: false,
+    supports_natural_language_filter: false,
   },
   fields,
   api_endpoints: {
@@ -65,6 +70,8 @@ function renderWithProviders(ui: React.ReactElement) {
 describe('DynamicForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // useGlobalSettings calls fetchFrontendSettings
+    vi.mocked(client.fetchFrontendSettings).mockResolvedValue({ data: {} } as any);
   });
 
   it('should render title field', () => {
@@ -346,18 +353,71 @@ describe('DynamicForm', () => {
     expect(screen.queryByTestId('parent-select')).not.toBeInTheDocument();
   });
 
-  it('should render all metadata selectors when all features enabled', () => {
+  it('should render all metadata selectors when all features enabled (edit mode)', () => {
     const schema = createMockSchema();
     schema.features.has_author = true;
     schema.features.has_tags = true;
     schema.features.has_categories = true;
     schema.features.has_parent_child = true;
 
-    renderWithProviders(<DynamicForm schema={schema} />);
+    const initialData = {
+      id: 1,
+      title: { rendered: 'Test' },
+      fields: {},
+      author: 1,
+      can_edit_author: true,
+    };
+
+    renderWithProviders(<DynamicForm schema={schema} initialData={initialData} entityId={1} />);
 
     expect(screen.getByTestId('author-select')).toBeInTheDocument();
     expect(screen.getByTestId('tags-select')).toBeInTheDocument();
     expect(screen.getByTestId('categories-select')).toBeInTheDocument();
     expect(screen.getByTestId('parent-select')).toBeInTheDocument();
+  });
+
+  it('should NOT render author selector in create mode (author is server-assigned)', () => {
+    const schema = createMockSchema();
+    schema.features.has_author = true;
+
+    renderWithProviders(<DynamicForm schema={schema} />);
+
+    expect(screen.queryByTestId('author-select')).not.toBeInTheDocument();
+  });
+
+  it('should render author selector as disabled when can_edit_author is false', () => {
+    const schema = createMockSchema();
+    schema.features.has_author = true;
+
+    const initialData = {
+      id: 1,
+      title: { rendered: 'Test' },
+      fields: {},
+      author: 42,
+      can_edit_author: false,
+    };
+
+    renderWithProviders(<DynamicForm schema={schema} initialData={initialData} entityId={1} />);
+
+    const authorSelect = screen.getByTestId('author-select');
+    expect(authorSelect).toBeInTheDocument();
+  });
+
+  it('should render author selector as enabled when can_edit_author is true', () => {
+    const schema = createMockSchema();
+    schema.features.has_author = true;
+
+    const initialData = {
+      id: 1,
+      title: { rendered: 'Test' },
+      fields: {},
+      author: 42,
+      can_edit_author: true,
+    };
+
+    renderWithProviders(<DynamicForm schema={schema} initialData={initialData} entityId={1} />);
+
+    const authorSelect = screen.getByTestId('author-select');
+    expect(authorSelect).toBeInTheDocument();
   });
 });

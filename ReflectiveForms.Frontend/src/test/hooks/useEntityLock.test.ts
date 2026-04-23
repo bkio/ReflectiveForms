@@ -250,9 +250,9 @@ describe('useEntityLock', () => {
 
     const tabId = vi.mocked(client.tryLockEntity).mock.calls[0][2];
 
-    // Advance past inactivity timeout (60s) + heartbeat interval (15s)
+    // Advance past inactivity timeout (10 minutes) + heartbeat interval (15s)
     await act(async () => {
-      vi.advanceTimersByTime(75000);
+      vi.advanceTimersByTime(615000);
     });
 
     // Lock should have been released due to inactivity

@@ -1,9 +1,12 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Link, Outlet, useParams, useLocation } from 'react-router-dom';
-import { Menu, X, ChevronRight, Home, Sun, Moon, LogOut, FileText, Settings } from 'lucide-react';
+import { Link, Outlet, useParams, useLocation, useNavigate } from 'react-router-dom';
+import { Menu, X, ChevronRight, Home, Sun, Moon, LogOut, FileText, Settings, Search, Sparkles } from 'lucide-react';
 import { useAllSchemas, useCapabilities } from '../../hooks/useEntity';
 import { useRfConfig } from '../../lib/RfConfigProvider';
 import { useAuth } from '../../hooks/useAuth';
+import { AiGlobalSearch } from '../ai/AiGlobalSearch';
+import { AiAgentChat } from '../ai/AiAgentChat';
+import { AiAssistantProvider, useAiAssistant } from '../../lib/AiAssistantContext';
 import type { CustomPage } from '../../lib/types';
 
 function getCookie(name: string): string | null {
@@ -99,11 +102,21 @@ export function AdminLayout() {
     (s) => !s.features.has_individual_sharing && (!capabilitiesLoaded || capabilities?.[s.entity_name]?.can_peek_all)
   );
 
+  // AI: check if any entity supports semantic search and user can peek it
+  const [aiSearchOpen, setAiSearchOpen] = useState(false);
+  const hasSemanticSearch = useMemo(() => {
+    return entityTypes.some((s) => s.features.supports_semantic_search);
+  }, [entityTypes]);
+  const hasAiChat = useMemo(() => {
+    return entityTypes.some((s) => s.api_endpoints?.ai?.chat);
+  }, [entityTypes]);
+
   const sharingEntityTypes = Object.values(schemas ?? {}).filter(
     (s) => s.features.has_individual_sharing && s.features.custom_frontend_list_route && (!capabilitiesLoaded || capabilities?.[s.entity_name]?.can_peek_all)
   );
 
   return (
+    <AiAssistantProvider>
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 dark:text-gray-100">
       {/* Overlay for mobile */}
       {sidebarOpen && isMobile && (
@@ -157,6 +170,18 @@ export function AdminLayout() {
             <Home className="w-5 h-5" />
             <span className="font-medium">Dashboard</span>
           </Link>
+
+          {/* AI Search */}
+          {hasSemanticSearch && (
+            <button
+              onClick={() => setAiSearchOpen(true)}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg mb-2 w-full text-left text-gray-600 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-700 dark:hover:text-purple-300 transition-colors"
+              data-testid="ai-search-nav"
+            >
+              <Search className="w-5 h-5" />
+              <span className="font-medium">AI Search</span>
+            </button>
+          )}
 
           {/* Entity Types Section */}
           <div className="mt-6">
@@ -342,6 +367,81 @@ export function AdminLayout() {
           <Outlet />
         </main>
       </div>
+
+      {/* AI Global Search overlay */}
+      {aiSearchOpen && schemas && (
+        <AiGlobalSearch
+          schemas={schemas}
+          onClose={() => setAiSearchOpen(false)}
+        />
+      )}
+
+      {/* AI Agent Chat — floating panel (renders via context, handles own visibility) */}
+      {hasAiChat && <AiAgentChat />}
+
+      {/* AI Agent Chat — floating trigger button */}
+      {hasAiChat && <AiChatTrigger />}
+
+      {/* AI auto-action handler (navigation, etc.) */}
+      {hasAiChat && <AiNavigationHandler />}
     </div>
+    </AiAssistantProvider>
   );
+}
+
+function AiChatTrigger() {
+  const { isOpen, toggle, pendingActions } = useAiAssistant();
+  if (isOpen) return null;
+  return (
+    <button
+      onClick={toggle}
+      className="fixed bottom-4 right-4 z-40 flex items-center gap-2 px-4 py-3 bg-purple-600 text-white rounded-full shadow-lg hover:bg-purple-700 transition-all hover:scale-105"
+      title="Open AI Assistant"
+      data-testid="ai-chat-trigger"
+    >
+      <Sparkles className="w-4 h-4" />
+      <span className="text-sm font-medium">AI Assistant</span>
+      {pendingActions.length > 0 && (
+        <span className="bg-orange-500 text-xs px-1.5 py-0.5 rounded-full">{pendingActions.length}</span>
+      )}
+    </button>
+  );
+}
+
+/** Handles auto-actions from the AI assistant (e.g., navigate). */
+function AiNavigationHandler() {
+  const { subscribeAutoAction } = useAiAssistant();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    return subscribeAutoAction((action) => {
+      if (action.action_type === 'navigate' && action.payload) {
+        const page = (action.payload as Record<string, unknown>).page as string;
+        const entityType = action.entity_type;
+        const entityId = action.entity_id;
+        switch (page) {
+          case 'dashboard':
+            navigate('/');
+            break;
+          case 'entity-list':
+            if (entityType) navigate(`/entities/${entityType}`);
+            break;
+          case 'entity-edit':
+            if (entityType && entityId != null) navigate(`/entities-admin/${entityType}?id=${entityId}`);
+            break;
+          case 'entity-create':
+            if (entityType) {
+              const prefill = (action.payload as Record<string, unknown>).prefill as Record<string, unknown> | undefined;
+              navigate(`/entities-admin/${entityType}?id=new`, prefill ? { state: { aiPrefill: prefill } } : undefined);
+            }
+            break;
+          case 'revision-diff':
+            if (entityType && entityId != null) navigate(`/entities-revisions/${entityType}?id=${entityId}`);
+            break;
+        }
+      }
+    });
+  }, [subscribeAutoAction, navigate]);
+
+  return null;
 }

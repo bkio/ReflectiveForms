@@ -26,6 +26,7 @@ export {
   useSchema,
   useAllSchemas,
   useCapabilities,
+  useGlobalSettings,
   useEntity,
   useEntityList,
   useCreateEntity,
@@ -33,6 +34,13 @@ export {
   useDeleteEntity,
   useSanityCheck,
 } from '../hooks/useEntity';
+export {
+  useAiSemanticSearch,
+  useAiDiffSummary,
+  useAiSanityCheck,
+  useAiNaturalLanguageFilter,
+  useAiRelationSuggest,
+} from '../hooks/useAi';
 export { useEntityLock } from '../hooks/useEntityLock';
 export { useAutoSave } from '../hooks/useAutoSave';
 export { useLiveUpdates } from '../hooks/useLiveUpdates';
@@ -62,4 +70,9 @@ export type {
   PaginatedPeekResponse,
   EntityCapabilities,
   AllCapabilities,
+  GlobalSettings,
+  AiSuggestionSchema,
+  AiSanityCheckSchema,
+  AiRelationSuggestionSchema,
+  AiApiEndpoints,
 } from '../types/schema';

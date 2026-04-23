@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, FileSpreadsheet, Trash2, Lock } from 'lucide-react';
 import { useEntityList, useCapabilities } from '../hooks/useEntity';
+import { useAiAssistantOptional } from '../lib/AiAssistantContext';
 import { useLockedEntities } from '../hooks/useLockedEntities';
 import { deleteEntity } from '../api/client';
 import { toast } from 'sonner';
@@ -11,6 +12,12 @@ export function RfSheetListPage() {
   const { data: capabilities } = useCapabilities();
   const lockedEntities = useLockedEntities('rf-sheets');
   const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  // Push context to AI assistant
+  const assistant = useAiAssistantOptional();
+  useEffect(() => {
+    assistant?.setContext({ current_page: 'sheet-list', entity_type: 'rf-sheets', entity_id: undefined });
+  }, [assistant]);
 
   const canCreate = capabilities?.['rf-sheets']?.can_create ?? false;
 

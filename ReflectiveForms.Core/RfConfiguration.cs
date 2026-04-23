@@ -6,6 +6,7 @@ using System.Net;
 using CrossCloudKit.Interfaces.Classes;
 using CrossCloudKit.Utilities.Common;
 using Microsoft.Extensions.Logging;
+using ReflectiveForms.Core.Ai;
 using ReflectiveForms.Core.Endpoints;
 using ReflectiveForms.Core.Repositories;
 
@@ -21,6 +22,33 @@ public static class RfConfiguration
         {
             try
             {
+                // Validate AI flags: if any entity has AI features enabled, AiServiceConfiguration must be set
+                var aiConfig = configurationBuilder.AiServiceConfiguration;
+                foreach (var entityConfig in configurationBuilder.EntityConfigurations!)
+                {
+                    var ec = entityConfig.EntityConfiguration;
+                    var hasAnyAiFeature = ec.SupportsSemanticSearch || ec.SupportsAiGeneration ||
+                                          ec.SupportsAiDiffSummary || ec.SupportsNaturalLanguageFilter;
+
+                    if (hasAnyAiFeature && aiConfig == null)
+                    {
+                        _initialized = false;
+                        return OperationResult<bool>.Failure(
+                            $"Entity '{ec.EntityName}' has AI features enabled but AiServiceConfiguration is null on RfConfigurationBuilder. " +
+                            "Either disable AI features on this entity or provide an AiServiceConfiguration.",
+                            HttpStatusCode.BadRequest);
+                    }
+
+                    if (hasAnyAiFeature && string.IsNullOrWhiteSpace(ec.EntityDescription))
+                    {
+                        _initialized = false;
+                        return OperationResult<bool>.Failure(
+                            $"Entity '{ec.EntityName}' has AI features enabled but EntityDescription is not set. " +
+                            "Provide a short description of what this entity type represents so the LLM has context.",
+                            HttpStatusCode.BadRequest);
+                    }
+                }
+
                 _configuration = configurationBuilder;
                 _initialized = true;
 
@@ -37,6 +65,26 @@ public static class RfConfiguration
                 return OperationResult<bool>.Failure(baseEx.Message, HttpStatusCode.InternalServerError);
             }
         }
+
+        // AI initialization — OUTSIDE the lock block to avoid deadlock on async calls
+        if (configurationBuilder.AiServiceConfiguration != null)
+        {
+            try
+            {
+                var aiInitResult = InitializeAiInternalAsync(configurationBuilder.AiServiceConfiguration).GetAwaiter().GetResult();
+                if (!aiInitResult.IsSuccessful)
+                {
+                    _initialized = false; // rollback so Initialize() can be retried after fixing config
+                    return aiInitResult;
+                }
+            }
+            catch (Exception e)
+            {
+                _initialized = false;
+                return OperationResult<bool>.Failure($"AI initialization failed: {e.GetBaseException().Message}", HttpStatusCode.InternalServerError);
+            }
+        }
+
         return OperationResult<bool>.Success(true);
     }
 
@@ -64,6 +112,16 @@ public static class RfConfiguration
     public static EntityRepositoryService RepositoryService => GetRepositoryService();
     public static EndpointConfiguration EndpointConfiguration => GetEndpointConfiguration();
     public static IReadOnlyDictionary<string, EntityFinalConfigurationBase> EntityNameToConfiguration => GetEntityNameToConfiguration();
+
+    /// <summary>
+    /// Returns the AI service configuration if set, or null if AI is disabled.
+    /// </summary>
+    public static AiServiceConfiguration? AiServiceConfiguration => _configuration?.AiServiceConfiguration;
+
+    /// <summary>
+    /// Inactivity timeout in milliseconds before a user's edit lock is released.
+    /// </summary>
+    public static int EditInactivityTimeoutMs => _configuration?.EditInactivityTimeoutMs ?? 600_000;
 
     internal static RootUserCredentials RootUserCredentials => _configuration.NotNull().RootUserCredentials;
 
@@ -118,5 +176,43 @@ public static class RfConfiguration
         return _configuration != null
             ? _configuration.EntityNameToConfiguration
             : throw new InvalidOperationException("Configuration is not set");
+    }
+
+    private static async Task<OperationResult<bool>> InitializeAiInternalAsync(AiServiceConfiguration aiConfig)
+    {
+        // Detect embedding dimensions using the light LLM (it handles embeddings)
+        var probe = await aiConfig.LightLlmService.CreateEmbeddingAsync("dimension probe");
+        if (!probe.IsSuccessful)
+            return OperationResult<bool>.Failure($"Failed to probe embedding dimensions: {probe.ErrorMessage}", HttpStatusCode.InternalServerError);
+
+        var dimensions = probe.Data.Length;
+
+        // Populate AiConfiguration static singleton with all service references
+        var repoService = _configuration.NotNull().RepositoryService;
+        AiConfiguration.Initialize(
+            db: repoService.DatabaseServiceInstance,
+            memory: repoService.MemoryServiceInstance,
+            vector: aiConfig.VectorService,
+            heavyLlm: aiConfig.HeavyLlmService,
+            lightLlm: aiConfig.LightLlmService,
+            embeddingDimensions: dimensions);
+
+        // Create vector collections for entities that opt in
+        foreach (var (entityName, config) in EntityNameToConfiguration)
+        {
+            if (config.EntityConfiguration.SupportsSemanticSearch)
+            {
+                var result = await aiConfig.VectorService.EnsureCollectionExistsAsync(
+                    $"rf_semantic_{entityName}", dimensions, CrossCloudKit.Interfaces.Enums.VectorDistanceMetric.Cosine);
+                if (!result.IsSuccessful)
+                    return OperationResult<bool>.Failure(
+                        $"Failed to create vector collection for '{entityName}': {result.ErrorMessage}", HttpStatusCode.InternalServerError);
+            }
+        }
+
+        // Start hourly sync timer
+        AiVectorSync.StartSyncTimer(aiConfig.SyncInterval);
+
+        return OperationResult<bool>.Success(true);
     }
 }

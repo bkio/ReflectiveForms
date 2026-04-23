@@ -8,6 +8,8 @@ import type { RfConfig } from '../../lib/types';
 vi.mock('../../api/client', () => ({
   setApiBaseUrl: vi.fn(),
   getApiBaseUrl: vi.fn(() => 'http://test-api/rf/api'),
+  setAiBaseUrl: vi.fn(),
+  setAiDisabled: vi.fn(),
 }));
 
 function makeConfig(overrides: Partial<RfConfig> = {}): RfConfig {

@@ -3,9 +3,12 @@
 
 using CrossCloudKit.Database.Basic;
 using CrossCloudKit.File.Basic;
+using CrossCloudKit.LLM.OpenAI;
 using CrossCloudKit.Memory.Basic;
 using CrossCloudKit.PubSub.Basic;
+using CrossCloudKit.Vector.Basic;
 using ReflectiveForms.Core;
+using ReflectiveForms.Core.Ai;
 using ReflectiveForms.Core.Endpoints;
 using ReflectiveForms.Sample1.Models;
 
@@ -19,6 +22,17 @@ public static class RfBuilder
         var memoryService = new MemoryServiceBasic(pubSubService);
         var fileService = new FileServiceBasic(memoryService, pubSubService);
         var dbService = new DatabaseServiceBasic("reflective-forms-tests-1", memoryService, Path.GetTempPath());
+
+        // AI services — Ollama running qwen2.5:14b (heavy) + gemma3:4b (light) + nomic embeddings.
+        // Requires: kubectl port-forward -n ollama svc/ollama 11434:11434
+        var heavyLlmService = new LLMServiceOpenAI(
+            baseUrl: "http://localhost:11434/v1",
+            defaultModel: "qwen2.5:14b");
+        var lightLlmService = new LLMServiceOpenAI(
+            baseUrl: "http://localhost:11434/v1",
+            defaultModel: "gemma3:4b",
+            embeddingModel: "nomic-embed-text:v1.5");
+        var vectorService = new VectorServiceBasic();
 
         return new RfConfigurationBuilder
         {
@@ -34,8 +48,19 @@ public static class RfBuilder
                 JwtSecret = "my-awesome-secret-key-1234567890",
                 RootPath = "/rf",
                 PublicUrlRootForApi = "http://localhost:9000/rf/api/",
-                PublicFrontendBaseUrl = "http://localhost:3000"
+                PublicFrontendBaseUrl = "http://localhost:3000",
+                OpenApi = new OpenApiConfiguration
+                {
+                    Title = "ReflectiveForms Sample1 API",
+                    Version = "1.0.0",
+                    Description = "Sample application demonstrating all ReflectiveForms features including AI.",
+                    ContactEmail = "admin@karasoftware.com"
+                }
             },
+            AiServiceConfiguration = new AiServiceConfiguration(
+                HeavyLlmService: heavyLlmService,
+                LightLlmService: lightLlmService,
+                VectorService: vectorService),
             EntityTypes =
             [
                 // ──────────────────────────────────────────────────────────────
@@ -53,12 +78,17 @@ public static class RfBuilder
                     EntityName = "objective",
                     EntityReadableNamePlural = "Objectives",
                     EntityReadableNameSingular = "Objective",
+                    EntityDescription = "An OKR (Objectives and Key Results) goal with measurable key results, root cause analysis, and team comments. Tracks short-term or long-term strategic objectives.",
                     SupportsFrontendEdit = true,
                     HasAuthor = true,
                     HasTags = true,
                     HasCategories = true,
                     HasParentChildRelationship = true,
                     RequireGlobalTitleUniqueness = true,
+                    SupportsSemanticSearch = true,
+                    SupportsAiGeneration = true,
+                    SupportsAiDiffSummary = true,
+                    SupportsNaturalLanguageFilter = true,
                     OptionalTitleSanityCheck = async title => await Task.FromResult(title.Text != "Forbidden title example"),
                     HooksSetup = new EntityOnChangedHooksSetup<RfObjectiveExampleModel>
                     {
@@ -96,12 +126,17 @@ public static class RfBuilder
                     EntityName = "blog-post",
                     EntityReadableNamePlural = "Blog Posts",
                     EntityReadableNameSingular = "Blog Post",
+                    EntityDescription = "A blog article with rich-text content, excerpt, SEO metadata group, publication status workflow (draft/published/scheduled), featured image, and external links.",
                     SupportsFrontendEdit = true,
                     HasAuthor = true,
                     HasTags = true,
                     HasCategories = true,
                     HasParentChildRelationship = false,
                     RequireGlobalTitleUniqueness = true,
+                    SupportsSemanticSearch = true,
+                    SupportsAiGeneration = true,
+                    SupportsAiDiffSummary = true,
+                    SupportsNaturalLanguageFilter = true,
                     OptionalTitleSanityCheck = null,
                     HooksSetup = new EntityOnChangedHooksSetup<BlogPostModel>
                     {
@@ -141,12 +176,14 @@ public static class RfBuilder
                     EntityName = "team-member",
                     EntityReadableNamePlural = "Team Members",
                     EntityReadableNameSingular = "Team Member",
+                    EntityDescription = "A team member profile with contact info, department, role, bio, office address, social links, and emergency contacts.",
                     SupportsFrontendEdit = true,
                     HasAuthor = false,
                     HasTags = false,
                     HasCategories = false,
                     HasParentChildRelationship = false,
                     RequireGlobalTitleUniqueness = true,
+                    SupportsSemanticSearch = true,
                     OptionalTitleSanityCheck = null,
                     HooksSetup = null
                 },
@@ -205,12 +242,16 @@ public static class RfBuilder
                     EntityName = "event",
                     EntityReadableNamePlural = "Events",
                     EntityReadableNameSingular = "Event",
+                    EntityDescription = "A conference, workshop, or meetup event with sessions, sponsors, venue details, ticket pricing, and attendance tracking.",
                     SupportsFrontendEdit = true,
                     HasAuthor = true,
                     HasTags = false,
                     HasCategories = true,
                     HasParentChildRelationship = false,
                     RequireGlobalTitleUniqueness = false,
+                    SupportsSemanticSearch = true,
+                    SupportsAiGeneration = true,
+                    SupportsNaturalLanguageFilter = true,
                     OptionalTitleSanityCheck = null,
                     HooksSetup = null
                 },
@@ -228,12 +269,17 @@ public static class RfBuilder
                     EntityName = "survey",
                     EntityReadableNamePlural = "Surveys",
                     EntityReadableNameSingular = "Survey",
+                    EntityDescription = "A multi-section survey with questions (text, choice, or rating types), optional scoring, and response limits. Supports 3-level nesting: sections → questions → choices.",
                     SupportsFrontendEdit = true,
                     HasAuthor = true,
                     HasTags = false,
                     HasCategories = false,
                     HasParentChildRelationship = false,
                     RequireGlobalTitleUniqueness = false,
+                    SupportsSemanticSearch = true,
+                    SupportsAiGeneration = true,
+                    SupportsAiDiffSummary = true,
+                    SupportsNaturalLanguageFilter = true,
                     OptionalTitleSanityCheck = null,
                     HooksSetup = null
                 }

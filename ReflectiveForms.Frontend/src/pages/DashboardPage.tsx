@@ -1,10 +1,18 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, FileText, ArrowRight, Eye } from 'lucide-react';
 import { useAllSchemas, useCapabilities } from '../hooks/useEntity';
+import { useAiAssistantOptional } from '../lib/AiAssistantContext';
 
 export function DashboardPage() {
   const { data: schemas, isLoading, error } = useAllSchemas();
   const { data: capabilities } = useCapabilities();
+
+  // Push context to AI assistant
+  const assistant = useAiAssistantOptional();
+  useEffect(() => {
+    assistant?.setContext({ current_page: 'dashboard', entity_type: undefined, entity_id: undefined });
+  }, [assistant]);
 
   if (isLoading) {
     return (

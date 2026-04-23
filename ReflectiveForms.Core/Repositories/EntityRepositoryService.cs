@@ -63,6 +63,7 @@ public class EntityRepositoryService
     private readonly IDatabaseService _db;
     private readonly IPubSubService _pubSubService;
     internal IMemoryService MemoryServiceInstance { get; }
+    internal IDatabaseService DatabaseServiceInstance => _db;
     internal FileServiceConfiguration FileServiceConfiguration { get; }
 
     private readonly IMemoryScope _mutexScope = new MemoryScopeLambda("ReflectiveForms.Core.Repositories.EntityRepositoryService");
@@ -134,7 +135,7 @@ public class EntityRepositoryService
         await Task.WhenAll(tasks);
     }
 
-    private static string GetEntityTableName(string entityName) => entityName;
+    internal static string GetEntityTableName(string entityName) => entityName;
     private static string GetEntityPeekOverviewTableName(string entityName) => $"{entityName}-peek-overview";
     private static string GetEntityHistoryTableName(string entityName) => $"{entityName}-history";
     private const string GlobalIndexesTableName = "indexes";
@@ -392,6 +393,20 @@ public class EntityRepositoryService
             cancellationToken);
         if (postHookRead.IsSuccessful && postHookRead.Data != null)
             result = postHookRead.Data;
+
+        // Vector indexing (best-effort) — after hook re-read, before publish
+        if (RfConfiguration.AiServiceConfiguration != null &&
+            RfConfiguration.EntityNameToConfiguration[entityName].EntityConfiguration.SupportsSemanticSearch)
+        {
+            try
+            {
+                await Ai.AiVectorIndexer.IndexEntityAsync(entityName, newId, result.NotNull(), cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                RfConfiguration.LogError(ex);
+            }
+        }
 
         await PublishEntityChangedAsync<T>(
             entityName,
@@ -685,6 +700,20 @@ public class EntityRepositoryService
         // Run the post-update hook OUTSIDE the mutex to avoid deadlock
         // when the hook calls UpdateOneAsync on the same entity.
         await PostUpdateHook<T>(entityName, id, oldObject, result.NotNull(), cancellationToken);
+
+        // Vector indexing (best-effort) — after hook, before publish
+        if (RfConfiguration.AiServiceConfiguration != null &&
+            RfConfiguration.EntityNameToConfiguration[entityName].EntityConfiguration.SupportsSemanticSearch)
+        {
+            try
+            {
+                await Ai.AiVectorIndexer.IndexEntityAsync(entityName, id, result.NotNull(), cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                RfConfiguration.LogError(ex);
+            }
+        }
 
         await PublishEntityChangedAsync<T>(
             entityName,
@@ -1201,6 +1230,20 @@ public class EntityRepositoryService
         // Run the post-delete hook OUTSIDE the mutex to avoid deadlock
         // when the hook calls UpdateOneAsync/DeleteOneAsync on the same entity.
         await PostDeleteHook<T>(entityName, id, lastBody.NotNull(), cancellationToken);
+
+        // Vector deletion (best-effort) — after hook, before publish
+        if (RfConfiguration.AiServiceConfiguration != null &&
+            RfConfiguration.EntityNameToConfiguration[entityName].EntityConfiguration.SupportsSemanticSearch)
+        {
+            try
+            {
+                await Ai.AiVectorIndexer.DeleteEntityAsync(entityName, id);
+            }
+            catch (Exception ex)
+            {
+                RfConfiguration.LogError(ex);
+            }
+        }
 
         await PublishEntityChangedAsync<T>(
             entityName,

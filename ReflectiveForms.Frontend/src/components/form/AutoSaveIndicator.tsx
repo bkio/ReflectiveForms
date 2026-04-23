@@ -24,7 +24,7 @@ export function AutoSaveIndicator({
   const secondsLeft = Math.ceil(countdownRemaining / 1000);
 
   return (
-    <div data-testid="autosave-indicator" className="fixed bottom-0 left-0 right-0 lg:bottom-4 lg:left-auto lg:right-4 lg:max-w-sm z-20 rounded-t-lg lg:rounded-lg overflow-hidden shadow-lg border">
+    <div data-testid="autosave-indicator" className="fixed top-20 right-4 z-50 max-w-sm rounded-lg overflow-hidden shadow-lg border">
       {status === 'checking' && (
         <div className="bg-blue-50 border-blue-200 px-4 py-3 text-sm text-blue-700" data-testid="autosave-checking">
           Validating...
