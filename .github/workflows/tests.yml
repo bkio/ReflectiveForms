@@ -39,7 +39,7 @@ jobs:
       - name: Install frontend dependencies
         run: |
           cd ReflectiveForms.Frontend
-          npm ci
+          npm ci --legacy-peer-deps
 
       - name: Run frontend tests
         id: frontend-test
