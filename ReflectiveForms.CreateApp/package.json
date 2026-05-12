@@ -6,9 +6,19 @@
   "bin": {
     "create-reflectiveforms-app": "./src/index.js"
   },
+  "files": ["src/", "templates/", "README.md"],
   "scripts": {
     "test": "node --test tests/scaffold.test.js"
   },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bkio/ReflectiveForms.git",
+    "directory": "ReflectiveForms.CreateApp"
+  },
+  "homepage": "https://github.com/bkio/ReflectiveForms/tree/main/ReflectiveForms.CreateApp#readme",
   "keywords": ["reflectiveforms", "scaffold", "cli", "cms"],
   "license": "AGPL-3.0"
 }

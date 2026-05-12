@@ -7,7 +7,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="CrossCloudKit.LLM.OpenAI" Version="2026.4.22.71" />
+    <PackageReference Include="CrossCloudKit.LLM.Basic.Completion" Version="2026.4.22.71" />
+    <PackageReference Include="CrossCloudKit.LLM.Basic.Embeddings" Version="2026.4.22.71" />
   </ItemGroup>
 
   <ItemGroup>

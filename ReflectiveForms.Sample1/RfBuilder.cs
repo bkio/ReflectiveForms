@@ -3,7 +3,8 @@
 
 using CrossCloudKit.Database.Basic;
 using CrossCloudKit.File.Basic;
-using CrossCloudKit.LLM.OpenAI;
+using CrossCloudKit.LLM.Basic.Completion;
+using CrossCloudKit.LLM.Basic.Embeddings;
 using CrossCloudKit.Memory.Basic;
 using CrossCloudKit.PubSub.Basic;
 using CrossCloudKit.Vector.Basic;
@@ -23,15 +24,11 @@ public static class RfBuilder
         var fileService = new FileServiceBasic(memoryService, pubSubService);
         var dbService = new DatabaseServiceBasic("reflective-forms-tests-1", memoryService, Path.GetTempPath());
 
-        // AI services — Ollama running qwen2.5:14b (heavy) + gemma3:4b (light) + nomic embeddings.
-        // Requires: kubectl port-forward -n ollama svc/ollama 11434:11434
-        var heavyLlmService = new LLMServiceOpenAI(
-            baseUrl: "http://localhost:11434/v1",
-            defaultModel: "qwen2.5:14b");
-        var lightLlmService = new LLMServiceOpenAI(
-            baseUrl: "http://localhost:11434/v1",
-            defaultModel: "gemma3:4b",
-            embeddingModel: "nomic-embed-text:v1.5");
+        // AI services — local bundled models (no external dependencies).
+        // LLMCompletionServiceBasic: SmolLM2-135M (Q8_0, ~139 MB)
+        // LLMEmbeddingServiceBasic: snowflake-arctic-embed-m-long (Q8_0)
+        var completionService = new LLMCompletionServiceBasic();
+        var embeddingService = new LLMEmbeddingServiceBasic();
         var vectorService = new VectorServiceBasic();
 
         return new RfConfigurationBuilder
@@ -58,8 +55,8 @@ public static class RfBuilder
                 }
             },
             AiServiceConfiguration = new AiServiceConfiguration(
-                HeavyLlmService: heavyLlmService,
-                LightLlmService: lightLlmService,
+                HeavyLlmService: completionService,
+                LightLlmService: embeddingService,
                 VectorService: vectorService),
             EntityTypes =
             [

@@ -43,6 +43,7 @@ export type AllCapabilities = Record<string, EntityCapabilities>;
 /** Global frontend settings served by the backend /frontend_settings endpoint. */
 export interface GlobalSettings {
   edit_inactivity_timeout_ms?: number;
+  sheets_enabled?: boolean;
 }
 
 export interface ApiEndpoints {

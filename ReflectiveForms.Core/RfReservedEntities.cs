@@ -40,7 +40,32 @@ public static class RfReservedEntities
         SheetsEntityName
     };
 
-    public static readonly IReadOnlyList<EntityFinalConfigurationBase> ReservedEntityTypes = new List<EntityFinalConfigurationBase>
+    private static readonly EntityFinalConfigurationBase SheetEntityConfiguration =
+        new EntityFinalConfiguration<RfSheetEntityFieldsModel>(new EntityConfigurationBuilder<RfSheetEntityFieldsModel>
+        {
+            EntityName = SheetsEntityName,
+            EntityReadableNameSingular = "Sheet",
+            EntityReadableNamePlural = "Sheets",
+            SupportsFrontendEdit = false,
+            HasAuthor = true,
+            HasTags = false,
+            HasCategories = false,
+            HasParentChildRelationship = false,
+            RequireGlobalTitleUniqueness = false,
+            OptionalTitleSanityCheck = null,
+            HasIndividualSharing = true,
+            CustomFrontendListRoute = "/sheets"
+        });
+
+    internal static IReadOnlyList<EntityFinalConfigurationBase> GetReservedEntityTypes(bool sheetsEnabled)
+    {
+        var types = new List<EntityFinalConfigurationBase>(BaseReservedEntityTypes);
+        if (sheetsEnabled)
+            types.Add(SheetEntityConfiguration);
+        return types;
+    }
+
+    private static readonly List<EntityFinalConfigurationBase> BaseReservedEntityTypes = new()
     {
         new EntityFinalConfiguration<UserEntityFieldsModel>(new EntityConfigurationBuilder<UserEntityFieldsModel>
         {
@@ -119,20 +144,5 @@ public static class RfReservedEntities
                 PostDeleteHook = async (p, ctx) => await MediaEntityHookOnChanged.OnMediaDeleted(p, ctx)
             }
         }),
-        new EntityFinalConfiguration<RfSheetEntityFieldsModel>(new EntityConfigurationBuilder<RfSheetEntityFieldsModel>
-        {
-            EntityName = SheetsEntityName,
-            EntityReadableNameSingular = "Sheet",
-            EntityReadableNamePlural = "Sheets",
-            SupportsFrontendEdit = false,
-            HasAuthor = true,
-            HasTags = false,
-            HasCategories = false,
-            HasParentChildRelationship = false,
-            RequireGlobalTitleUniqueness = false,
-            OptionalTitleSanityCheck = null,
-            HasIndividualSharing = true,
-            CustomFrontendListRoute = "/sheets"
-        })
     };
 }

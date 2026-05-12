@@ -236,6 +236,7 @@ describe('AiAssistantContext', () => {
       expect.arrayContaining([
         expect.objectContaining({ action_id: 'a1', approved: false }),
       ]),
+      expect.anything(),
     );
   });
 
@@ -268,6 +269,7 @@ describe('AiAssistantContext', () => {
         selected_field: 'body',
       }),
       undefined,
+      expect.anything(),
     );
   });
 
@@ -305,5 +307,160 @@ describe('AiAssistantContext', () => {
 
     expect(h1).toHaveBeenCalledTimes(1); // unchanged
     expect(h2).toHaveBeenCalledTimes(2);
+  });
+
+  describe('sheet-specific actions', () => {
+    it('setContext merges sheet_sources and selected_cell', () => {
+      const { result } = renderHook(() => useAiAssistant(), { wrapper: Wrapper });
+
+      act(() => result.current.setContext({
+        current_page: 'sheet-edit',
+        sheet_sources: ['orders', 'products'],
+        selected_cell: 'B3',
+      }));
+
+      expect(result.current.context.current_page).toBe('sheet-edit');
+      expect(result.current.context.sheet_sources).toEqual(['orders', 'products']);
+      expect(result.current.context.selected_cell).toBe('B3');
+
+      // Subsequent merge preserves sheet fields
+      act(() => result.current.setContext({ entity_id: 7 }));
+      expect(result.current.context.sheet_sources).toEqual(['orders', 'products']);
+      expect(result.current.context.selected_cell).toBe('B3');
+      expect(result.current.context.entity_id).toBe(7);
+    });
+
+    it('sheet_sources and selected_cell are sent to backend', async () => {
+      mockChat({ response: 'Formula suggestion' });
+      const { result } = renderHook(() => useAiAssistant(), { wrapper: Wrapper });
+
+      act(() => result.current.setContext({
+        current_page: 'sheet-edit',
+        sheet_sources: ['invoices'],
+        selected_cell: 'A1',
+      }));
+      await act(() => result.current.sendMessage('Suggest formula'));
+
+      expect(client.aiAgentChat).toHaveBeenCalledWith(
+        'Suggest formula',
+        expect.objectContaining({
+          current_page: 'sheet-edit',
+          sheet_sources: ['invoices'],
+          selected_cell: 'A1',
+        }),
+        undefined,
+        expect.anything(),
+      );
+    });
+
+    it('sheet_edit auto-action fires handler without backend call', async () => {
+      const handler = vi.fn();
+      const sheetEditAction: client.AiProposedAction = {
+        action_id: 'se1',
+        action_type: 'sheet_edit',
+        description: 'Set cell A1=100',
+        requires_approval: true,
+        entity_type: 'rf-sheets',
+        entity_id: 5,
+        payload: { operations: [{ row: 0, col: 0, value: 100 }] },
+      };
+      mockChat({ proposed_actions: [sheetEditAction] });
+
+      const { result } = renderHook(() => useAiAssistant(), { wrapper: Wrapper });
+      act(() => { result.current.subscribeAutoAction(handler); });
+      await act(() => result.current.sendMessage('Set A1 to 100'));
+      expect(result.current.pendingActions).toHaveLength(1);
+      expect(handler).not.toHaveBeenCalled();
+
+      mockChat({ response: 'Applied.' });
+      await act(() => result.current.confirmAction(sheetEditAction));
+
+      expect(handler).toHaveBeenCalledWith(
+        expect.objectContaining({ action_type: 'sheet_edit', action_id: 'se1' }),
+      );
+      expect(result.current.pendingActions).toHaveLength(0);
+    });
+
+    it('sheet_add_source auto-action fires handler without backend call', async () => {
+      const handler = vi.fn();
+      const addSourceAction: client.AiProposedAction = {
+        action_id: 'as1',
+        action_type: 'sheet_add_source',
+        description: 'Add orders source',
+        requires_approval: true,
+        entity_type: 'rf-sheets',
+        entity_id: 5,
+        payload: { entity_type: 'orders' },
+      };
+      mockChat({ proposed_actions: [addSourceAction] });
+
+      const { result } = renderHook(() => useAiAssistant(), { wrapper: Wrapper });
+      act(() => { result.current.subscribeAutoAction(handler); });
+      await act(() => result.current.sendMessage('Add orders source'));
+      expect(result.current.pendingActions).toHaveLength(1);
+
+      mockChat({ response: 'Source added.' });
+      await act(() => result.current.confirmAction(addSourceAction));
+
+      expect(handler).toHaveBeenCalledWith(
+        expect.objectContaining({ action_type: 'sheet_add_source', action_id: 'as1' }),
+      );
+      expect(result.current.pendingActions).toHaveLength(0);
+    });
+
+    it('sheet_edit with requires_approval=false fires handler immediately', async () => {
+      const handler = vi.fn();
+      mockChat({
+        proposed_actions: [{
+          action_id: 'se-auto',
+          action_type: 'sheet_edit',
+          description: 'Auto-apply formula',
+          requires_approval: false,
+          entity_type: 'rf-sheets',
+          entity_id: 5,
+          payload: { operations: [{ row: 0, col: 0, formula: '=RF.LOOKUP("orders","total")' }] },
+        }],
+      });
+
+      const { result } = renderHook(() => useAiAssistant(), { wrapper: Wrapper });
+      act(() => { result.current.subscribeAutoAction(handler); });
+      await act(() => result.current.sendMessage('Apply formula'));
+
+      // Auto-execute: should NOT be in pending, handler fires immediately
+      expect(result.current.pendingActions).toHaveLength(0);
+      expect(handler).toHaveBeenCalledWith(
+        expect.objectContaining({ action_type: 'sheet_edit', action_id: 'se-auto' }),
+      );
+    });
+
+    it('sheet_edit confirmation sends to backend alongside auto-action', async () => {
+      const handler = vi.fn();
+      const sheetEditAction: client.AiProposedAction = {
+        action_id: 'se2',
+        action_type: 'sheet_edit',
+        description: 'Set B2=Hello',
+        requires_approval: true,
+        entity_type: 'rf-sheets',
+        entity_id: 3,
+        payload: { operations: [{ row: 1, col: 1, value: 'Hello' }] },
+      };
+      mockChat({ proposed_actions: [sheetEditAction] });
+
+      const { result } = renderHook(() => useAiAssistant(), { wrapper: Wrapper });
+      act(() => { result.current.subscribeAutoAction(handler); });
+      await act(() => result.current.sendMessage('Edit B2'));
+      expect(result.current.pendingActions).toHaveLength(1);
+
+      // Confirm — should fire the auto-action handler
+      mockChat({ response: 'Applied.' });
+      await act(() => result.current.confirmAction(sheetEditAction));
+
+      expect(handler).toHaveBeenCalledWith(
+        expect.objectContaining({ action_type: 'sheet_edit' }),
+      );
+      expect(result.current.pendingActions).toHaveLength(0);
+      // Two backend calls: initial sendMessage + confirmation
+      expect(client.aiAgentChat).toHaveBeenCalledTimes(2);
+    });
   });
 });

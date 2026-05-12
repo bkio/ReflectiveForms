@@ -12,6 +12,12 @@ export const config: RfConfig = {
   //   ssoLoginUrl: '/auth/sso/login',
   // },
 
+  // AI display settings:
+  // ai: {
+  //   disabled: false,         // Set true to hide all AI features in the UI
+  //   aiEndpointBase: '',      // Override AI endpoint base (defaults to apiBaseUrl + '/ai')
+  // },
+
   // Add custom pages:
   // customPages: [
   //   {

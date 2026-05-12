@@ -17,6 +17,9 @@ The CLI will prompt for:
 | Primary color | `#2563eb` | Theme color for the UI |
 | Backend port | `9000` | .NET dev server port |
 | Frontend port | `3000` | Vite dev server port |
+| Infrastructure stack | `1` (Local) | `1` Local (file-based), `2` AWS (DynamoDB/S3/SNS+SQS/Redis), `3` Google Cloud (Datastore/GCS/Pub-Sub/Redis), `4` MongoDB (MongoDB/MinIO/Redis) |
+| Enable AI features | `N` | AI assistant, semantic search, field suggestions, sanity checks |
+| Enable RF Sheets | `Y` | Built-in spreadsheet system; answer `n` to disable |
 
 You can also pass the project name as an argument:
 
@@ -91,9 +94,22 @@ The generated project includes a `NoteModel` entity with:
 
 This demonstrates the basic ReflectiveForms workflow. Add your own entities by creating model classes in `backend/Models/` and registering them in `backend/RfBuilder.cs`.
 
-## AI Features (Not Included in Scaffold)
+## Infrastructure Stacks
 
-The generated project does **not** include AI services or OpenAPI configuration — the template is intentionally minimal. To add AI features:
+The scaffolder supports four infrastructure stacks. Each generates the appropriate CrossCloudKit providers, NuGet packages, docker-compose services, and environment variables:
+
+| Stack | Database | File Storage | Cache | PubSub | Docker Services |
+|-------|----------|-------------|-------|--------|-----------------|
+| **Local** (default) | Basic (file-based) | Basic (local) | Basic (memory-mapped) | Basic (file-based) | — |
+| **AWS** | DynamoDB | S3 | Redis | SNS+SQS | Redis |
+| **Google Cloud** | Datastore | Cloud Storage | Redis | Cloud Pub/Sub | Redis |
+| **MongoDB** | MongoDB | MinIO (S3-compatible) | Redis | Redis | MongoDB, Redis, MinIO |
+
+You can switch stacks later by editing `backend/RfBuilder.cs` and updating the NuGet packages in `backend/backend.csproj`.
+
+## AI Features (Not Included by Default)
+
+Answer **y** to the "Enable AI features?" prompt to include AI, or add them manually:
 
 1. Add NuGet packages to `backend/backend.csproj`:
    ```xml
@@ -138,11 +154,20 @@ The scaffolder replaces `{{PLACEHOLDER}}` tokens in all template files:
 | `{{BACKEND_PORT}}` | Backend port prompt |
 | `{{FRONTEND_PORT}}` | Frontend port prompt |
 | `{{CSPROJ_NAME}}` | Derived from project name (dots replacing special chars) |
+| `{{SHEETS_CONFIG}}` | RF Sheets prompt — empty when enabled, `SheetsEnabled = false,` when disabled |
+| `{{INFRA_USING_STATEMENTS}}` | Infrastructure stack — C# using statements for chosen providers |
+| `{{INFRA_SERVICE_INIT}}` | Infrastructure stack — service initialization code |
+| `{{INFRA_CSPROJ_PACKAGES}}` | Infrastructure stack — NuGet PackageReferences |
+| `{{INFRA_ENV_VARS}}` | Infrastructure stack — environment variable block for `.env.example` |
+| `{{INFRA_DOCKER_SERVICES}}` | Infrastructure stack — docker-compose service definitions |
+| `{{INFRA_DOCKER_ENV}}` | Infrastructure stack — backend environment vars in docker-compose |
+| `{{INFRA_DOCKER_DEPENDS}}` | Infrastructure stack — `depends_on` entries for backend |
+| `{{INFRA_README_SECTION}}` | Infrastructure stack — provider-specific documentation |
 
 ## Tests
 
 ```bash
-node --test tests/scaffold.test.js   # 30 tests
+node --test tests/scaffold.test.js   # 227 tests
 ```
 
 The test suite verifies:
@@ -151,6 +176,13 @@ The test suite verifies:
 - Sample entity model is present with correct attribute constructors
 - nginx SPA fallback and WebSocket upgrade headers are configured
 - No unreplaced `{{...}}` tokens remain
+- Per-stack rendered content (RfBuilder.cs, .env.example, README.md, docker-compose)
+- Two-pass nested placeholder resolution
+- Cross-file API endpoint and port consistency
+- Full 16-combination feature-flag matrix (4 stacks × AI × sheets)
+- Frontend template validation (package.json, vite, tailwind, nginx)
+- NoteModel.cs field attributes and JsonProperty coverage
+- Placeholder value edge cases (apostrophes, long names, dots, same ports)
 - **Sync checks**: templates stay in sync with the actual framework:
   - RfBuilder.cs sets all required `EntityConfigurationBuilder` properties
   - .csproj includes all NuGet packages used in RfBuilder.cs (with matching versions)

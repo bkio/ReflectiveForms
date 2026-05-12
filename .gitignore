@@ -472,4 +472,7 @@ Thumbs.db
 *.log
 logs/
 
+# CreateApp test output directories
+ReflectiveForms.CreateApp/.test-*
+
 test.runsettings

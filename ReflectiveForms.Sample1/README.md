@@ -241,6 +241,7 @@ Every ReflectiveForms feature is demonstrated at least once in this sample:
 | **HasCategories** | Objective ✓, Blog Post ✓, Product ✓, Event ✓, Team Member ✗ |
 | **HasParentChildRelationship** | Objective ✓, Product ✓, Blog Post ✗, Team Member ✗, Event ✗ |
 | **HasIndividualSharing** | RF Sheets ✓ (built-in) — see [Individual Sharing](#individual-sharing) |
+| **SheetsEnabled** | `true` (default) — set to `false` on `RfConfigurationBuilder` to disable the RF Sheets system entirely |
 | **SupportsFrontendEdit** | `true` for all 6 custom entities |
 | **SupportsSemanticSearch** | Objective ✓, Blog Post ✓, Team Member ✓, Product ✓ |
 | **SupportsAiGeneration** | Objective ✓, Blog Post ✓ |

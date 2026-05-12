@@ -26,6 +26,7 @@ internal class FrontendSettings : BaseEndpoint
         var result = new
         {
             edit_inactivity_timeout_ms = RfConfiguration.EditInactivityTimeoutMs,
+            sheets_enabled = RfConfiguration.SheetsEnabled,
         };
 
         return Task.FromResult(Results.Ok(result));

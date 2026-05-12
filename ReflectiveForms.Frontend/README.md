@@ -184,7 +184,7 @@ src/
 ├── lib/
 │   ├── createApp.tsx              # createReflectiveFormsApp()
 │   ├── RfConfigProvider.tsx       # React context for config
-│   ├── RfRoutes.tsx               # Pre-wired entity + sheet routes
+│   ├── RfRoutes.tsx               # Pre-wired entity + sheet routes (sheets gated by `sheets_enabled` setting)
 │   ├── types.ts                   # RfConfig, CustomPage interfaces
 │   ├── index.ts                   # Library barrel exports
 │   ├── schemaToZod.ts             # Schema → Zod conversion

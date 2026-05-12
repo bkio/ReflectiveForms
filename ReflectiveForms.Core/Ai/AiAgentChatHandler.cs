@@ -61,6 +61,8 @@ internal record AgentContext
     internal JObject? CurrentFields { get; init; }
     internal List<string>? Errors { get; init; }
     internal string? SelectedField { get; init; }
+    internal List<string>? SheetSources { get; init; }
+    internal string? SelectedCell { get; init; }
 }
 
 internal record ActionConfirmation
@@ -328,6 +330,121 @@ internal static class AiAgentChatHandler
         }
     ];
 
+    /// <summary>
+    /// Sheet-specific tools — only included in the LLM tool list when the user is on a sheet page.
+    /// </summary>
+    private static readonly LLMToolDefinition[] SheetTools =
+    [
+        new()
+        {
+            Name = "list_sheets",
+            Description = "List all spreadsheets (RF Sheets) the user has access to, with titles and entity sources.",
+            Parameters = new JObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JObject(),
+                ["required"] = new JArray()
+            }
+        },
+        new()
+        {
+            Name = "get_sheet_summary",
+            Description = "Get a summary of a specific sheet: title, entity sources, formula inventory (which RF formulas are used and how many), total cell count, and refresh interval.",
+            Parameters = new JObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JObject
+                {
+                    ["sheet_id"] = new JObject { ["type"] = "integer", ["description"] = "The sheet ID" }
+                },
+                ["required"] = new JArray { "sheet_id" }
+            }
+        },
+        new()
+        {
+            Name = "get_sheet_cell_value",
+            Description = "Read cell values from a sheet. Returns the cached value and formula for each cell in the range.",
+            Parameters = new JObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JObject
+                {
+                    ["sheet_id"] = new JObject { ["type"] = "integer", ["description"] = "The sheet ID" },
+                    ["range"] = new JObject { ["type"] = "string", ["description"] = "Cell reference (e.g. 'A1') or range (e.g. 'A1:C5'). Column letters A-Z, row numbers 1-based." }
+                },
+                ["required"] = new JArray { "sheet_id", "range" }
+            }
+        },
+        new()
+        {
+            Name = "suggest_formula",
+            Description = "Suggest an RF formula based on a natural language description. Returns a formula string (e.g. '=RF.SUM(\"product\",\"price\")') that the user can paste into a cell. Does NOT modify the sheet.",
+            Parameters = new JObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JObject
+                {
+                    ["description"] = new JObject { ["type"] = "string", ["description"] = "What the user wants to calculate or display (e.g. 'total price of all products', 'list of employee names')" },
+                    ["entity_type"] = new JObject { ["type"] = "string", ["description"] = "Optional: the entity type to use in the formula" },
+                    ["field_name"] = new JObject { ["type"] = "string", ["description"] = "Optional: the field name to use in the formula" }
+                },
+                ["required"] = new JArray { "description" }
+            }
+        },
+        new()
+        {
+            Name = "propose_sheet_formulas",
+            Description = "Propose writing values or formulas to cells in a sheet. Each operation sets a cell's content. The user must approve before changes are applied. Use this to build tables, add headers, or insert formulas.",
+            Parameters = new JObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JObject
+                {
+                    ["sheet_id"] = new JObject { ["type"] = "integer", ["description"] = "The sheet ID to edit" },
+                    ["operations"] = new JObject
+                    {
+                        ["type"] = "array",
+                        ["description"] = "Array of cell operations. Each has row (0-indexed), col (0-indexed), and either 'value' (plain text/number) or 'formula' (starts with =). Max 500 operations.",
+                        ["items"] = new JObject
+                        {
+                            ["type"] = "object",
+                            ["properties"] = new JObject
+                            {
+                                ["row"] = new JObject { ["type"] = "integer", ["description"] = "Row index (0-based)" },
+                                ["col"] = new JObject { ["type"] = "integer", ["description"] = "Column index (0-based)" },
+                                ["value"] = new JObject { ["type"] = "string", ["description"] = "Plain text or number to set (mutually exclusive with formula)" },
+                                ["formula"] = new JObject { ["type"] = "string", ["description"] = "Formula string starting with = (e.g. '=RF.SUM(\"product\",\"price\")')" }
+                            },
+                            ["required"] = new JArray { "row", "col" }
+                        }
+                    }
+                },
+                ["required"] = new JArray { "sheet_id", "operations" }
+            }
+        },
+        new()
+        {
+            Name = "propose_add_sheet_source",
+            Description = "Propose adding a new entity data source to a sheet. Once added, the sheet can use RF formulas to reference data from this entity type. The user must approve before the source is added.",
+            Parameters = new JObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JObject
+                {
+                    ["sheet_id"] = new JObject { ["type"] = "integer", ["description"] = "The sheet ID" },
+                    ["entity"] = new JObject { ["type"] = "string", ["description"] = "The entity type to add as a source (e.g. 'product', 'objective')" },
+                    ["fields"] = new JObject
+                    {
+                        ["type"] = "array",
+                        ["description"] = "Optional: specific fields to include from this entity (if omitted, all fields are available)",
+                        ["items"] = new JObject { ["type"] = "string" }
+                    }
+                },
+                ["required"] = new JArray { "sheet_id", "entity" }
+            }
+        }
+    ];
+
     private static int _actionIdCounter;
 
     internal static async Task<AgentChatResult> ChatAsync(
@@ -423,6 +540,15 @@ internal static class AiAgentChatHandler
             "The generate→propose sequence must be uninterrupted.\n\n" +
             "REMINDER: Your response text MUST be in the same language as the user's message. Default to English.";
 
+        // Conditionally append RF Sheet formula reference when user is on a sheet page AND has access AND sheets are enabled
+        var isOnSheetPage = RfConfiguration.SheetsEnabled
+                            && chatRequest.Context?.CurrentPage?.StartsWith("sheet", StringComparison.OrdinalIgnoreCase) == true
+                            && user.Fields.CanUserDo("PEEK_ALL", RfReservedEntities.SheetsEntityName);
+        if (isOnSheetPage)
+        {
+            systemPrompt += SheetSystemPromptExtension;
+        }
+
         // Build the user message with context
         var userContent = chatRequest.Message;
         if (chatRequest.Context != null)
@@ -441,6 +567,10 @@ internal static class AiAgentChatHandler
                 contextParts.Add($"Current errors: {string.Join("; ", ctx.Errors)}");
             if (ctx.CurrentFields != null)
                 contextParts.Add($"Current field values: {TruncateToolResult(ctx.CurrentFields.ToString(Newtonsoft.Json.Formatting.None))}");
+            if (ctx.SheetSources is { Count: > 0 })
+                contextParts.Add($"Sheet data sources: {string.Join(", ", ctx.SheetSources)}");
+            if (!string.IsNullOrEmpty(ctx.SelectedCell))
+                contextParts.Add($"Selected cell: {ctx.SelectedCell}");
 
             if (contextParts.Count > 0)
                 userContent = $"[Context: {string.Join(", ", contextParts)}]\n\n{chatRequest.Message}";
@@ -472,12 +602,15 @@ internal static class AiAgentChatHandler
 
         messages.Add(new LLMMessage { Role = LLMRole.User, Content = userContent });
 
+        // Conditionally include sheet tools when user is on a sheet page
+        var activeTools = isOnSheetPage ? Tools.Concat(SheetTools).ToArray() : Tools;
+
         for (var iteration = 0; iteration < MaxIterations; iteration++)
         {
             var request = new LLMRequest
             {
                 Messages = messages,
-                Tools = Tools,
+                Tools = activeTools,
                 MaxTokens = aiConfig.MaxCompletionTokens,
                 Temperature = aiConfig.Temperature
             };
@@ -568,12 +701,19 @@ internal static class AiAgentChatHandler
                 "summarize_changes" => await ExecuteSummarizeChanges(args, user, ct),
                 "check_entity_quality" => await ExecuteCheckEntityQuality(args, user, ct),
                 "propose_create_entity" => await ExecuteProposeCreate(args, user, proposedActions, lastGeneratedFields, ct),
-                "propose_update_entity" => ExecuteProposeUpdate(args, user, proposedActions),
-                "propose_delete_entity" => ExecuteProposeDelete(args, user, proposedActions),
+                "propose_update_entity" => await ExecuteProposeUpdate(args, user, proposedActions, ct),
+                "propose_delete_entity" => await ExecuteProposeDelete(args, user, proposedActions, ct),
                 "suggest_field_value" => await ExecuteSuggestFieldValue(args, user, ct, proposedActions),
                 "navigate" => ExecuteNavigate(args, user, proposedActions),
                 "list_entities" => await ExecuteListEntities(args, user, ct),
                 "set_form_fields" => ExecuteSetFormFields(args, user, proposedActions),
+                // Sheet tools
+                "list_sheets" => await ExecuteListSheets(user, ct),
+                "get_sheet_summary" => await ExecuteGetSheetSummary(args, user, ct),
+                "get_sheet_cell_value" => await ExecuteGetSheetCellValue(args, user, ct),
+                "suggest_formula" => await ExecuteSuggestFormula(args, user, ct),
+                "propose_sheet_formulas" => ExecuteProposeSheetFormulas(args, user, proposedActions),
+                "propose_add_sheet_source" => ExecuteProposeAddSheetSource(args, user, proposedActions),
                 _ => $"Unknown tool: {toolName}"
             };
         }
@@ -1456,14 +1596,14 @@ internal static class AiAgentChatHandler
         return $"Proposed action '{actionId}': Create new {entityType} with title \"{title}\". The user must approve this before it is saved.";
     }
 
-    private static string ExecuteProposeUpdate(
-        JObject args, EntityModel<UserEntityFieldsModel> user, List<ProposedAction> actions)
+    private static async Task<string> ExecuteProposeUpdate(
+        JObject args, EntityModel<UserEntityFieldsModel> user, List<ProposedAction> actions, CancellationToken ct)
     {
         var entityType = args.Value<string>("entity_type");
         if (string.IsNullOrEmpty(entityType))
             return "Error: entity_type is required.";
 
-        if (!RfConfiguration.EntityNameToConfiguration.ContainsKey(entityType))
+        if (!RfConfiguration.EntityNameToConfiguration.TryGetValue(entityType, out var config))
             return $"Error: Unknown entity type '{entityType}'.";
         if (!user.Fields.CanUserDo("UPDATE", entityType))
             return "Error: You do not have permission to update this entity type.";
@@ -1471,6 +1611,19 @@ internal static class AiAgentChatHandler
         var entityId = args.Value<int?>("entity_id");
         if (!entityId.HasValue)
             return "Error: entity_id is required.";
+
+        // Per-entity sharing check
+        if (config.EntityConfiguration.HasIndividualSharing)
+        {
+            var entityResult = await AiConfiguration.DatabaseService.GetItemAsync(
+                EntityRepositoryService.GetEntityTableName(entityType),
+                new DbKey(EntityModelAttributes.Id, entityId.Value), null, ct);
+            if (!entityResult.IsSuccessful || entityResult.Data == null)
+                return $"Error: Entity {entityType} #{entityId} not found.";
+            var accessLevel = GetEntitySharingAccessLevel(entityType, entityResult.Data, user);
+            if (accessLevel is SharingAccessLevel.None or SharingAccessLevel.View)
+                return "Error: You do not have edit access to this entity.";
+        }
 
         var fields = args["fields"] as JObject ?? new JObject();
 
@@ -1494,14 +1647,14 @@ internal static class AiAgentChatHandler
         return $"Proposed action '{actionId}': Update {entityType} #{entityId} fields [{fieldNames}]. The user must approve this before it is applied.";
     }
 
-    private static string ExecuteProposeDelete(
-        JObject args, EntityModel<UserEntityFieldsModel> user, List<ProposedAction> actions)
+    private static async Task<string> ExecuteProposeDelete(
+        JObject args, EntityModel<UserEntityFieldsModel> user, List<ProposedAction> actions, CancellationToken ct)
     {
         var entityType = args.Value<string>("entity_type");
         if (string.IsNullOrEmpty(entityType))
             return "Error: entity_type is required.";
 
-        if (!RfConfiguration.EntityNameToConfiguration.ContainsKey(entityType))
+        if (!RfConfiguration.EntityNameToConfiguration.TryGetValue(entityType, out var config))
             return $"Error: Unknown entity type '{entityType}'.";
         if (!user.Fields.CanUserDo("DELETE", entityType))
             return "Error: You do not have permission to delete this entity type.";
@@ -1509,6 +1662,19 @@ internal static class AiAgentChatHandler
         var entityId = args.Value<int?>("entity_id");
         if (!entityId.HasValue)
             return "Error: entity_id is required.";
+
+        // Per-entity sharing check — require Owner access to propose delete
+        if (config.EntityConfiguration.HasIndividualSharing)
+        {
+            var entityResult = await AiConfiguration.DatabaseService.GetItemAsync(
+                EntityRepositoryService.GetEntityTableName(entityType),
+                new DbKey(EntityModelAttributes.Id, entityId.Value), null, ct);
+            if (!entityResult.IsSuccessful || entityResult.Data == null)
+                return $"Error: Entity {entityType} #{entityId} not found.";
+            var accessLevel = GetEntitySharingAccessLevel(entityType, entityResult.Data, user);
+            if (accessLevel != SharingAccessLevel.Owner)
+                return "Error: You do not have owner access to delete this entity.";
+        }
 
         if (actions.Any(a => a.ActionType == "delete_entity" && a.EntityId == entityId && a.EntityType == entityType))
             return $"Already proposed deleting {entityType} #{entityId} in this conversation turn.";
@@ -1924,5 +2090,535 @@ internal static class AiAgentChatHandler
             RfConfiguration.LogError($"ExecuteApprovedDeleteAsync [{entityType}#{entityId}]: {inner.Message}");
             return OperationResult<JObject>.Failure($"Delete failed: {inner.Message}", HttpStatusCode.InternalServerError);
         }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Sheet Tools — Implementation
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private const string SheetSystemPromptExtension =
+        "\n\nSHEET CONTEXT:\n" +
+        "The user is currently on an RF Sheet page. RF Sheets are spreadsheets that reference entity data via custom formulas.\n" +
+        "You have access to sheet-specific tools: list_sheets, get_sheet_summary, get_sheet_cell_value, suggest_formula, propose_sheet_formulas, propose_add_sheet_source.\n\n" +
+        "RF FORMULA REFERENCE (all formulas start with =, ALL string arguments MUST use double quotes — NEVER single quotes):\n" +
+        "- RF.FIELD(\"entity\", id, \"fieldName\") — Get a single field value. Supports dot-path for nested fields (e.g. \"venue.address.city\").\n" +
+        "- RF.TITLE(\"entity\", id) — Get the title of an entity by ID.\n" +
+        "- RF.COUNT(\"entity\") — Count total rows for an entity type.\n" +
+        "- RF.SUM(\"entity\", \"field\") — Sum a numeric field across all rows.\n" +
+        "- RF.AVG(\"entity\", \"field\") — Average a numeric field across all rows.\n" +
+        "- RF.IDS(\"entity\") — Spill array of all entity IDs (fills cells downward).\n" +
+        "- RF.LIST(\"entity\", \"field\") — Spill array of a field's values across all rows.\n" +
+        "- RF.FILTER(\"entity\", \"field\", \"operator\", \"value\") — Spill array of IDs where condition is met. Operators: =, !=, >, <, >=, <=, contains.\n" +
+        "- RF.MATCHLIST(\"entity\", \"matchField\", \"operator\", \"value\", \"returnField\") — Like FILTER but returns a different field's values.\n" +
+        "- RF.LOOKUP(\"entity\", \"matchField\", \"matchValue\", \"returnField\") — Find first row where matchField equals matchValue, return returnField.\n" +
+        "- RF.MATCH(\"entity\", \"matchField\", \"matchValue\") — Find first row where matchField equals matchValue, return its ID.\n" +
+        "- RF.REPEAT(\"entity\", id, \"repeaterPath\", \"subField\") — Spill array of sub-field values from a repeater field.\n" +
+        "- RF.REPEATCOUNT(\"entity\", id, \"repeaterPath\") — Count items in a repeater field.\n" +
+        "- RF.REPEATFIELD(\"entity\", id, \"repeaterPath\", index, \"subField\") — Get a specific repeater item's sub-field by index.\n" +
+        "IMPORTANT: String arguments in RF formulas MUST always be wrapped in double quotes (\\\"). Single quotes (') will cause errors. Example: =RF.IDS(\"objective\") is correct, =RF.IDS('objective') is WRONG.\n\n" +
+        "SPILL BEHAVIOR: Functions returning arrays (RF.IDS, RF.LIST, RF.FILTER, RF.MATCHLIST, RF.REPEAT) fill cells downward from their anchor cell. Do NOT place other content below a spill formula.\n\n" +
+        "SHEET TOOL RULES:\n" +
+        "- Use list_sheets to discover available sheets.\n" +
+        "- Use get_sheet_summary to understand a sheet's structure and formulas.\n" +
+        "- Use get_sheet_cell_value to read current cell values.\n" +
+        "- Use suggest_formula to help the user construct a formula (returns text only, no modification).\n" +
+        "- Use propose_sheet_formulas to propose writing cells (headers, formulas, labels). Requires user approval.\n" +
+        "- Use propose_add_sheet_source to propose adding a new entity data source to the sheet. Requires user approval.\n" +
+        "- When building a table: place headers in row 0, then use spill formulas (RF.LIST) in row 1. Leave space below for spill expansion.\n" +
+        "- Cell operations use 0-based row/col indices.\n\n" +
+        "ADVANCED USAGE:\n" +
+        "- When the user says 'on the cell I clicked' or 'right here', use the Selected cell from their context (format R{row}C{col}, 0-based).\n" +
+        "- For 'calculate total of [entity]'s [field]': use RF.SUM(entity, field) placed at the selected cell. Add a label in an adjacent cell if appropriate.\n" +
+        "- For overview/dashboard requests: build a structured layout with propose_sheet_formulas — headers in one row, spill formulas (RF.IDS, RF.LIST) in the row below. Use multiple columns for different fields.\n" +
+        "- For date-filtered views (e.g. '2020 to 2024'): use RF.FILTER or RF.MATCHLIST with date field conditions, or combine RF.LIST with labels explaining the filter.\n" +
+        "- If the sheet doesn't have the needed entity as a data source yet, first propose_add_sheet_source, then propose the formulas.\n" +
+        "- When placing aggregations (SUM, AVG, COUNT), put a descriptive label (e.g. 'Total Revenue') in the cell to the left or above the formula cell.\n" +
+        "- For multi-entity dashboards, organize sections vertically with blank rows between them. Each section: title row → header row → spill data row.\n" +
+        "- You can use the currently connected Sheet data sources from the context to know what entities are available without calling list_sheets.";
+
+    private static async Task<string> ExecuteListSheets(
+        EntityModel<UserEntityFieldsModel> user, CancellationToken ct)
+    {
+        const string entityName = RfReservedEntities.SheetsEntityName;
+
+        if (!user.Fields.CanUserDo("PEEK_ALL", entityName))
+            return "Error: You do not have access to sheets.";
+
+        var scanResult = await AiConfiguration.DatabaseService.ScanTableAsync(
+            EntityRepositoryService.GetEntityTableName(entityName), ct);
+
+        if (!scanResult.IsSuccessful)
+            return "Error: Could not retrieve sheets.";
+
+        var results = new JArray();
+        foreach (var item in scanResult.Data.Items)
+        {
+            // Per-entity sharing check
+            var accessLevel = GetEntitySharingAccessLevel(entityName, item, user);
+            if (accessLevel == SharingAccessLevel.None)
+                continue;
+
+            var entry = new JObject();
+
+            if (item.TryGetValue(EntityModelAttributes.Id, out var idToken))
+                entry["id"] = idToken.Value<int>();
+
+            if (item.TryGetValue(EntityModelAttributes.Title, out var titleToken) &&
+                titleToken is JObject titleObj &&
+                titleObj.TryGetValue(EntityModelAttributes.TitleRendered, out var rendered))
+                entry["title"] = rendered.Value<string>();
+
+            if (item[EntityModelAttributes.Fields] is JObject fields)
+            {
+                var sources = fields.Value<string>("sources") ?? "[]";
+                try
+                {
+                    var sourcesArray = JArray.Parse(sources);
+                    entry["sources"] = new JArray(sourcesArray.Select(s => s.Value<string>("entity")).Where(e => e != null));
+                }
+                catch { entry["sources"] = new JArray(); }
+            }
+
+            if (item.TryGetValue(EntityModelAttributes.Author, out var authorToken))
+                entry["author_id"] = authorToken;
+
+            results.Add(entry);
+        }
+
+        if (results.Count == 0)
+            return "No sheets found.";
+
+        return new JObject { ["sheets"] = results, ["total_count"] = results.Count }.ToString(Newtonsoft.Json.Formatting.None);
+    }
+
+    private static async Task<string> ExecuteGetSheetSummary(
+        JObject args, EntityModel<UserEntityFieldsModel> user, CancellationToken ct)
+    {
+        var sheetId = args.Value<int?>("sheet_id");
+        if (sheetId == null)
+            return "Error: sheet_id is required.";
+
+        var (sheet, accessLevel, error) = await GetSheetWithAccessCheck(sheetId.Value, user, SharingAccessLevel.View, ct);
+        if (error != null) return error;
+
+        var fields = sheet![EntityModelAttributes.Fields] as JObject;
+        var title = "";
+        if (sheet.TryGetValue(EntityModelAttributes.Title, out var titleToken) &&
+            titleToken is JObject titleObj &&
+            titleObj.TryGetValue(EntityModelAttributes.TitleRendered, out var renderedTitle))
+            title = renderedTitle.Value<string>() ?? "";
+
+        var sources = fields?.Value<string>("sources") ?? "[]";
+        var workbookData = fields?.Value<string>("workbook_data") ?? "{}";
+        var refreshInterval = fields?.Value<int?>("refresh_interval_seconds") ?? 30;
+
+        // Parse sources
+        JArray sourcesList;
+        try { sourcesList = JArray.Parse(sources); }
+        catch { sourcesList = new JArray(); }
+
+        // Parse workbook and extract formula inventory
+        var formulaCounts = new Dictionary<string, int>();
+        var cellCount = 0;
+        try
+        {
+            var workbook = JObject.Parse(workbookData);
+            if (workbook["sheets"] is JObject sheets)
+            {
+                foreach (var sheetEntry in sheets.Properties())
+                {
+                    if (sheetEntry.Value is JObject sheetData && sheetData["cellData"] is JObject cellData)
+                    {
+                        foreach (var row in cellData.Properties())
+                        {
+                            if (row.Value is JObject rowCells)
+                            {
+                                foreach (var cell in rowCells.Properties())
+                                {
+                                    cellCount++;
+                                    if (cell.Value is JObject cellObj && cellObj.TryGetValue("f", out var fToken))
+                                    {
+                                        var formula = fToken.Value<string>() ?? "";
+                                        // Extract RF function names
+                                        foreach (System.Text.RegularExpressions.Match m in
+                                            System.Text.RegularExpressions.Regex.Matches(formula, @"RF\.(\w+)\("))
+                                        {
+                                            var funcName = $"RF.{m.Groups[1].Value}";
+                                            formulaCounts[funcName] = formulaCounts.GetValueOrDefault(funcName) + 1;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Corrupt workbook — return partial summary
+        }
+
+        var summary = new JObject
+        {
+            ["title"] = title,
+            ["sheet_id"] = sheetId.Value,
+            ["sources"] = sourcesList,
+            ["cell_count"] = cellCount,
+            ["refresh_interval_seconds"] = refreshInterval,
+            ["access_level"] = accessLevel.ToString().ToLowerInvariant()
+        };
+
+        if (formulaCounts.Count > 0)
+        {
+            var formulaObj = new JObject();
+            foreach (var (name, count) in formulaCounts.OrderByDescending(kv => kv.Value))
+                formulaObj[name] = count;
+            summary["formula_inventory"] = formulaObj;
+        }
+
+        return summary.ToString(Newtonsoft.Json.Formatting.None);
+    }
+
+    private static async Task<string> ExecuteGetSheetCellValue(
+        JObject args, EntityModel<UserEntityFieldsModel> user, CancellationToken ct)
+    {
+        var sheetId = args.Value<int?>("sheet_id");
+        if (sheetId == null)
+            return "Error: sheet_id is required.";
+
+        var range = args.Value<string>("range");
+        if (string.IsNullOrWhiteSpace(range))
+            return "Error: range is required (e.g. 'A1' or 'A1:C5').";
+
+        var (sheet, _, error) = await GetSheetWithAccessCheck(sheetId.Value, user, SharingAccessLevel.View, ct);
+        if (error != null) return error;
+
+        // Parse range
+        if (!TryParseCellRange(range, out var startRow, out var startCol, out var endRow, out var endCol))
+            return $"Error: Invalid range format '{range}'. Use formats like 'A1', 'B3', or 'A1:C5'.";
+
+        var fields = sheet![EntityModelAttributes.Fields] as JObject;
+        var workbookData = fields?.Value<string>("workbook_data") ?? "{}";
+
+        JObject? cellData = null;
+        try
+        {
+            var workbook = JObject.Parse(workbookData);
+            if (workbook["sheets"] is JObject sheets)
+            {
+                // Get first sheet's cellData
+                var firstSheet = sheets.Properties().FirstOrDefault();
+                if (firstSheet?.Value is JObject sheetData)
+                    cellData = sheetData["cellData"] as JObject;
+            }
+        }
+        catch { return "Error: Could not parse workbook data."; }
+
+        var results = new JArray();
+        for (var row = startRow; row <= endRow; row++)
+        {
+            for (var col = startCol; col <= endCol; col++)
+            {
+                var cellRef = $"{GetColumnLetter(col)}{row + 1}";
+                var cellEntry = new JObject { ["cell"] = cellRef };
+
+                var cellObj = cellData?[row.ToString()]?[col.ToString()] as JObject;
+                if (cellObj != null)
+                {
+                    if (cellObj.TryGetValue("v", out var vToken))
+                        cellEntry["value"] = vToken;
+                    if (cellObj.TryGetValue("f", out var fToken))
+                        cellEntry["formula"] = fToken.Value<string>();
+                }
+                else
+                {
+                    cellEntry["value"] = null;
+                }
+
+                results.Add(cellEntry);
+            }
+        }
+
+        return new JObject { ["cells"] = results }.ToString(Newtonsoft.Json.Formatting.None);
+    }
+
+    private static async Task<string> ExecuteSuggestFormula(
+        JObject args, EntityModel<UserEntityFieldsModel> user, CancellationToken ct)
+    {
+        var description = args.Value<string>("description");
+        if (string.IsNullOrWhiteSpace(description))
+            return "Error: description is required.";
+
+        var entityType = args.Value<string>("entity_type");
+        var fieldName = args.Value<string>("field_name");
+
+        // Validate entity_type if provided
+        if (!string.IsNullOrEmpty(entityType) && !RfConfiguration.EntityNameToConfiguration.ContainsKey(entityType))
+            return $"Error: Entity type '{entityType}' not found.";
+
+        if (!string.IsNullOrEmpty(entityType) && !user.Fields.CanUserDo("PEEK_ALL", entityType))
+            return $"Error: You do not have access to entity type '{entityType}'.";
+
+        // Validate field_name if provided along with entity_type
+        if (!string.IsNullOrEmpty(entityType) && !string.IsNullOrEmpty(fieldName))
+        {
+            var schema = EntitySchemaGenerator.GenerateSchema(entityType);
+            if (schema.IsSuccessful && schema.Data?.Fields != null && !schema.Data.Fields.Any(f => f.Name == fieldName))
+                return $"Error: Field '{fieldName}' does not exist on entity type '{entityType}'.";
+        }
+
+        // Use Light LLM to generate formula suggestion
+        var formulaPrompt =
+            "You are a formula assistant for RF Sheets. Given a description, return ONLY the formula string (starting with =). " +
+            "Do NOT include any explanation.\n\n" +
+            "Available RF formulas:\n" +
+            "- =RF.FIELD(\"entity\",id,\"field\") — single value\n" +
+            "- =RF.TITLE(\"entity\",id) — entity title\n" +
+            "- =RF.COUNT(\"entity\") — row count\n" +
+            "- =RF.SUM(\"entity\",\"field\") — sum numeric field\n" +
+            "- =RF.AVG(\"entity\",\"field\") — average numeric field\n" +
+            "- =RF.IDS(\"entity\") — all IDs (spill)\n" +
+            "- =RF.LIST(\"entity\",\"field\") — all values of a field (spill)\n" +
+            "- =RF.FILTER(\"entity\",\"field\",\"op\",\"value\") — filtered IDs (spill)\n" +
+            "- =RF.MATCHLIST(\"entity\",\"matchField\",\"op\",\"value\",\"returnField\") — filtered field values (spill)\n" +
+            "- =RF.LOOKUP(\"entity\",\"matchField\",\"matchValue\",\"returnField\") — first matching row's field\n" +
+            "- =RF.MATCH(\"entity\",\"matchField\",\"matchValue\") — first matching row's ID\n" +
+            "- =RF.REPEAT(\"entity\",id,\"repeaterPath\",\"subField\") — repeater sub-field values (spill)\n" +
+            "- =RF.REPEATCOUNT(\"entity\",id,\"repeaterPath\") — repeater item count\n" +
+            "- =RF.REPEATFIELD(\"entity\",id,\"repeaterPath\",index,\"subField\") — specific repeater item\n\n" +
+            $"Description: {description}\n" +
+            (entityType != null ? $"Entity type: {entityType}\n" : "") +
+            (fieldName != null ? $"Field: {fieldName}\n" : "") +
+            "Formula:";
+
+        var request = new LLMRequest
+        {
+            Messages = [new LLMMessage { Role = LLMRole.User, Content = formulaPrompt }],
+            MaxTokens = 200,
+            Temperature = 0.1
+        };
+
+        var result = await AiConfiguration.LightLlmService.CompleteAsync(request, ct);
+        if (!result.IsSuccessful)
+            return "Error: Could not generate formula suggestion.";
+
+        var formula = result.Data.Content?.Trim() ?? "";
+        // Clean up — ensure it starts with =
+        if (!formula.StartsWith('='))
+            formula = "=" + formula;
+        // Strip any trailing explanation
+        var newlineIdx = formula.IndexOf('\n');
+        if (newlineIdx > 0) formula = formula[..newlineIdx].Trim();
+        // Sanitize single quotes → double quotes in RF function string arguments
+        formula = SanitizeFormulaQuotes(formula);
+
+        return new JObject { ["formula"] = formula, ["description"] = description }.ToString(Newtonsoft.Json.Formatting.None);
+    }
+
+    private static string ExecuteProposeSheetFormulas(
+        JObject args, EntityModel<UserEntityFieldsModel> user, List<ProposedAction> proposedActions)
+    {
+        var sheetId = args.Value<int?>("sheet_id");
+        if (sheetId == null)
+            return "Error: sheet_id is required.";
+
+        var operations = args["operations"] as JArray;
+        if (operations == null || operations.Count == 0)
+            return "Error: operations array is required and must not be empty.";
+
+        if (operations.Count > 500)
+            return "Error: Maximum 500 operations per proposal.";
+
+        // Validate user has PEEK_ALL and UPDATE on sheets
+        if (!user.Fields.CanUserDo("PEEK_ALL", RfReservedEntities.SheetsEntityName))
+            return "Error: You do not have access to sheets.";
+        if (!user.Fields.CanUserDo("UPDATE", RfReservedEntities.SheetsEntityName))
+            return "Error: You do not have edit permission for sheets.";
+
+        // Validate operations structure
+        foreach (var op in operations)
+        {
+            if (op is not JObject opObj)
+                return "Error: Each operation must be an object with 'row' and 'col' properties.";
+            if (!opObj.ContainsKey("row") || !opObj.ContainsKey("col"))
+                return "Error: Each operation must have 'row' and 'col' properties.";
+            if (!opObj.ContainsKey("value") && !opObj.ContainsKey("formula"))
+                return "Error: Each operation must have either 'value' or 'formula'.";
+        }
+
+        // Validate entity references in formulas (existence + user access)
+        foreach (var op in operations.OfType<JObject>())
+        {
+            var formula = op.Value<string>("formula");
+            if (string.IsNullOrEmpty(formula)) continue;
+
+            // Sanitize: replace single quotes with double quotes in RF function arguments.
+            // LLMs sometimes produce =RF.IDS('entity') instead of =RF.IDS("entity").
+            formula = SanitizeFormulaQuotes(formula);
+            op["formula"] = formula;
+
+            foreach (System.Text.RegularExpressions.Match m in
+                System.Text.RegularExpressions.Regex.Matches(formula, @"RF\.\w+\(\s*""([^""]+)"""))
+            {
+                var referencedEntity = m.Groups[1].Value;
+                if (!RfConfiguration.EntityNameToConfiguration.ContainsKey(referencedEntity))
+                    return $"Error: Formula references unknown entity type '{referencedEntity}'.";
+                if (!user.Fields.CanUserDo("PEEK_ALL", referencedEntity))
+                    return $"Error: You do not have access to entity type '{referencedEntity}' referenced in formula.";
+            }
+        }
+
+        var actionId = $"sheet_edit_{Interlocked.Increment(ref _actionIdCounter)}";
+        proposedActions.Add(new ProposedAction
+        {
+            ActionId = actionId,
+            ActionType = "sheet_edit",
+            EntityType = RfReservedEntities.SheetsEntityName,
+            EntityId = sheetId.Value,
+            Payload = new JObject { ["sheet_id"] = sheetId.Value, ["operations"] = operations },
+            Description = $"Write {operations.Count} cell(s) to sheet #{sheetId.Value}",
+            RequiresApproval = true
+        });
+
+        return $"Proposed: Write {operations.Count} cell(s) to sheet #{sheetId.Value}. Waiting for user approval.";
+    }
+
+    /// <summary>
+    /// Replaces single-quoted string arguments inside RF.* function calls with double quotes.
+    /// E.g. =RF.IDS('objective') → =RF.IDS("objective")
+    /// </summary>
+    private static string SanitizeFormulaQuotes(string formula)
+    {
+        // Match RF.<FuncName>(... 'value' ...) and replace single quotes with double quotes
+        return System.Text.RegularExpressions.Regex.Replace(
+            formula,
+            @"(?<=RF\.\w+\([^)]*)'([^']*)'",
+            "\"$1\"");
+    }
+
+    private static string ExecuteProposeAddSheetSource(
+        JObject args, EntityModel<UserEntityFieldsModel> user, List<ProposedAction> proposedActions)
+    {
+        var sheetId = args.Value<int?>("sheet_id");
+        if (sheetId == null)
+            return "Error: sheet_id is required.";
+
+        var entity = args.Value<string>("entity");
+        if (string.IsNullOrWhiteSpace(entity))
+            return "Error: entity is required.";
+
+        // Validate entity type exists
+        if (!RfConfiguration.EntityNameToConfiguration.ContainsKey(entity))
+            return $"Error: Entity type '{entity}' not found.";
+
+        // Validate user has PEEK_ALL on the entity type
+        if (!user.Fields.CanUserDo("PEEK_ALL", entity))
+            return $"Error: You do not have access to entity type '{entity}'.";
+
+        // Validate user has access and edit permission for sheets
+        if (!user.Fields.CanUserDo("PEEK_ALL", RfReservedEntities.SheetsEntityName))
+            return "Error: You do not have access to sheets.";
+        if (!user.Fields.CanUserDo("UPDATE", RfReservedEntities.SheetsEntityName))
+            return "Error: You do not have edit permission for sheets.";
+
+        var fieldsArray = args["fields"] as JArray;
+        var payload = new JObject
+        {
+            ["sheet_id"] = sheetId.Value,
+            ["entity"] = entity
+        };
+        if (fieldsArray != null)
+            payload["fields"] = fieldsArray;
+
+        var actionId = $"sheet_add_source_{Interlocked.Increment(ref _actionIdCounter)}";
+        proposedActions.Add(new ProposedAction
+        {
+            ActionId = actionId,
+            ActionType = "sheet_add_source",
+            EntityType = RfReservedEntities.SheetsEntityName,
+            EntityId = sheetId.Value,
+            Payload = payload,
+            Description = $"Add entity source '{entity}' to sheet #{sheetId.Value}",
+            RequiresApproval = true
+        });
+
+        return $"Proposed: Add '{entity}' as a data source to sheet #{sheetId.Value}. Waiting for user approval.";
+    }
+
+    // ── Sheet helpers ────────────────────────────────────────────────────────
+
+    private static async Task<(JObject? Sheet, SharingAccessLevel AccessLevel, string? Error)> GetSheetWithAccessCheck(
+        int sheetId, EntityModel<UserEntityFieldsModel> user, SharingAccessLevel requiredLevel, CancellationToken ct)
+    {
+        const string entityName = RfReservedEntities.SheetsEntityName;
+
+        if (!user.Fields.CanUserDo("PEEK_ALL", entityName))
+            return (null, SharingAccessLevel.None, "Error: You do not have access to sheets.");
+
+        var result = await AiConfiguration.DatabaseService.GetItemAsync(
+            EntityRepositoryService.GetEntityTableName(entityName),
+            new DbKey(EntityModelAttributes.Id, new Primitive(sheetId)), null, ct);
+
+        if (!result.IsSuccessful || result.Data == null)
+            return (null, SharingAccessLevel.None, $"Error: Sheet #{sheetId} not found.");
+
+        var accessLevel = GetEntitySharingAccessLevel(entityName, result.Data, user);
+        if (accessLevel < requiredLevel)
+            return (null, accessLevel, "Error: You do not have sufficient access to this sheet.");
+
+        return (result.Data, accessLevel, null);
+    }
+
+    private static bool TryParseCellRange(string range, out int startRow, out int startCol, out int endRow, out int endCol)
+    {
+        startRow = startCol = endRow = endCol = 0;
+        range = range.Trim().ToUpperInvariant();
+
+        var parts = range.Split(':');
+        if (parts.Length == 1)
+        {
+            if (!TryParseCellRef(parts[0], out startRow, out startCol))
+                return false;
+            endRow = startRow;
+            endCol = startCol;
+            return true;
+        }
+
+        if (parts.Length == 2)
+            return TryParseCellRef(parts[0], out startRow, out startCol) &&
+                   TryParseCellRef(parts[1], out endRow, out endCol);
+
+        return false;
+    }
+
+    private static bool TryParseCellRef(string cellRef, out int row, out int col)
+    {
+        row = col = 0;
+        var i = 0;
+        // Parse column letters
+        while (i < cellRef.Length && char.IsLetter(cellRef[i]))
+            i++;
+        if (i == 0) return false;
+        var colStr = cellRef[..i];
+        var rowStr = cellRef[i..];
+        if (!int.TryParse(rowStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out var rowNum) || rowNum < 1)
+            return false;
+        row = rowNum - 1; // Convert to 0-based
+        col = 0;
+        foreach (var c in colStr)
+            col = col * 26 + (c - 'A');
+        return true;
+    }
+
+    private static string GetColumnLetter(int col)
+    {
+        var result = "";
+        do
+        {
+            result = (char)('A' + col % 26) + result;
+            col = col / 26 - 1;
+        } while (col >= 0);
+        return result;
     }
 }

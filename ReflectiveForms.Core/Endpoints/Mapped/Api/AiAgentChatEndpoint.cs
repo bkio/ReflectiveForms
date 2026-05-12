@@ -57,7 +57,9 @@ internal class AiAgentChatEndpoint : BaseEndpoint
                 EntityId = ctxObj.Value<int?>("entity_id"),
                 CurrentFields = ctxObj["current_fields"] as JObject,
                 Errors = ctxObj["errors"]?.ToObject<List<string>>(),
-                SelectedField = ctxObj.Value<string>("selected_field")
+                SelectedField = ctxObj.Value<string>("selected_field"),
+                SheetSources = ctxObj["sheet_sources"]?.ToObject<List<string>>(),
+                SelectedCell = ctxObj.Value<string>("selected_cell")
             };
         }
 
@@ -257,6 +259,8 @@ internal class AiAgentChatEndpoint : BaseEndpoint
                 }
                 case "set_field":
                 case "navigate":
+                case "sheet_edit":
+                case "sheet_add_source":
                     // These actions are handled client-side; no backend execution needed
                     return (true, "Action handled client-side.", null);
                 default:

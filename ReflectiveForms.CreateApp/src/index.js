@@ -25,11 +25,336 @@ function copyTemplate(src, dest, replacements) {
     }
   } else {
     let content = fs.readFileSync(src, 'utf-8');
-    for (const [placeholder, value] of Object.entries(replacements)) {
-      content = content.replaceAll(`{{${placeholder}}}`, value);
+    // Two passes: first resolves top-level placeholders (e.g. {{INFRA_SERVICE_INIT}}),
+    // second resolves any nested placeholders inside the injected values (e.g. {{PROJECT_NAME}}).
+    for (let pass = 0; pass < 2; pass++) {
+      for (const [placeholder, value] of Object.entries(replacements)) {
+        content = content.replaceAll(`{{${placeholder}}}`, value);
+      }
     }
     fs.writeFileSync(dest, content);
   }
+}
+
+const CCK_VERSION = '2026.4.22.71';
+
+export function infraReplacements(stack) {
+  if (stack === 'aws') {
+    return {
+      INFRA_USING_STATEMENTS: [
+        'using CrossCloudKit.Database.AWS;',
+        'using CrossCloudKit.File.AWS;',
+        'using CrossCloudKit.Memory.Redis;',
+        'using CrossCloudKit.PubSub.AWS;',
+      ].join('\n'),
+      INFRA_SERVICE_INIT: [
+        '        var redisOpts = new RedisConnectionOptions',
+        '        {',
+        '            Host = Environment.GetEnvironmentVariable("REDIS_HOST") ?? "localhost",',
+        '            Port = int.Parse(Environment.GetEnvironmentVariable("REDIS_PORT") ?? "6379"),',
+        '            Password = Environment.GetEnvironmentVariable("REDIS_PASSWORD") ?? ""',
+        '        };',
+        '        var memoryService = new MemoryServiceRedis(redisOpts);',
+        '        var pubSubService = new PubSubServiceAWS(',
+        '            Environment.GetEnvironmentVariable("AWS_ACCESS_KEY") ?? "",',
+        '            Environment.GetEnvironmentVariable("AWS_SECRET_KEY") ?? "",',
+        '            Environment.GetEnvironmentVariable("AWS_REGION") ?? "us-east-1");',
+        '        var fileService = new FileServiceAWS(',
+        '            Environment.GetEnvironmentVariable("AWS_ACCESS_KEY") ?? "",',
+        '            Environment.GetEnvironmentVariable("AWS_SECRET_KEY") ?? "",',
+        '            Environment.GetEnvironmentVariable("AWS_REGION") ?? "us-east-1");',
+        '        var databaseService = new DatabaseServiceAWS(',
+        '            Environment.GetEnvironmentVariable("AWS_ACCESS_KEY") ?? "",',
+        '            Environment.GetEnvironmentVariable("AWS_SECRET_KEY") ?? "",',
+        '            Environment.GetEnvironmentVariable("AWS_REGION") ?? "us-east-1",',
+        '            memoryService);',
+      ].join('\n'),
+      INFRA_CSPROJ_PACKAGES: [
+        `    <PackageReference Include="CrossCloudKit.Database.AWS" Version="${CCK_VERSION}" />`,
+        `    <PackageReference Include="CrossCloudKit.File.AWS" Version="${CCK_VERSION}" />`,
+        `    <PackageReference Include="CrossCloudKit.Memory.Redis" Version="${CCK_VERSION}" />`,
+        `    <PackageReference Include="CrossCloudKit.PubSub.AWS" Version="${CCK_VERSION}" />`,
+      ].join('\n'),
+      INFRA_ENV_VARS: [
+        '',
+        '# AWS',
+        'AWS_ACCESS_KEY=',
+        'AWS_SECRET_KEY=',
+        'AWS_REGION=us-east-1',
+        '',
+        '# Redis (cache & distributed locking)',
+        'REDIS_HOST=localhost',
+        'REDIS_PORT=6379',
+        '# REDIS_PASSWORD=',
+      ].join('\n'),
+      INFRA_DOCKER_SERVICES: [
+        '',
+        '  redis:',
+        '    image: redis:7-alpine',
+        '    ports:',
+        '      - "6379:6379"',
+        '    restart: unless-stopped',
+      ].join('\n'),
+      INFRA_DOCKER_ENV: [
+        '      - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}',
+        '      - AWS_SECRET_KEY=${AWS_SECRET_KEY}',
+        '      - AWS_REGION=${AWS_REGION:-us-east-1}',
+        '      - REDIS_HOST=redis',
+        '      - REDIS_PORT=6379',
+      ].join('\n'),
+      INFRA_DOCKER_DEPENDS: '\n      - redis',
+      INFRA_README_SECTION: `## Infrastructure
+
+This project uses **AWS** services for production data:
+
+| Service | Provider | Purpose |
+|---------|----------|---------|
+| Database | AWS DynamoDB | Document storage |
+| File storage | AWS S3 | Media & file uploads |
+| Cache | Redis | In-memory cache & distributed locking |
+| PubSub | AWS SNS+SQS | Event messaging |
+
+### Prerequisites
+
+- AWS account with DynamoDB, S3, and SNS+SQS access
+- Redis instance (included in docker-compose for local dev)
+- Set \`AWS_ACCESS_KEY\`, \`AWS_SECRET_KEY\`, and \`AWS_REGION\` in \`.env\``,
+    };
+  }
+
+  if (stack === 'gcp') {
+    return {
+      INFRA_USING_STATEMENTS: [
+        'using CrossCloudKit.Database.GC;',
+        'using CrossCloudKit.File.GC;',
+        'using CrossCloudKit.Memory.Redis;',
+        'using CrossCloudKit.PubSub.GC;',
+      ].join('\n'),
+      INFRA_SERVICE_INIT: [
+        '        var redisOpts = new RedisConnectionOptions',
+        '        {',
+        '            Host = Environment.GetEnvironmentVariable("REDIS_HOST") ?? "localhost",',
+        '            Port = int.Parse(Environment.GetEnvironmentVariable("REDIS_PORT") ?? "6379"),',
+        '            Password = Environment.GetEnvironmentVariable("REDIS_PASSWORD") ?? ""',
+        '        };',
+        '        var memoryService = new MemoryServiceRedis(redisOpts);',
+        '        var pubSubService = new PubSubServiceGC(',
+        '            Environment.GetEnvironmentVariable("GCP_PROJECT_ID") ?? "",',
+        '            Environment.GetEnvironmentVariable("GCP_SERVICE_ACCOUNT_JSON") ?? "",',
+        '            isBase64Encoded: false);',
+        '        var fileService = new FileServiceGC(',
+        '            Environment.GetEnvironmentVariable("GCP_PROJECT_ID") ?? "",',
+        '            Environment.GetEnvironmentVariable("GCP_SERVICE_ACCOUNT_KEY_PATH") ?? "");',
+        '        var databaseService = new DatabaseServiceGC(',
+        '            Environment.GetEnvironmentVariable("GCP_PROJECT_ID") ?? "",',
+        '            Environment.GetEnvironmentVariable("GCP_SERVICE_ACCOUNT_KEY_PATH") ?? "",',
+        '            memoryService);',
+      ].join('\n'),
+      INFRA_CSPROJ_PACKAGES: [
+        `    <PackageReference Include="CrossCloudKit.Database.GC" Version="${CCK_VERSION}" />`,
+        `    <PackageReference Include="CrossCloudKit.File.GC" Version="${CCK_VERSION}" />`,
+        `    <PackageReference Include="CrossCloudKit.Memory.Redis" Version="${CCK_VERSION}" />`,
+        `    <PackageReference Include="CrossCloudKit.PubSub.GC" Version="${CCK_VERSION}" />`,
+      ].join('\n'),
+      INFRA_ENV_VARS: [
+        '',
+        '# Google Cloud',
+        'GCP_PROJECT_ID=',
+        'GCP_SERVICE_ACCOUNT_KEY_PATH=',
+        'GCP_SERVICE_ACCOUNT_JSON=',
+        '',
+        '# Redis (cache & distributed locking)',
+        'REDIS_HOST=localhost',
+        'REDIS_PORT=6379',
+        '# REDIS_PASSWORD=',
+      ].join('\n'),
+      INFRA_DOCKER_SERVICES: [
+        '',
+        '  redis:',
+        '    image: redis:7-alpine',
+        '    ports:',
+        '      - "6379:6379"',
+        '    restart: unless-stopped',
+      ].join('\n'),
+      INFRA_DOCKER_ENV: [
+        '      - GCP_PROJECT_ID=${GCP_PROJECT_ID}',
+        '      - GCP_SERVICE_ACCOUNT_KEY_PATH=${GCP_SERVICE_ACCOUNT_KEY_PATH}',
+        '      - GCP_SERVICE_ACCOUNT_JSON=${GCP_SERVICE_ACCOUNT_JSON}',
+        '      - REDIS_HOST=redis',
+        '      - REDIS_PORT=6379',
+      ].join('\n'),
+      INFRA_DOCKER_DEPENDS: '\n      - redis',
+      INFRA_README_SECTION: `## Infrastructure
+
+This project uses **Google Cloud** services for production data:
+
+| Service | Provider | Purpose |
+|---------|----------|---------|
+| Database | Google Cloud Datastore | Document storage |
+| File storage | Google Cloud Storage | Media & file uploads |
+| Cache | Redis | In-memory cache & distributed locking |
+| PubSub | Google Cloud Pub/Sub | Event messaging |
+
+### Prerequisites
+
+- Google Cloud project with Datastore, Cloud Storage, and Pub/Sub APIs enabled
+- Service account key file with appropriate permissions
+- Redis instance (included in docker-compose for local dev)
+- Set \`GCP_PROJECT_ID\` and \`GCP_SERVICE_ACCOUNT_KEY_PATH\` in \`.env\``,
+    };
+  }
+
+  if (stack === 'mongo') {
+    return {
+      INFRA_USING_STATEMENTS: [
+        'using CrossCloudKit.Database.Mongo;',
+        'using CrossCloudKit.File.S3Compatible;',
+        'using CrossCloudKit.Memory.Redis;',
+        'using CrossCloudKit.PubSub.Redis;',
+      ].join('\n'),
+      INFRA_SERVICE_INIT: [
+        '        var redisOpts = new RedisConnectionOptions',
+        '        {',
+        '            Host = Environment.GetEnvironmentVariable("REDIS_HOST") ?? "localhost",',
+        '            Port = int.Parse(Environment.GetEnvironmentVariable("REDIS_PORT") ?? "6379"),',
+        '            Password = Environment.GetEnvironmentVariable("REDIS_PASSWORD") ?? ""',
+        '        };',
+        '        var memoryService = new MemoryServiceRedis(redisOpts);',
+        '        var pubSubService = new PubSubServiceRedis(redisOpts);',
+        '        var fileService = new FileServiceS3Compatible(',
+        '            Environment.GetEnvironmentVariable("S3_SERVER") ?? "localhost:9000",',
+        '            Environment.GetEnvironmentVariable("S3_ACCESS_KEY") ?? "minioadmin",',
+        '            Environment.GetEnvironmentVariable("S3_SECRET_KEY") ?? "minioadmin",',
+        '            Environment.GetEnvironmentVariable("S3_REGION") ?? "us-east-1");',
+        '        var databaseService = new DatabaseServiceMongo(',
+        '            Environment.GetEnvironmentVariable("MONGODB_CONNECTION_STRING") ?? "mongodb://localhost:27017",',
+        '            Environment.GetEnvironmentVariable("MONGODB_DATABASE") ?? "{{PROJECT_NAME}}",',
+        '            memoryService);',
+      ].join('\n'),
+      INFRA_CSPROJ_PACKAGES: [
+        `    <PackageReference Include="CrossCloudKit.Database.Mongo" Version="${CCK_VERSION}" />`,
+        `    <PackageReference Include="CrossCloudKit.File.S3Compatible" Version="${CCK_VERSION}" />`,
+        `    <PackageReference Include="CrossCloudKit.Memory.Redis" Version="${CCK_VERSION}" />`,
+        `    <PackageReference Include="CrossCloudKit.PubSub.Redis" Version="${CCK_VERSION}" />`,
+      ].join('\n'),
+      INFRA_ENV_VARS: [
+        '',
+        '# MongoDB',
+        'MONGODB_CONNECTION_STRING=mongodb://localhost:27017',
+        'MONGODB_DATABASE={{PROJECT_NAME}}',
+        '',
+        '# Redis (cache, distributed locking & pub/sub)',
+        'REDIS_HOST=localhost',
+        'REDIS_PORT=6379',
+        '# REDIS_PASSWORD=',
+        '',
+        '# MinIO (S3-compatible file storage)',
+        'S3_SERVER=localhost:9000',
+        'S3_ACCESS_KEY=minioadmin',
+        'S3_SECRET_KEY=minioadmin',
+        'S3_REGION=us-east-1',
+      ].join('\n'),
+      INFRA_DOCKER_SERVICES: [
+        '',
+        '  mongodb:',
+        '    image: mongo:7',
+        '    ports:',
+        '      - "27017:27017"',
+        '    volumes:',
+        '      - mongodb_data:/data/db',
+        '    restart: unless-stopped',
+        '',
+        '  redis:',
+        '    image: redis:7-alpine',
+        '    ports:',
+        '      - "6379:6379"',
+        '    restart: unless-stopped',
+        '',
+        '  minio:',
+        '    image: minio/minio:latest',
+        '    command: server /data --console-address ":9001"',
+        '    ports:',
+        '      - "9000:9000"',
+        '      - "9001:9001"',
+        '    environment:',
+        '      - MINIO_ROOT_USER=minioadmin',
+        '      - MINIO_ROOT_PASSWORD=minioadmin',
+        '    volumes:',
+        '      - minio_data:/data',
+        '    restart: unless-stopped',
+      ].join('\n'),
+      INFRA_DOCKER_ENV: [
+        '      - MONGODB_CONNECTION_STRING=mongodb://mongodb:27017',
+        '      - MONGODB_DATABASE={{PROJECT_NAME}}',
+        '      - REDIS_HOST=redis',
+        '      - REDIS_PORT=6379',
+        '      - S3_SERVER=minio:9000',
+        '      - S3_ACCESS_KEY=minioadmin',
+        '      - S3_SECRET_KEY=minioadmin',
+        '      - S3_REGION=us-east-1',
+      ].join('\n'),
+      INFRA_DOCKER_DEPENDS: [
+        '',
+        '      - mongodb',
+        '      - redis',
+        '      - minio',
+      ].join('\n'),
+      INFRA_README_SECTION: `## Infrastructure
+
+This project uses **MongoDB + Redis + MinIO** — fully self-hosted, no cloud account needed:
+
+| Service | Provider | Purpose |
+|---------|----------|---------|
+| Database | MongoDB | Document storage |
+| File storage | MinIO (S3-compatible) | Media & file uploads |
+| Cache & PubSub | Redis | In-memory cache, distributed locking & event messaging |
+
+### Local development
+
+All services are included in \`docker-compose.yml\`:
+
+\\\`\\\`\\\`bash
+docker compose up -d mongodb redis minio
+\\\`\\\`\\\`
+
+- **MongoDB** — \`mongodb://localhost:27017\`
+- **Redis** — \`localhost:6379\`
+- **MinIO Console** — \`http://localhost:9001\` (login: minioadmin / minioadmin)`,
+    };
+  }
+
+  // Default: local (Basic providers)
+  return {
+    INFRA_USING_STATEMENTS: [
+      'using CrossCloudKit.Database.Basic;',
+      'using CrossCloudKit.File.Basic;',
+      'using CrossCloudKit.Memory.Basic;',
+      'using CrossCloudKit.PubSub.Basic;',
+    ].join('\n'),
+    INFRA_SERVICE_INIT: [
+      '        var pubSubService = new PubSubServiceBasic();',
+      '        var memoryService = new MemoryServiceBasic(pubSubService);',
+      '        var fileService = new FileServiceBasic(memoryService, pubSubService);',
+      '        var databaseService = new DatabaseServiceBasic("{{PROJECT_NAME}}-db", memoryService, Path.GetTempPath());',
+    ].join('\n'),
+    INFRA_CSPROJ_PACKAGES: [
+      `    <PackageReference Include="CrossCloudKit.Database.Basic" Version="${CCK_VERSION}" />`,
+      `    <PackageReference Include="CrossCloudKit.File.Basic" Version="${CCK_VERSION}" />`,
+      `    <PackageReference Include="CrossCloudKit.Memory.Basic" Version="${CCK_VERSION}" />`,
+      `    <PackageReference Include="CrossCloudKit.PubSub.Basic" Version="${CCK_VERSION}" />`,
+    ].join('\n'),
+    INFRA_ENV_VARS: '',
+    INFRA_DOCKER_SERVICES: '',
+    INFRA_DOCKER_ENV: '',
+    INFRA_DOCKER_DEPENDS: '',
+    INFRA_README_SECTION: `## Infrastructure
+
+This project uses **local file-based providers** — zero external dependencies. Data is
+stored in temporary files and memory. Great for development and prototyping.
+
+To switch to production infrastructure, re-scaffold with a different stack or manually
+update \`backend/RfBuilder.cs\` to use cloud providers (AWS, Google Cloud, MongoDB, Redis).`,
+  };
 }
 
 export function aiReplacements(enableAi) {
@@ -154,8 +479,31 @@ async function main() {
   const primaryColor = await ask(rl, 'Primary color (hex)', '#2563eb');
   const backendPort = await ask(rl, 'Backend port (dev)', '9000');
   const frontendPort = await ask(rl, 'Frontend port (dev)', '3000');
+
+  console.log('\n  Infrastructure stack determines which database, file storage, cache,');
+  console.log('  and messaging services your project uses. You can change this later by');
+  console.log('  editing RfBuilder.cs and swapping the CrossCloudKit provider packages.\n');
+  console.log('  1) Local         — file-based storage, zero dependencies (default)');
+  console.log('  2) AWS           — DynamoDB, S3, SNS+SQS, Redis');
+  console.log('  3) Google Cloud  — Datastore, Cloud Storage, Pub/Sub, Redis');
+  console.log('  4) MongoDB       — MongoDB, MinIO (S3-compatible), Redis\n');
+  const infraRaw = await ask(rl, 'Infrastructure stack (1-4)', '1');
+  const infraMap = { '1': 'local', '2': 'aws', '3': 'gcp', '4': 'mongo' };
+  const infraStack = infraMap[infraRaw] || 'local';
+
+  console.log('\n  AI features include a centralized AI assistant with multi-turn chat,');
+  console.log('  semantic search, AI-powered entity creation, field suggestions, sanity');
+  console.log('  checks, NL filtering, and revision diff summaries. Ships with bundled');
+  console.log('  local models (SmolLM2 + MiniLM) — no external services required.\n');
   const enableAiRaw = await ask(rl, 'Enable AI features? (y/N)', 'N');
   const enableAi = enableAiRaw.toLowerCase() === 'y' || enableAiRaw.toLowerCase() === 'yes';
+
+  console.log('\n  RF Sheets is a built-in spreadsheet editor powered by Univer with 14');
+  console.log('  custom RF formulas that pull live entity data, entity data sources,');
+  console.log('  real-time collaborative viewing via WebSocket, per-sheet sharing');
+  console.log('  (user/role/public), and Excel export.\n');
+  const enableSheetsRaw = await ask(rl, 'Enable RF Sheets? (Y/n)', 'Y');
+  const enableSheets = enableSheetsRaw.toLowerCase() !== 'n' && enableSheetsRaw.toLowerCase() !== 'no';
 
   rl.close();
 
@@ -172,6 +520,8 @@ async function main() {
     BACKEND_PORT: backendPort,
     FRONTEND_PORT: frontendPort,
     CSPROJ_NAME: projectName.replace(/[^a-zA-Z0-9]/g, '.'),
+    SHEETS_CONFIG: enableSheets ? '' : '            SheetsEnabled = false,',
+    ...infraReplacements(infraStack),
     ...aiReplacements(enableAi),
   };
 
@@ -179,8 +529,13 @@ async function main() {
   copyTemplate(TEMPLATES_DIR, projectDir, replacements);
 
   console.log(`✅ Project "${projectName}" created successfully!`);
+  const stackNames = { local: 'Local (file-based)', aws: 'AWS', gcp: 'Google Cloud', mongo: 'MongoDB + Redis' };
+  console.log(`   Infrastructure: ${stackNames[infraStack]}.`);
   if (enableAi) {
-    console.log(`   AI features enabled (bundled local models).\n`);
+    console.log(`   AI features enabled (bundled local models).`);
+  }
+  if (!enableSheets) {
+    console.log(`   RF Sheets disabled.`);
   }
   console.log(`\nNext steps:\n`);
   console.log(`  cd ${projectName}`);

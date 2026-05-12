@@ -6,8 +6,12 @@ import { EntityViewPage } from '../pages/EntityViewPage';
 import { RevisionDiffPage } from '../pages/RevisionDiffPage';
 import { RfSheetListPage } from '../pages/RfSheetListPage';
 import { RfSheetPage } from '../pages/RfSheetPage';
+import { useGlobalSettings } from '../hooks/useEntity';
 
 export function RfRoutes() {
+  const settings = useGlobalSettings();
+  const sheetsEnabled = settings.sheets_enabled !== false;
+
   return (
     <>
       <Route path="/" element={<DashboardPage />} />
@@ -15,8 +19,12 @@ export function RfRoutes() {
       <Route path="/entities-admin/:entityName" element={<EntityEditPage />} />
       <Route path="/entities-view/:entityName" element={<EntityViewPage />} />
       <Route path="/entities-revisions/:entityName" element={<RevisionDiffPage />} />
-      <Route path="/sheets" element={<RfSheetListPage />} />
-      <Route path="/sheets/:sheetId" element={<RfSheetPage />} />
+      {sheetsEnabled && (
+        <>
+          <Route path="/sheets" element={<RfSheetListPage />} />
+          <Route path="/sheets/:sheetId" element={<RfSheetPage />} />
+        </>
+      )}
     </>
   );
 }

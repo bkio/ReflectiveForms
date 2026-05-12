@@ -1741,6 +1741,199 @@ public class AiAgentChatTests : IDisposable
         result.ToolCallsMade[0].Result.Should().Contain("permission");
     }
 
+    #region Propose Update/Delete — Per-Entity Sharing
+
+    [Fact]
+    public async Task ProposeUpdate_SharedEntity_ViewAccess_Denied()
+    {
+        InitializeAll();
+        SetupDatabaseScan("test-entity", CreateTestEntities(1));
+        SetupDatabaseScan("shared-entity", CreateTestEntities(0));
+
+        // Entity owned by user 99, shared with user 1 at "view" level
+        var entity = CreateSharedEntity(1, "Shared Item", ownerId: 99,
+            sharedUsers: new[] { (UserId: 1, Permission: "view") });
+        SetupDatabaseGetItem("shared-entity", 1, entity);
+
+        SetupLlmToolCallThenStop("propose_update_entity",
+            @"{""entity_type"":""shared-entity"",""entity_id"":1,""fields"":{""body"":""Updated""}}",
+            "No edit access.");
+
+        var result = await AiAgentChatHandler.ChatAsync(
+            new AgentChatRequest { Message = "Update shared entity 1" },
+            CreateAdminUser(), CancellationToken.None);
+
+        result.ProposedActions.Should().BeEmpty();
+        result.ToolCallsMade[0].Result.Should().Contain("edit access");
+    }
+
+    [Fact]
+    public async Task ProposeUpdate_SharedEntity_EditAccess_Allowed()
+    {
+        InitializeAll();
+        SetupDatabaseScan("test-entity", CreateTestEntities(1));
+        SetupDatabaseScan("shared-entity", CreateTestEntities(0));
+
+        var entity = CreateSharedEntity(1, "Shared Item", ownerId: 99,
+            sharedUsers: new[] { (UserId: 1, Permission: "edit") });
+        SetupDatabaseGetItem("shared-entity", 1, entity);
+
+        SetupLlmToolCallThenStop("propose_update_entity",
+            @"{""entity_type"":""shared-entity"",""entity_id"":1,""fields"":{""body"":""Updated""}}",
+            "Proposed update.");
+
+        var result = await AiAgentChatHandler.ChatAsync(
+            new AgentChatRequest { Message = "Update shared entity 1" },
+            CreateAdminUser(), CancellationToken.None);
+
+        result.ProposedActions.Should().HaveCount(1);
+        result.ProposedActions[0].ActionType.Should().Be("update_entity");
+    }
+
+    [Fact]
+    public async Task ProposeUpdate_SharedEntity_NoAccess_Denied()
+    {
+        InitializeAll();
+        SetupDatabaseScan("test-entity", CreateTestEntities(1));
+        SetupDatabaseScan("shared-entity", CreateTestEntities(0));
+
+        // Entity owned by user 99, not shared with anyone
+        var entity = CreateSharedEntity(1, "Private Item", ownerId: 99);
+        SetupDatabaseGetItem("shared-entity", 1, entity);
+
+        SetupLlmToolCallThenStop("propose_update_entity",
+            @"{""entity_type"":""shared-entity"",""entity_id"":1,""fields"":{""body"":""Updated""}}",
+            "No access.");
+
+        var result = await AiAgentChatHandler.ChatAsync(
+            new AgentChatRequest { Message = "Update shared entity 1" },
+            CreateAdminUser(), CancellationToken.None);
+
+        result.ProposedActions.Should().BeEmpty();
+        result.ToolCallsMade[0].Result.Should().Contain("edit access");
+    }
+
+    [Fact]
+    public async Task ProposeUpdate_SharedEntity_NotFound_ReturnsError()
+    {
+        InitializeAll();
+        SetupDatabaseScan("test-entity", CreateTestEntities(1));
+        SetupDatabaseScan("shared-entity", CreateTestEntities(0));
+
+        _mockDatabaseService
+            .Setup(d => d.GetItemAsync("shared-entity",
+                It.Is<DbKey>(k => k.Value.AsInteger == 999L),
+                null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<JObject>.Failure("Not found", HttpStatusCode.NotFound));
+
+        SetupLlmToolCallThenStop("propose_update_entity",
+            @"{""entity_type"":""shared-entity"",""entity_id"":999,""fields"":{""body"":""x""}}",
+            "Not found.");
+
+        var result = await AiAgentChatHandler.ChatAsync(
+            new AgentChatRequest { Message = "Update shared entity 999" },
+            CreateAdminUser(), CancellationToken.None);
+
+        result.ProposedActions.Should().BeEmpty();
+        result.ToolCallsMade[0].Result.Should().Contain("not found");
+    }
+
+    [Fact]
+    public async Task ProposeDelete_SharedEntity_EditAccess_Denied()
+    {
+        InitializeAll();
+        SetupDatabaseScan("test-entity", CreateTestEntities(1));
+        SetupDatabaseScan("shared-entity", CreateTestEntities(0));
+
+        // User 1 has Edit access but not Owner — delete requires Owner
+        var entity = CreateSharedEntity(1, "Shared Item", ownerId: 99,
+            sharedUsers: new[] { (UserId: 1, Permission: "edit") });
+        SetupDatabaseGetItem("shared-entity", 1, entity);
+
+        SetupLlmToolCallThenStop("propose_delete_entity",
+            @"{""entity_type"":""shared-entity"",""entity_id"":1}",
+            "No owner access.");
+
+        var result = await AiAgentChatHandler.ChatAsync(
+            new AgentChatRequest { Message = "Delete shared entity 1" },
+            CreateAdminUser(), CancellationToken.None);
+
+        result.ProposedActions.Should().BeEmpty();
+        result.ToolCallsMade[0].Result.Should().Contain("owner access");
+    }
+
+    [Fact]
+    public async Task ProposeDelete_SharedEntity_OwnerAccess_Allowed()
+    {
+        InitializeAll();
+        SetupDatabaseScan("test-entity", CreateTestEntities(1));
+        SetupDatabaseScan("shared-entity", CreateTestEntities(0));
+
+        // User 1 IS the owner
+        var entity = CreateSharedEntity(1, "My Item", ownerId: 1);
+        SetupDatabaseGetItem("shared-entity", 1, entity);
+
+        SetupLlmToolCallThenStop("propose_delete_entity",
+            @"{""entity_type"":""shared-entity"",""entity_id"":1}",
+            "Proposed delete.");
+
+        var result = await AiAgentChatHandler.ChatAsync(
+            new AgentChatRequest { Message = "Delete shared entity 1" },
+            CreateAdminUser(), CancellationToken.None);
+
+        result.ProposedActions.Should().HaveCount(1);
+        result.ProposedActions[0].ActionType.Should().Be("delete_entity");
+    }
+
+    [Fact]
+    public async Task ProposeDelete_SharedEntity_NoAccess_Denied()
+    {
+        InitializeAll();
+        SetupDatabaseScan("test-entity", CreateTestEntities(1));
+        SetupDatabaseScan("shared-entity", CreateTestEntities(0));
+
+        var entity = CreateSharedEntity(1, "Private Item", ownerId: 99);
+        SetupDatabaseGetItem("shared-entity", 1, entity);
+
+        SetupLlmToolCallThenStop("propose_delete_entity",
+            @"{""entity_type"":""shared-entity"",""entity_id"":1}",
+            "No access.");
+
+        var result = await AiAgentChatHandler.ChatAsync(
+            new AgentChatRequest { Message = "Delete shared entity 1" },
+            CreateAdminUser(), CancellationToken.None);
+
+        result.ProposedActions.Should().BeEmpty();
+        result.ToolCallsMade[0].Result.Should().Contain("owner access");
+    }
+
+    [Fact]
+    public async Task ProposeDelete_SharedEntity_NotFound_ReturnsError()
+    {
+        InitializeAll();
+        SetupDatabaseScan("test-entity", CreateTestEntities(1));
+        SetupDatabaseScan("shared-entity", CreateTestEntities(0));
+
+        _mockDatabaseService
+            .Setup(d => d.GetItemAsync("shared-entity",
+                It.Is<DbKey>(k => k.Value.AsInteger == 999L),
+                null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OperationResult<JObject>.Failure("Not found", HttpStatusCode.NotFound));
+
+        SetupLlmToolCallThenStop("propose_delete_entity",
+            @"{""entity_type"":""shared-entity"",""entity_id"":999}",
+            "Not found.");
+
+        var result = await AiAgentChatHandler.ChatAsync(
+            new AgentChatRequest { Message = "Delete shared entity 999" },
+            CreateAdminUser(), CancellationToken.None);
+
+        result.ProposedActions.Should().BeEmpty();
+        result.ToolCallsMade[0].Result.Should().Contain("not found");
+    }
+
+    #endregion
+
     [Fact]
     public async Task Chat_ContextAware_IncludesContextInMessage()
     {
@@ -1953,6 +2146,30 @@ public class AiAgentChatTests : IDisposable
             [EntityModelAttributes.Title] = new JObject { [EntityModelAttributes.TitleRendered] = title },
             [EntityModelAttributes.ModifiedGmt] = DateTime.UtcNow.ToString("o"),
             [EntityModelAttributes.Fields] = new JObject { ["body"] = bodyText, ["content"] = bodyText }
+        };
+    }
+
+    private static JObject CreateSharedEntity(int id, string title, int ownerId,
+        (int UserId, string Permission)[]? sharedUsers = null)
+    {
+        var sharedUsersArray = new JArray();
+        if (sharedUsers != null)
+        {
+            foreach (var (userId, permission) in sharedUsers)
+                sharedUsersArray.Add(new JObject { ["user"] = userId, ["permission"] = permission });
+        }
+
+        return new JObject
+        {
+            [EntityModelAttributes.Id] = id,
+            [EntityModelAttributes.Author] = ownerId,
+            [EntityModelAttributes.Title] = new JObject { [EntityModelAttributes.TitleRendered] = title },
+            [EntityModelAttributes.ModifiedGmt] = DateTime.UtcNow.ToString("o"),
+            [EntityModelAttributes.Fields] = new JObject
+            {
+                ["body"] = "shared content",
+                ["shared_users"] = sharedUsersArray
+            }
         };
     }
 

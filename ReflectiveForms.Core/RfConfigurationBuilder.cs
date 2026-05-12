@@ -65,6 +65,14 @@ public class RfConfigurationBuilder
     /// </summary>
     public int EditInactivityTimeoutMs { get; init; } = 600_000;
 
+    /// <summary>
+    /// When true (default), the built-in RF Sheets spreadsheet system is enabled —
+    /// the rf-sheets reserved entity is registered, sheet CRUD/schema endpoints are available,
+    /// sheet-related AI tools are active, and the frontend renders sheet pages and sidebar links.
+    /// Set to false to completely remove the sheet system from the application.
+    /// </summary>
+    public bool SheetsEnabled { get; init; } = true;
+
     public required IReadOnlyList<EntityConfigurationBuilderBase> EntityTypes
     {
         get => _entityTypes.NotNull();
@@ -77,7 +85,7 @@ public class RfConfigurationBuilder
 
             var configList = value.ToList();
 
-            EntityConfigurations = SetupEntityTypes(configList);
+            EntityConfigurations = SetupEntityTypes(configList, SheetsEnabled);
             _entityNameToConfiguration = EntityConfigurations.ToDictionary(
                 entityConfiguration => entityConfiguration.EntityConfiguration.NotNull().EntityName
             );
@@ -90,7 +98,7 @@ public class RfConfigurationBuilder
     // ReSharper disable once MemberCanBePrivate.Global
     internal readonly IReadOnlyList<EntityFinalConfigurationBase>? EntityConfigurations;
 
-    private static List<EntityFinalConfigurationBase> SetupEntityTypes(IList<EntityConfigurationBuilderBase> configList)
+    private static List<EntityFinalConfigurationBase> SetupEntityTypes(IList<EntityConfigurationBuilderBase> configList, bool sheetsEnabled)
     {
         foreach (var config in configList)
         {
@@ -180,7 +188,7 @@ public class RfConfigurationBuilder
                 // Invoke the constructor
                 return (EntityFinalConfigurationBase)ctor.Invoke([config]).NotNull();
             })
-            .Concat(RfReservedEntities.ReservedEntityTypes)
+            .Concat(RfReservedEntities.GetReservedEntityTypes(sheetsEnabled))
             .ToList();
 
     }

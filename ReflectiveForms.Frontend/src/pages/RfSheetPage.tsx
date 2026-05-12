@@ -100,6 +100,7 @@ export function RfSheetPage() {
   useEffect(() => {
     assistant?.setContext({ current_page: 'sheet-edit', entity_type: 'rf-sheets', entity_id: numericId });
   }, [assistant, numericId]);
+
   const [title, setTitle] = useState('');
   const [saving, setSaving] = useState(false);
   const [showPanel, setShowPanel] = useState(true);
@@ -111,6 +112,32 @@ export function RfSheetPage() {
     shared_users: [],
     shared_roles: [],
   });
+
+  // Keep AI assistant informed about current sheet sources
+  useEffect(() => {
+    assistant?.setContext({ sheet_sources: activeSources });
+  }, [assistant, activeSources]);
+
+  // Track selected cell for AI context (e.g. "put formula on the cell I clicked")
+  useEffect(() => {
+    const container = univerContainerRef.current;
+    if (!container || !assistant) return;
+    const handlePointerUp = () => {
+      // Read active selection after Univer processes the click
+      setTimeout(() => {
+        const workbook = univerAPIRef.current?.getActiveWorkbook();
+        if (!workbook) return;
+        const sheet = workbook.getActiveSheet();
+        if (!sheet) return;
+        const range = sheet.getSelection()?.getActiveRange();
+        if (range) {
+          assistant.setContext({ selected_cell: `R${range.getRow()}C${range.getColumn()}` });
+        }
+      }, 0);
+    };
+    container.addEventListener('pointerup', handlePointerUp);
+    return () => container.removeEventListener('pointerup', handlePointerUp);
+  }, [assistant]);
 
   const univerContainerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -624,6 +651,32 @@ export function RfSheetPage() {
   const handleRemoveSource = (entityName: string) => {
     setActiveSources((prev) => prev.filter((s) => s !== entityName));
   };
+
+  // Handle AI-approved sheet actions (sheet_edit, sheet_add_source)
+  useEffect(() => {
+    if (!assistant) return;
+    return assistant.subscribeAutoAction((action) => {
+      if (action.action_type === 'sheet_add_source' && action.payload?.entity) {
+        const entityName = action.payload.entity as string;
+        setActiveSources((prev) => (prev.includes(entityName) ? prev : [...prev, entityName]));
+      }
+      if (action.action_type === 'sheet_edit' && action.payload?.operations && univerAPIRef.current) {
+        const workbook = univerAPIRef.current.getActiveWorkbook();
+        if (!workbook) return;
+        const sheet = workbook.getActiveSheet();
+        if (!sheet) return;
+        const ops = action.payload.operations as Array<{ row: number; col: number; value?: unknown; formula?: string }>;
+        for (const op of ops) {
+          const range = sheet.getRange(op.row, op.col);
+          if (op.formula) {
+            range.setValue(op.formula);
+          } else if (op.value !== undefined) {
+            range.setValue(op.value);
+          }
+        }
+      }
+    });
+  }, [assistant]);
 
   // Save sharing settings immediately when the dialog is closed (for existing sheets).
   const handleSharingDone = useCallback(async () => {

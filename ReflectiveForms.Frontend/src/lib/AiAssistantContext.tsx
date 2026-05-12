@@ -188,6 +188,13 @@ export function AiAssistantProvider({ children }: { children: ReactNode }) {
                 queryClient.invalidateQueries({ queryKey: ['entity', ea.entity_type, eid] });
               }
             }
+            if (ea.action_type === 'sheet_edit' || ea.action_type === 'sheet_add_source') {
+              queryClient.invalidateQueries({ queryKey: ['entities', 'rf-sheets'] });
+              const sheetId = ea.entity_id ?? ea.result?.id;
+              if (sheetId != null) {
+                queryClient.invalidateQueries({ queryKey: ['entity', 'rf-sheets', sheetId] });
+              }
+            }
           }
         }
 
@@ -233,8 +240,8 @@ export function AiAssistantProvider({ children }: { children: ReactNode }) {
     resolvedActionKeysRef.current.add(contentKey);
     setPendingActions(prev => prev.filter(a => a.action_id !== action.action_id));
 
-    // For client-side actions (set_field), fire the auto-action handlers
-    if (action.action_type === 'set_field') {
+    // For client-side actions (set_field, sheet_edit, sheet_add_source), fire the auto-action handlers
+    if (action.action_type === 'set_field' || action.action_type === 'sheet_edit' || action.action_type === 'sheet_add_source') {
       for (const handler of autoActionHandlersRef.current) {
         handler(action);
       }

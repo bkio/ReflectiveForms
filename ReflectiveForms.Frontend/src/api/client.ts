@@ -48,7 +48,7 @@ export interface AiAgentChatToolCall {
 
 export interface AiProposedAction {
   action_id: string;
-  action_type: 'create_entity' | 'update_entity' | 'delete_entity' | 'set_field' | 'navigate' | 'show_quality_report';
+  action_type: 'create_entity' | 'update_entity' | 'delete_entity' | 'set_field' | 'navigate' | 'show_quality_report' | 'sheet_edit' | 'sheet_add_source';
   description: string;
   requires_approval: boolean;
   entity_type?: string;
@@ -80,6 +80,8 @@ export interface AiAgentContext {
   current_fields?: Record<string, unknown>;
   errors?: string[];
   selected_field?: string;
+  sheet_sources?: string[];
+  selected_cell?: string;
 }
 
 export interface AiActionConfirmation {
@@ -359,6 +361,7 @@ export async function fetchCapabilities(): Promise<ApiResponse<AllCapabilities>>
 
 export interface FrontendSettingsResponse {
   edit_inactivity_timeout_ms?: number;
+  sheets_enabled?: boolean;
 }
 
 export async function fetchFrontendSettings(): Promise<ApiResponse<FrontendSettingsResponse>> {

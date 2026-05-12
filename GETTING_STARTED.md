@@ -523,6 +523,26 @@ The frontend automatically shows AI buttons/badges for fields with these attribu
 
 ---
 
+## Disabling RF Sheets (Optional)
+
+RF Sheets (the built-in spreadsheet system) is enabled by default. If your application doesn't need spreadsheets, you can disable them:
+
+```csharp
+return new RfConfigurationBuilder
+{
+    // ... existing config ...
+    SheetsEnabled = false,
+};
+```
+
+When disabled:
+- The `rf-sheets` entity type is not registered — no sheet endpoints are served
+- The frontend hides sheet routes (`/sheets`, `/sheets/:id`) from the UI
+- AI sheet tools (`list_sheets`, `suggest_formula`, etc.) are not activated in the AI assistant
+- The entity name `rf-sheets` remains reserved and cannot be reused for custom entities
+
+---
+
 ## Enabling OpenAPI Spec Generation (Optional)
 
 Add `OpenApi` to your endpoint configuration to serve an auto-generated OpenAPI 3.1 spec:

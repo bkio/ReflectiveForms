@@ -103,6 +103,8 @@ See `frontend/src/rf.config.ts` for frontend configuration (branding, colors, cu
 
 See `backend/RfBuilder.cs` for backend configuration (entities, auth, SSO).
 
+{{INFRA_README_SECTION}}
+
 {{AI_README_SECTION}}
 
 ## License

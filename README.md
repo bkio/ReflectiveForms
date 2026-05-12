@@ -167,6 +167,7 @@ createReflectiveFormsApp({
 | `RepositoryServiceConfiguration` | Yes | — | Database, memory, pubsub, file services |
 | `EndpointConfiguration` | Yes | — | JWT, CORS, root path (see below) |
 | `AiServiceConfiguration` | No | `null` | AI services (see below) |
+| `SheetsEnabled` | No | `true` | Enable/disable the built-in RF Sheets spreadsheet system. When `false`, the `rf-sheets` entity is not registered, sheet routes are hidden in the frontend, and AI sheet tools are disabled. |
 | `EntityTypes` | Yes | — | Entity type registrations |
 | `EditInactivityTimeoutMs` | No | `600000` | Inactivity timeout (ms) before a user's edit lock is released and they are redirected to the view page. Also controls the backend lock TTL safety net. |
 
@@ -258,6 +259,24 @@ public string Description = "";
 [AIRelationSuggestion(topK: 5)]  // On Relation fields — requires target entity to have SupportsSemanticSearch
 public int RelatedAuthor;
 ```
+
+### Disabling RF Sheets
+
+RF Sheets is enabled by default. To disable the built-in spreadsheet system:
+
+```csharp
+return new RfConfigurationBuilder
+{
+    // ... existing config ...
+    SheetsEnabled = false,
+};
+```
+
+When disabled:
+- The `rf-sheets` entity type is not registered (no sheet CRUD endpoints)
+- Frontend sheet routes (`/sheets`, `/sheets/:id`) are hidden
+- AI sheet tools (`list_sheets`, `suggest_formula`, etc.) are not available
+- The entity name `rf-sheets` remains reserved and cannot be used for custom entities
 
 ### Frontend (`RfConfig`)
 

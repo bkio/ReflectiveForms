@@ -92,15 +92,21 @@ public class EntityModelTests
     }
 
     [Fact]
-    public void RfReservedEntities_ReservedEntityTypes_Has6Types()
+    public void RfReservedEntities_ReservedEntityTypes_Has6TypesWhenSheetsEnabled()
     {
-        RfReservedEntities.ReservedEntityTypes.Should().HaveCount(6);
+        RfReservedEntities.GetReservedEntityTypes(sheetsEnabled: true).Should().HaveCount(6);
+    }
+
+    [Fact]
+    public void RfReservedEntities_ReservedEntityTypes_Has5TypesWhenSheetsDisabled()
+    {
+        RfReservedEntities.GetReservedEntityTypes(sheetsEnabled: false).Should().HaveCount(5);
     }
 
     [Fact]
     public void RfReservedEntities_ReservedEntityTypes_HaveConfigurations()
     {
-        foreach (var entityType in RfReservedEntities.ReservedEntityTypes)
+        foreach (var entityType in RfReservedEntities.GetReservedEntityTypes(sheetsEnabled: true))
         {
             entityType.EntityConfiguration.Should().NotBeNull();
             entityType.EntityConfiguration.EntityName.Should().NotBeNullOrWhiteSpace();

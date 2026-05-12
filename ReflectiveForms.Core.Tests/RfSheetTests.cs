@@ -238,16 +238,34 @@ public class RfSheetTests
     [Fact]
     public void RfReservedEntities_ReservedEntityTypes_ContainsSheetsConfiguration()
     {
-        var sheetsConfig = RfReservedEntities.ReservedEntityTypes
+        var sheetsConfig = RfReservedEntities.GetReservedEntityTypes(true)
             .FirstOrDefault(t => t.EntityConfiguration.EntityName == "rf-sheets");
 
         sheetsConfig.Should().NotBeNull();
     }
 
     [Fact]
+    public void RfReservedEntities_SheetsDisabled_DoesNotContainSheets()
+    {
+        var types = RfReservedEntities.GetReservedEntityTypes(false);
+        types.Should().NotContain(t => t.EntityConfiguration.EntityName == "rf-sheets");
+    }
+
+    [Fact]
+    public void RfReservedEntities_SheetsDisabled_StillContainsCoreTypes()
+    {
+        var types = RfReservedEntities.GetReservedEntityTypes(false);
+        types.Should().Contain(t => t.EntityConfiguration.EntityName == "users");
+        types.Should().Contain(t => t.EntityConfiguration.EntityName == "iam-role");
+        types.Should().Contain(t => t.EntityConfiguration.EntityName == "tags");
+        types.Should().Contain(t => t.EntityConfiguration.EntityName == "categories");
+        types.Should().Contain(t => t.EntityConfiguration.EntityName == "media");
+    }
+
+    [Fact]
     public void RfReservedEntities_SheetsConfiguration_HasCorrectReadableNames()
     {
-        var sheetsConfig = RfReservedEntities.ReservedEntityTypes
+        var sheetsConfig = RfReservedEntities.GetReservedEntityTypes(true)
             .First(t => t.EntityConfiguration.EntityName == "rf-sheets");
 
         sheetsConfig.EntityConfiguration.EntityReadableNameSingular.Should().Be("Sheet");
@@ -257,7 +275,7 @@ public class RfSheetTests
     [Fact]
     public void RfReservedEntities_SheetsConfiguration_DoesNotSupportFrontendEdit()
     {
-        var sheetsConfig = RfReservedEntities.ReservedEntityTypes
+        var sheetsConfig = RfReservedEntities.GetReservedEntityTypes(true)
             .First(t => t.EntityConfiguration.EntityName == "rf-sheets");
 
         sheetsConfig.EntityConfiguration.SupportsFrontendEdit.Should().BeFalse();
@@ -266,7 +284,7 @@ public class RfSheetTests
     [Fact]
     public void RfReservedEntities_SheetsConfiguration_HasAuthor()
     {
-        var sheetsConfig = RfReservedEntities.ReservedEntityTypes
+        var sheetsConfig = RfReservedEntities.GetReservedEntityTypes(true)
             .First(t => t.EntityConfiguration.EntityName == "rf-sheets");
 
         sheetsConfig.EntityConfiguration.HasAuthor.Should().BeTrue();
@@ -275,7 +293,7 @@ public class RfSheetTests
     [Fact]
     public void RfReservedEntities_SheetsConfiguration_NoTagsCategoriesParentChild()
     {
-        var sheetsConfig = RfReservedEntities.ReservedEntityTypes
+        var sheetsConfig = RfReservedEntities.GetReservedEntityTypes(true)
             .First(t => t.EntityConfiguration.EntityName == "rf-sheets");
 
         sheetsConfig.EntityConfiguration.HasTags.Should().BeFalse();
@@ -286,7 +304,7 @@ public class RfSheetTests
     [Fact]
     public void RfReservedEntities_SheetsConfiguration_NoTitleUniqueness()
     {
-        var sheetsConfig = RfReservedEntities.ReservedEntityTypes
+        var sheetsConfig = RfReservedEntities.GetReservedEntityTypes(true)
             .First(t => t.EntityConfiguration.EntityName == "rf-sheets");
 
         sheetsConfig.EntityConfiguration.RequireGlobalTitleUniqueness.Should().BeFalse();
@@ -295,7 +313,7 @@ public class RfSheetTests
     [Fact]
     public void RfReservedEntities_SheetsConfiguration_NoHooksSetup()
     {
-        var sheetsConfig = RfReservedEntities.ReservedEntityTypes
+        var sheetsConfig = RfReservedEntities.GetReservedEntityTypes(true)
             .First(t => t.EntityConfiguration.EntityName == "rf-sheets");
 
         sheetsConfig.EntityConfiguration.OptionalTitleSanityCheck.Should().BeNull();
@@ -886,7 +904,7 @@ public class RfSheetTests
     [Fact]
     public void RfReservedEntities_ReservedEntityTypes_AllHaveValidEntityNames()
     {
-        foreach (var entityType in RfReservedEntities.ReservedEntityTypes)
+        foreach (var entityType in RfReservedEntities.GetReservedEntityTypes(true))
         {
             entityType.EntityConfiguration.EntityName.Should().NotBeNullOrWhiteSpace();
             RfReservedEntities.ReservedEntityNames.Should().Contain(entityType.EntityConfiguration.EntityName);
