@@ -72,14 +72,22 @@ export default defineConfig({
   webServer: [
     {
       // Start the .NET backend (Sample1)
-      command: 'cd ../ReflectiveForms.Sample1 && dotnet run',
+      // On CI the solution is already built in Release mode — skip rebuild
+      command: process.env.CI
+        ? 'cd ../ReflectiveForms.Sample1 && dotnet run --configuration Release --no-build'
+        : 'cd ../ReflectiveForms.Sample1 && dotnet run',
       url: 'http://localhost:9000',
       reuseExistingServer: !process.env.CI,
-      timeout: 120 * 1000,
+      // AI model loading can be slow on CI runners
+      timeout: (process.env.CI ? 180 : 120) * 1000,
     },
     {
       // Start the React frontend
-      command: 'npm run dev',
+      // On CI, route API calls through Vite's proxy to avoid cross-origin
+      // cookie/CORS issues in headless Chromium
+      command: process.env.CI
+        ? 'VITE_API_BASE_URL=/rf/api npm run dev'
+        : 'npm run dev',
       url: 'http://localhost:3000',
       reuseExistingServer: !process.env.CI,
       timeout: 120 * 1000,
