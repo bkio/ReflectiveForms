@@ -28,6 +28,39 @@ function RequireAuth({ children }: { children: React.ReactElement }) {
   return children;
 }
 
+/**
+ * Inner app component rendered inside all providers so that RfRoutes (which
+ * calls hooks like useGlobalSettings) executes within a proper React context.
+ */
+function AuthenticatedApp({
+  LoginComponent,
+  DashboardOverride,
+  customRoutes,
+}: {
+  LoginComponent: React.ComponentType;
+  DashboardOverride?: React.ComponentType;
+  customRoutes?: React.ReactNode;
+}) {
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginComponent />} />
+      <Route
+        element={
+          <RequireAuth>
+            <AdminLayout />
+          </RequireAuth>
+        }
+      >
+        {DashboardOverride ? (
+          <Route path="/" element={<DashboardOverride />} />
+        ) : null}
+        {RfRoutes()}
+        {customRoutes}
+      </Route>
+    </Routes>
+  );
+}
+
 export function createReflectiveFormsApp(config: RfConfig) {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -62,22 +95,11 @@ export function createReflectiveFormsApp(config: RfConfig) {
                 basename={config.basePath ?? '/'}
                 future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
               >
-                <Routes>
-                  <Route path="/login" element={<LoginComponent />} />
-                  <Route
-                    element={
-                      <RequireAuth>
-                        <AdminLayout />
-                      </RequireAuth>
-                    }
-                  >
-                    {DashboardOverride ? (
-                      <Route path="/" element={<DashboardOverride />} />
-                    ) : null}
-                    {RfRoutes()}
-                    {customRoutes}
-                  </Route>
-                </Routes>
+                <AuthenticatedApp
+                  LoginComponent={LoginComponent}
+                  DashboardOverride={DashboardOverride}
+                  customRoutes={customRoutes}
+                />
               </BrowserRouter>
             </AuthProvider>
             <Toaster position="top-right" richColors offset="72px" />

@@ -27,6 +27,11 @@ jobs:
       - name: Build solution
         run: dotnet build ReflectiveForms.sln --configuration Release
 
+      - name: Install native dependencies for LLamaSharp
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libgomp1
+
       - name: Run .NET tests and generate report
         id: dotnet-test
         run: |
