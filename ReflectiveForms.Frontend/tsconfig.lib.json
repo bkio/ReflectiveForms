@@ -7,6 +7,6 @@
     "noEmit": false,
     "outDir": "./dist"
   },
-  "include": ["src/lib/**/*", "src/components/**/*", "src/hooks/**/*", "src/pages/**/*", "src/types/**/*", "src/api/**/*"],
+  "include": ["src/vite-env.d.ts", "src/lib/**/*", "src/components/**/*", "src/hooks/**/*", "src/pages/**/*", "src/types/**/*", "src/api/**/*"],
   "exclude": ["src/test/**/*", "src/main.tsx"]
 }

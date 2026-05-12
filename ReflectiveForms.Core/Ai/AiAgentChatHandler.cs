@@ -543,7 +543,7 @@ internal static class AiAgentChatHandler
         // Conditionally append RF Sheet formula reference when user is on a sheet page AND has access AND sheets are enabled
         var isOnSheetPage = RfConfiguration.SheetsEnabled
                             && chatRequest.Context?.CurrentPage?.StartsWith("sheet", StringComparison.OrdinalIgnoreCase) == true
-                            && user.Fields.CanUserDo("PEEK_ALL", RfReservedEntities.SheetsEntityName);
+                            && user.Fields?.CanUserDo("PEEK_ALL", RfReservedEntities.SheetsEntityName) == true;
         if (isOnSheetPage)
         {
             systemPrompt += SheetSystemPromptExtension;

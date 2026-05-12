@@ -99,23 +99,28 @@ jobs:
       - name: Parse CreateApp test results
         run: |
           if [ -f /tmp/createapp-test-output.txt ]; then
-            CREATEAPP_PASS=$(grep "^# pass" /tmp/createapp-test-output.txt | awk '{print $3}' || echo "0")
-            CREATEAPP_FAIL=$(grep "^# fail" /tmp/createapp-test-output.txt | awk '{print $3}' || echo "0")
-            CREATEAPP_TOTAL=$(grep "^# tests" /tmp/createapp-test-output.txt | awk '{print $3}' || echo "0")
+            CREATEAPP_PASS=$(awk '/^# pass /{print $3; found=1} END{if(!found) print 0}' /tmp/createapp-test-output.txt)
+            CREATEAPP_FAIL=$(awk '/^# fail /{print $3; found=1} END{if(!found) print 0}' /tmp/createapp-test-output.txt)
+            CREATEAPP_CANCELLED=$(awk '/^# cancelled /{print $3; found=1} END{if(!found) print 0}' /tmp/createapp-test-output.txt)
+            CREATEAPP_TOTAL=$(awk '/^# tests /{print $3; found=1} END{if(!found) print 0}' /tmp/createapp-test-output.txt)
           else
             CREATEAPP_PASS=0
             CREATEAPP_FAIL=0
+            CREATEAPP_CANCELLED=0
             CREATEAPP_TOTAL=0
           fi
           echo "CREATEAPP_PASS=$CREATEAPP_PASS" >> $GITHUB_ENV
           echo "CREATEAPP_FAIL=$CREATEAPP_FAIL" >> $GITHUB_ENV
+          echo "CREATEAPP_CANCELLED=$CREATEAPP_CANCELLED" >> $GITHUB_ENV
           echo "CREATEAPP_TOTAL=$CREATEAPP_TOTAL" >> $GITHUB_ENV
 
       - name: Parse frontend test results
         run: |
           if [ -f /tmp/frontend-test-output.txt ]; then
-            FRONTEND_PASS=$(grep -cE "^\s*✓" /tmp/frontend-test-output.txt || echo "0")
-            FRONTEND_FAIL=$(grep -cE "^\s*×|^\s*✗" /tmp/frontend-test-output.txt || echo "0")
+            FRONTEND_PASS=$(grep -cE "^\s*✓" /tmp/frontend-test-output.txt || true)
+            FRONTEND_FAIL=$(grep -cE "^\s*×|^\s*✗" /tmp/frontend-test-output.txt || true)
+            FRONTEND_PASS=${FRONTEND_PASS:-0}
+            FRONTEND_FAIL=${FRONTEND_FAIL:-0}
             FRONTEND_TOTAL=$((FRONTEND_PASS + FRONTEND_FAIL))
           else
             FRONTEND_PASS=0
@@ -129,11 +134,13 @@ jobs:
       - name: Parse E2E test results
         run: |
           if [ -f /tmp/e2e-test-output.txt ]; then
-            E2E_PASS=$(grep -cE "^\s*✓|\[chromium\].*✓|passed" /tmp/e2e-test-output.txt || echo "0")
-            E2E_FAIL=$(grep -cE "^\s*✘|\[chromium\].*✘|failed" /tmp/e2e-test-output.txt || echo "0")
+            E2E_PASS=$(grep -cE "^\s*✓|\[chromium\].*✓" /tmp/e2e-test-output.txt || true)
+            E2E_FAIL=$(grep -cE "^\s*✘|\[chromium\].*✘" /tmp/e2e-test-output.txt || true)
             # Playwright list reporter prints a summary line like "X passed" and "Y failed"
-            SUMMARY_PASS=$(grep -oP '\d+(?= passed)' /tmp/e2e-test-output.txt | tail -1 || echo "")
-            SUMMARY_FAIL=$(grep -oP '\d+(?= failed)' /tmp/e2e-test-output.txt | tail -1 || echo "")
+            SUMMARY_PASS=$(grep -oP '\d+(?= passed)' /tmp/e2e-test-output.txt | tail -1 || true)
+            SUMMARY_FAIL=$(grep -oP '\d+(?= failed)' /tmp/e2e-test-output.txt | tail -1 || true)
+            E2E_PASS=${E2E_PASS:-0}
+            E2E_FAIL=${E2E_FAIL:-0}
             if [ -n "$SUMMARY_PASS" ]; then E2E_PASS=$SUMMARY_PASS; fi
             if [ -n "$SUMMARY_FAIL" ]; then E2E_FAIL=$SUMMARY_FAIL; fi
             E2E_TOTAL=$((E2E_PASS + E2E_FAIL))
@@ -191,10 +198,11 @@ jobs:
             fi
           done
 
-          # Add CreateApp test results to totals
+          # Add CreateApp test results to totals. Cancelled TAP subtests are treated as
+          # non-passing so the badge and README reflect the nonzero exit code.
           total_tests=$((total_tests + CREATEAPP_TOTAL))
           passed_tests=$((passed_tests + CREATEAPP_PASS))
-          failed_tests=$((failed_tests + CREATEAPP_FAIL))
+          failed_tests=$((failed_tests + CREATEAPP_FAIL + CREATEAPP_CANCELLED))
 
           # Add Frontend test results to totals
           total_tests=$((total_tests + FRONTEND_TOTAL))
