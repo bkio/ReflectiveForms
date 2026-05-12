@@ -17,6 +17,14 @@ vi.mock('../../api/client', () => ({
   getApiBaseUrl: vi.fn(() => 'http://test/rf/api'),
 }));
 
+// Mock RfRoutes — it calls hooks (useGlobalSettings → useQuery) which require
+// a React render context. Since createRoot().render() is mocked, the JSX element
+// tree is built but never rendered, so RfRoutes() (a direct function call in JSX)
+// would execute hooks outside React's reconciler.
+vi.mock('../../lib/RfRoutes', () => ({
+  RfRoutes: () => null,
+}));
+
 function makeConfig(overrides: Partial<RfConfig> = {}): RfConfig {
   return {
     apiBaseUrl: 'http://test/rf/api',
