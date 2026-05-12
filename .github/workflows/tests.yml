@@ -36,6 +36,36 @@ jobs:
           exit $DOTNET_EXIT
         continue-on-error: true
 
+      - name: Install frontend dependencies
+        run: |
+          cd ReflectiveForms.Frontend
+          npm ci
+
+      - name: Run frontend tests
+        id: frontend-test
+        run: |
+          cd ReflectiveForms.Frontend
+          FRONTEND_EXIT=0
+          npx vitest run --reporter=verbose 2>&1 | tee /tmp/frontend-test-output.txt || FRONTEND_EXIT=$?
+          echo "FRONTEND_EXIT_CODE=$FRONTEND_EXIT" >> $GITHUB_ENV
+          exit $FRONTEND_EXIT
+        continue-on-error: true
+
+      - name: Install Playwright browsers
+        run: |
+          cd ReflectiveForms.Frontend
+          npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        id: e2e-test
+        run: |
+          cd ReflectiveForms.Frontend
+          E2E_EXIT=0
+          npx playwright test --project=chromium --reporter=list 2>&1 | tee /tmp/e2e-test-output.txt || E2E_EXIT=$?
+          echo "E2E_EXIT_CODE=$E2E_EXIT" >> $GITHUB_ENV
+          exit $E2E_EXIT
+        continue-on-error: true
+
       - name: Run CreateApp tests
         id: createapp-test
         run: |
@@ -61,6 +91,41 @@ jobs:
           echo "CREATEAPP_PASS=$CREATEAPP_PASS" >> $GITHUB_ENV
           echo "CREATEAPP_FAIL=$CREATEAPP_FAIL" >> $GITHUB_ENV
           echo "CREATEAPP_TOTAL=$CREATEAPP_TOTAL" >> $GITHUB_ENV
+
+      - name: Parse frontend test results
+        run: |
+          if [ -f /tmp/frontend-test-output.txt ]; then
+            FRONTEND_PASS=$(grep -cE "^\s*✓" /tmp/frontend-test-output.txt || echo "0")
+            FRONTEND_FAIL=$(grep -cE "^\s*×|^\s*✗" /tmp/frontend-test-output.txt || echo "0")
+            FRONTEND_TOTAL=$((FRONTEND_PASS + FRONTEND_FAIL))
+          else
+            FRONTEND_PASS=0
+            FRONTEND_FAIL=0
+            FRONTEND_TOTAL=0
+          fi
+          echo "FRONTEND_PASS=$FRONTEND_PASS" >> $GITHUB_ENV
+          echo "FRONTEND_FAIL=$FRONTEND_FAIL" >> $GITHUB_ENV
+          echo "FRONTEND_TOTAL=$FRONTEND_TOTAL" >> $GITHUB_ENV
+
+      - name: Parse E2E test results
+        run: |
+          if [ -f /tmp/e2e-test-output.txt ]; then
+            E2E_PASS=$(grep -cE "^\s*✓|\[chromium\].*✓|passed" /tmp/e2e-test-output.txt || echo "0")
+            E2E_FAIL=$(grep -cE "^\s*✘|\[chromium\].*✘|failed" /tmp/e2e-test-output.txt || echo "0")
+            # Playwright list reporter prints a summary line like "X passed" and "Y failed"
+            SUMMARY_PASS=$(grep -oP '\d+(?= passed)' /tmp/e2e-test-output.txt | tail -1 || echo "")
+            SUMMARY_FAIL=$(grep -oP '\d+(?= failed)' /tmp/e2e-test-output.txt | tail -1 || echo "")
+            if [ -n "$SUMMARY_PASS" ]; then E2E_PASS=$SUMMARY_PASS; fi
+            if [ -n "$SUMMARY_FAIL" ]; then E2E_FAIL=$SUMMARY_FAIL; fi
+            E2E_TOTAL=$((E2E_PASS + E2E_FAIL))
+          else
+            E2E_PASS=0
+            E2E_FAIL=0
+            E2E_TOTAL=0
+          fi
+          echo "E2E_PASS=$E2E_PASS" >> $GITHUB_ENV
+          echo "E2E_FAIL=$E2E_FAIL" >> $GITHUB_ENV
+          echo "E2E_TOTAL=$E2E_TOTAL" >> $GITHUB_ENV
 
       - name: Parse .NET test results and create badge
         run: |
@@ -112,7 +177,17 @@ jobs:
           passed_tests=$((passed_tests + CREATEAPP_PASS))
           failed_tests=$((failed_tests + CREATEAPP_FAIL))
 
-          echo "Final test results (including CreateApp):"
+          # Add Frontend test results to totals
+          total_tests=$((total_tests + FRONTEND_TOTAL))
+          passed_tests=$((passed_tests + FRONTEND_PASS))
+          failed_tests=$((failed_tests + FRONTEND_FAIL))
+
+          # Add E2E test results to totals
+          total_tests=$((total_tests + E2E_TOTAL))
+          passed_tests=$((passed_tests + E2E_PASS))
+          failed_tests=$((failed_tests + E2E_FAIL))
+
+          echo "Final test results:"
           echo "Total tests: $total_tests"
           echo "Passed tests: $passed_tests"
           echo "Failed tests: $failed_tests"
@@ -137,11 +212,16 @@ jobs:
           echo "PASSED_TESTS=$passed_tests" >> $GITHUB_ENV
           echo "FAILED_TESTS=$failed_tests" >> $GITHUB_ENV
 
+          # Debug: print all exit codes
+          echo "Exit codes — dotnet: ${DOTNET_TEST_EXIT_CODE:-unset}, createapp: ${CREATEAPP_EXIT_CODE:-unset}, frontend: ${FRONTEND_EXIT_CODE:-unset}, e2e: ${E2E_EXIT_CODE:-unset}"
+
           # Set flag for publishing decision (all tests must pass AND exit codes must be 0)
-          if [ "$total_tests" -gt "0" ] && [ "$failed_tests" -eq "0" ] && [ "${DOTNET_TEST_EXIT_CODE:-1}" -eq "0" ] && [ "${CREATEAPP_EXIT_CODE:-1}" -eq "0" ]; then
+          if [ "$total_tests" -gt "0" ] && [ "$failed_tests" -eq "0" ] && [ "${DOTNET_TEST_EXIT_CODE:-1}" -eq "0" ] && [ "${CREATEAPP_EXIT_CODE:-1}" -eq "0" ] && [ "${FRONTEND_EXIT_CODE:-1}" -eq "0" ] && [ "${E2E_EXIT_CODE:-1}" -eq "0" ]; then
             echo "TESTS_PASSED=true" >> $GITHUB_ENV
+            echo "All checks passed — will publish"
           else
             echo "TESTS_PASSED=false" >> $GITHUB_ENV
+            echo "Publishing skipped. Check exit codes above for the failing suite."
           fi
 
       - name: Update README with test badge and results
