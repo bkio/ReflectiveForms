@@ -140,6 +140,7 @@ export function EntityListPage() {
   const semanticTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const [showAiCreateDialog, setShowAiCreateDialog] = useState(false);
   const [aiCreatePrompt, setAiCreatePrompt] = useState('');
+  const [aiCreateGenerating, setAiCreateGenerating] = useState(false);
 
   // Semantic search hook
   const { data: semanticResults, isLoading: semanticLoading } = useAiSemanticSearch(
@@ -806,7 +807,7 @@ export function EntityListPage() {
               className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-purple-500"
               autoFocus
               onKeyDown={e => {
-                if (e.key === 'Enter' && !e.shiftKey && aiCreatePrompt.trim()) {
+                if (e.key === 'Enter' && !e.shiftKey && aiCreatePrompt.trim() && !aiCreateGenerating) {
                   e.preventDefault();
                   setShowAiCreateDialog(false);
                   assistant!.triggerMessage(
@@ -825,20 +826,22 @@ export function EntityListPage() {
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  if (!aiCreatePrompt.trim()) return;
-                  setShowAiCreateDialog(false);
-                  assistant!.triggerMessage(
+                onClick={async () => {
+                  if (!aiCreatePrompt.trim() || aiCreateGenerating) return;
+                  setAiCreateGenerating(true);
+                  await assistant!.triggerMessage(
                     `I want to create a new ${schema!.readable_name.singular}. Here is what I want: ${aiCreatePrompt.trim()}`,
                     { current_page: 'entity-list', entity_type: entityName },
                   );
+                  setAiCreateGenerating(false);
+                  setShowAiCreateDialog(false);
                 }}
-                disabled={!aiCreatePrompt.trim()}
+                disabled={!aiCreatePrompt.trim() || aiCreateGenerating}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 data-testid="ai-generate-submit"
               >
                 <Sparkles className="w-4 h-4" />
-                Generate
+                {aiCreateGenerating ? 'Generating…' : 'Generate'}
               </button>
             </div>
           </div>

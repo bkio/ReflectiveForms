@@ -437,6 +437,7 @@ test.describe('AI Generate — Multi-Entity', () => {
   });
 
   test('AI generate API works for objectives', async ({ api }) => {
+    test.setTimeout(120000); // CPU-based LLM generation can take longer than the default 60s
     const { status, body } = await api.aiGenerate(
       'objective',
       'Create an objective for improving code review processes',
