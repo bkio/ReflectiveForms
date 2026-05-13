@@ -223,10 +223,11 @@ jobs:
           echo "Failed tests: $failed_tests"
 
           # Determine badge color and message
-          if [ "$total_tests" -gt "0" ] && [ "$failed_tests" -eq "0" ]; then
+          # Color is based on non-e2e failures only (e2e failures are allowed and non-blocking)
+          if [ "$total_tests" -gt "0" ] && [ "$blocking_fail" -eq "0" ]; then
             color="brightgreen"
             message="${passed_tests}%2F${total_tests}%20passing"
-          elif [ "$total_tests" -gt "0" ] && [ "$failed_tests" -gt "0" ]; then
+          elif [ "$total_tests" -gt "0" ] && [ "$blocking_fail" -gt "0" ]; then
             color="red"
             message="${passed_tests}%2F${total_tests}%20passing"
           else
