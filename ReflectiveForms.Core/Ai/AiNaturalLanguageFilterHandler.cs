@@ -76,7 +76,8 @@ internal static class AiNaturalLanguageFilterHandler
         if (!result.IsSuccessful)
         {
             RfConfiguration.LogError($"AiNaturalLanguageFilterHandler: LLM call failed: {result.ErrorMessage}");
-            return null;
+            // LLM failure — return empty result rather than null so the endpoint returns 200
+            return new NlFilterResult([], "none", null, []);
         }
 
         if (result.Data.FinishReason != LLMFinishReason.ToolCall || result.Data.ToolCalls == null || result.Data.ToolCalls.Count == 0)

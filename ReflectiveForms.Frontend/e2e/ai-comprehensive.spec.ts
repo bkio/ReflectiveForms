@@ -1176,6 +1176,7 @@ test.describe('Full AI Workflow: Generate → Edit → Suggest → Check → Sea
   let generatedEntityId: number;
 
   test('step 1: generate a blog post via API', async ({ api }) => {
+    test.setTimeout(120000); // CPU-based LLM generation can exceed the default 60s test timeout
     await api.deleteAll('blog-post');
 
     const { status, body } = await api.aiGenerate(
@@ -1187,6 +1188,7 @@ test.describe('Full AI Workflow: Generate → Edit → Suggest → Check → Sea
   });
 
   test('step 2: create the entity with generated fields', async ({ api }) => {
+    test.setTimeout(120000); // CPU-based LLM generation can exceed the default 60s test timeout
     // Generate fresh fields (prior test verified the API works)
     const { body } = await api.aiGenerate(
       'blog-post',
