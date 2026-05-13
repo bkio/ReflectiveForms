@@ -545,7 +545,13 @@ async function main() {
   console.log(`  cd frontend && npm install && npm run dev\n`);
 }
 
-const isDirectRun = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
+const isDirectRun = process.argv[1] && (() => {
+  try {
+    return fs.realpathSync(path.resolve(process.argv[1])) === fs.realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+})();
 if (isDirectRun) {
   main().catch(console.error);
 }

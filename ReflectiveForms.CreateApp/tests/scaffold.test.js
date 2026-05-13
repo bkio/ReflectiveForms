@@ -2528,3 +2528,64 @@ describe('run-check: scaffolded apps start and build', () => {
     }
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CLI invocation check: verify the entry point runs correctly when called via
+// a symlink (as npm/npx would), and that the isDirectRun guard triggers main()
+// ─────────────────────────────────────────────────────────────────────────────
+const CLI_TEST_DIR = path.join(__dirname, '..', '.test-cli-invoke');
+const CLI_SCRIPT   = path.resolve(__dirname, '..', 'src', 'index.js');
+const SYMLINK_PATH = path.join(CLI_TEST_DIR, 'create-app-bin');
+
+describe('cli-check: invocation via symlink (simulates npx)', () => {
+  before(() => {
+    if (fs.existsSync(CLI_TEST_DIR)) fs.rmSync(CLI_TEST_DIR, { recursive: true });
+    fs.mkdirSync(CLI_TEST_DIR, { recursive: true });
+    fs.symlinkSync(CLI_SCRIPT, SYMLINK_PATH);
+  });
+
+  after(() => {
+    if (fs.existsSync(CLI_TEST_DIR)) fs.rmSync(CLI_TEST_DIR, { recursive: true });
+  });
+
+  it('main() runs and scaffolds a project when called via symlink', { timeout: 30_000 }, async () => {
+    const projectName = 'cli-symlink-test';
+    const projectDir  = path.join(CLI_TEST_DIR, projectName);
+
+    await new Promise((resolve, reject) => {
+      const child = spawn('node', [SYMLINK_PATH, projectName], {
+        cwd: CLI_TEST_DIR,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+
+      let stdout = '';
+      child.stdout.on('data', d => { stdout += d.toString(); });
+      child.stderr.on('data', d => { stdout += d.toString(); });
+
+      // Send one answer every 300 ms; keep stdin open until all are written
+      // Answers: display-name, primary-color, backend-port, frontend-port,
+      //          infra-stack (1=local), ai (n), sheets (y=default)
+      const answers = ['\n', '\n', '\n', '\n', '1\n', 'n\n', '\n'];
+      let idx = 0;
+      const tick = setInterval(() => {
+        if (idx < answers.length) {
+          child.stdin.write(answers[idx++]);
+        } else {
+          clearInterval(tick);
+          child.stdin.end();
+        }
+      }, 300);
+
+      child.on('close', code => {
+        if (code !== 0) return reject(new Error(`CLI exited ${code}:\n${stdout}`));
+        resolve();
+      });
+    });
+
+    assert.ok(fs.existsSync(projectDir),            'project directory was created');
+    assert.ok(fs.existsSync(path.join(projectDir, 'backend')),  'backend/ exists');
+    assert.ok(fs.existsSync(path.join(projectDir, 'frontend')), 'frontend/ exists');
+    assert.ok(fs.existsSync(path.join(projectDir, 'docker-compose.yml')), 'docker-compose.yml exists');
+    assert.ok(fs.existsSync(path.join(projectDir, 'README.md')), 'README.md exists');
+  });
+});

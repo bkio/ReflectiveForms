@@ -4,7 +4,8 @@
   "description": "CLI scaffolder for ReflectiveForms projects",
   "type": "module",
   "bin": {
-    "create-reflectiveforms-app": "./src/index.js"
+    "create-reflectiveforms-app": "./src/index.js",
+    "create-app": "./src/index.js"
   },
   "files": ["src/", "templates/", "README.md"],
   "scripts": {
