@@ -47,8 +47,7 @@ export function DynamicForm({ schema, initialData, entityId, onSuccess }: Dynami
       enabled: !isCreateMode,
       inactivityTimeout: globalSettings.edit_inactivity_timeout_ms,
       onLockFailed: () => {
-        // Another tab/user holds the lock — redirect to view-only page
-        navigate(`/entities-view/${schema.entity_name}?id=${entityId}`);
+        // Another tab/user holds the lock — show warning banner and disable form (handled by isFormDisabled)
       },
       onLockLost: () => {
         // Redirect to view-only page when lock expires due to inactivity
@@ -345,9 +344,9 @@ export function DynamicForm({ schema, initialData, entityId, onSuccess }: Dynami
           )}
         </div>
 
-        {/* Author field (when entity has author feature, edit mode only — author is server-assigned on create) */}
-        {schema.features.has_author && !isCreateMode && (
-          <AuthorSelect form={form} disabled={isFormDisabled || !(initialData?.can_edit_author ?? false)} />
+        {/* Author field (when entity has author feature) */}
+        {schema.features.has_author && (
+          <AuthorSelect form={form} disabled={isFormDisabled || (!isCreateMode && !(initialData?.can_edit_author ?? false))} />
         )}
 
         {/* Tags field (when entity has tags feature) */}

@@ -376,13 +376,13 @@ describe('DynamicForm', () => {
     expect(screen.getByTestId('parent-select')).toBeInTheDocument();
   });
 
-  it('should NOT render author selector in create mode (author is server-assigned)', () => {
+  it('should render author selector in create mode (user can choose author on creation)', () => {
     const schema = createMockSchema();
     schema.features.has_author = true;
 
     renderWithProviders(<DynamicForm schema={schema} />);
 
-    expect(screen.queryByTestId('author-select')).not.toBeInTheDocument();
+    expect(screen.getByTestId('author-select')).toBeInTheDocument();
   });
 
   it('should render author selector as disabled when can_edit_author is false', () => {

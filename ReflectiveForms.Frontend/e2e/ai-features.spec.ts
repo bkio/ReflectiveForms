@@ -97,16 +97,16 @@ test.describe('Schema AI Feature Flags', () => {
     expect(features.supports_natural_language_filter).toBe(true);
   });
 
-  test('survey schema has no AI flags (AI not enabled for surveys)', async ({ api }) => {
+  test('survey schema has AI features but no diff summary', async ({ api }) => {
     const schemas = await api.getAllSchemas();
     const surveySchema = schemas['survey'] as Record<string, unknown>;
     expect(surveySchema).toBeDefined();
 
     const features = surveySchema.features as Record<string, boolean>;
-    expect(features.supports_semantic_search).toBeFalsy();
-    expect(features.supports_ai_generation).toBeFalsy();
+    expect(features.supports_semantic_search).toBeTruthy();
+    expect(features.supports_ai_generation).toBeTruthy();
     expect(features.supports_ai_diff_summary).toBeFalsy();
-    expect(features.supports_natural_language_filter).toBeFalsy();
+    expect(features.supports_natural_language_filter).toBeTruthy();
   });
 
   test('blog-post schema includes [AISuggestion] on excerpt field', async ({ api }) => {
@@ -415,7 +415,7 @@ test.describe('Reindex API', () => {
 
   test('reindex for entity without semantic search returns 400', async ({ api }) => {
     const res = await api.request.post(
-      `${API_BASE}/ai/reindex?type=survey&mode=full`,
+      `${API_BASE}/ai/reindex?type=product&mode=full`,
       { data: {} },
     );
     expect(res.status()).toBe(400);

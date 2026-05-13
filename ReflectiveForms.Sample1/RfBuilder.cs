@@ -56,8 +56,9 @@ public static class RfBuilder
             },
             AiServiceConfiguration = new AiServiceConfiguration(
                 HeavyLlmService: completionService,
-                LightLlmService: embeddingService,
-                VectorService: vectorService),
+                LightLlmService: completionService,
+                VectorService: vectorService,
+                EmbeddingLlmService: embeddingService),
             EntityTypes =
             [
                 // ──────────────────────────────────────────────────────────────
@@ -84,7 +85,7 @@ public static class RfBuilder
                     RequireGlobalTitleUniqueness = true,
                     SupportsSemanticSearch = true,
                     SupportsAiGeneration = true,
-                    SupportsAiDiffSummary = true,
+                    SupportsAiDiffSummary = false,
                     SupportsNaturalLanguageFilter = true,
                     OptionalTitleSanityCheck = async title => await Task.FromResult(title.Text != "Forbidden title example"),
                     HooksSetup = new EntityOnChangedHooksSetup<RfObjectiveExampleModel>
@@ -275,7 +276,7 @@ public static class RfBuilder
                     RequireGlobalTitleUniqueness = false,
                     SupportsSemanticSearch = true,
                     SupportsAiGeneration = true,
-                    SupportsAiDiffSummary = true,
+                    SupportsAiDiffSummary = false,
                     SupportsNaturalLanguageFilter = true,
                     OptionalTitleSanityCheck = null,
                     HooksSetup = null

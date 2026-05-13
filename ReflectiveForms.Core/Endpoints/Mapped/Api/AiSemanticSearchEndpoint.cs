@@ -86,7 +86,7 @@ internal class AiSemanticSearchEndpoint : BaseEndpoint
 
             // Over-fetch for sharing filter
             var vectorResults = await AiConfiguration.VectorService.SemanticSearchAsync(
-                AiConfiguration.LightLlmService, collectionName, query,
+                AiConfiguration.EmbeddingLlmService, collectionName, query,
                 topK: topK * 3, filter: null, includeMetadata: true, cancellationToken);
 
             if (!vectorResults.IsSuccessful || vectorResults.Data == null)
@@ -94,6 +94,10 @@ internal class AiSemanticSearchEndpoint : BaseEndpoint
 
             foreach (var candidate in vectorResults.Data)
             {
+                // Skip results with very low relevance (likely noise from small vector DB)
+                if (candidate.Score < 0.55)
+                    continue;
+
                 var candidateEntityName = candidate.Metadata?["entity_name"]?.Value<string>() ?? targetEntityName;
                 if (!int.TryParse(candidate.Id, out var candidateEntityId))
                     continue;

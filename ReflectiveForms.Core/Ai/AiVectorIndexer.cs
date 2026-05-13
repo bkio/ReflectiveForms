@@ -41,7 +41,7 @@ internal static class AiVectorIndexer
         if (textToEmbed.Length > 8000)
             textToEmbed = textToEmbed[..8000];
 
-        var embeddingResult = await AiConfiguration.LightLlmService.CreateEmbeddingAsync(textToEmbed, cancellationToken);
+        var embeddingResult = await AiConfiguration.EmbeddingLlmService.CreateEmbeddingAsync(textToEmbed, cancellationToken);
         if (!embeddingResult.IsSuccessful)
         {
             RfConfiguration.LogError($"AiVectorIndexer: Failed to create embedding for {entityName}/{entityId}: {embeddingResult.ErrorMessage}");

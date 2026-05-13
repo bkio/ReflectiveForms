@@ -12,7 +12,8 @@ namespace ReflectiveForms.Core.Ai;
 public record AiServiceConfiguration(
     ILLMService HeavyLlmService,
     ILLMService LightLlmService,
-    IVectorService VectorService)
+    IVectorService VectorService,
+    ILLMService? EmbeddingLlmService = null)
 {
     // HeavyLlmService: used for complex, creative tasks (entity generation, revision diff summaries).
     // Example: GPT-4o, Gemma3 12B, Claude Sonnet.

@@ -184,6 +184,7 @@ describe('useAi hooks', () => {
         combination: 'and',
         natural_language_interpretation: 'Active items',
         results: [{ id: 1, title: 'Test', modified_gmt: '2026-01-01' }],
+        used_vector_fallback: false,
       };
       vi.mocked(client.aiNaturalLanguageFilter).mockResolvedValue({ data: filterResult });
 

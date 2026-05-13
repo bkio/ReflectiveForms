@@ -187,7 +187,8 @@ public static class RfConfiguration
     private static async Task<OperationResult<bool>> InitializeAiInternalAsync(AiServiceConfiguration aiConfig)
     {
         // Detect embedding dimensions using the light LLM (it handles embeddings)
-        var probe = await aiConfig.LightLlmService.CreateEmbeddingAsync("dimension probe");
+        var embeddingLlm = aiConfig.EmbeddingLlmService ?? aiConfig.LightLlmService;
+        var probe = await embeddingLlm.CreateEmbeddingAsync("dimension probe");
         if (!probe.IsSuccessful)
             return OperationResult<bool>.Failure($"Failed to probe embedding dimensions: {probe.ErrorMessage}", HttpStatusCode.InternalServerError);
 
@@ -201,7 +202,8 @@ public static class RfConfiguration
             vector: aiConfig.VectorService,
             heavyLlm: aiConfig.HeavyLlmService,
             lightLlm: aiConfig.LightLlmService,
-            embeddingDimensions: dimensions);
+            embeddingDimensions: dimensions,
+            embeddingLlm: aiConfig.EmbeddingLlmService);
 
         // Create vector collections for entities that opt in
         foreach (var (entityName, config) in EntityNameToConfiguration)

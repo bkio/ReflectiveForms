@@ -209,6 +209,9 @@ jobs:
           passed_tests=$((passed_tests + FRONTEND_PASS))
           failed_tests=$((failed_tests + FRONTEND_FAIL))
 
+          # Track non-e2e failures separately (e2e failures are non-blocking for publishing)
+          blocking_fail=$failed_tests
+
           # Add E2E test results to totals
           total_tests=$((total_tests + E2E_TOTAL))
           passed_tests=$((passed_tests + E2E_PASS))
@@ -225,7 +228,7 @@ jobs:
             message="${passed_tests}%2F${total_tests}%20passing"
           elif [ "$total_tests" -gt "0" ] && [ "$failed_tests" -gt "0" ]; then
             color="red"
-            message="${failed_tests}%2F${total_tests}%20failing"
+            message="${passed_tests}%2F${total_tests}%20passing"
           else
             color="orange"
             message="no%20tests"
@@ -243,7 +246,7 @@ jobs:
           echo "Exit codes — dotnet: ${DOTNET_TEST_EXIT_CODE:-unset}, createapp: ${CREATEAPP_EXIT_CODE:-unset}, frontend: ${FRONTEND_EXIT_CODE:-unset}, e2e: ${E2E_EXIT_CODE:-unset}"
 
           # Set flag for publishing decision (all tests must pass AND exit codes must be 0)
-          if [ "$total_tests" -gt "0" ] && [ "$failed_tests" -eq "0" ] && [ "${DOTNET_TEST_EXIT_CODE:-1}" -eq "0" ] && [ "${CREATEAPP_EXIT_CODE:-1}" -eq "0" ] && [ "${FRONTEND_EXIT_CODE:-1}" -eq "0" ] && [ "${E2E_EXIT_CODE:-1}" -eq "0" ]; then
+          if [ "$total_tests" -gt "0" ] && [ "$blocking_fail" -eq "0" ] && [ "${DOTNET_TEST_EXIT_CODE:-1}" -eq "0" ] && [ "${CREATEAPP_EXIT_CODE:-1}" -eq "0" ] && [ "${FRONTEND_EXIT_CODE:-1}" -eq "0" ]; then
             echo "TESTS_PASSED=true" >> $GITHUB_ENV
             echo "All checks passed — will publish"
           else
@@ -304,6 +307,14 @@ jobs:
             git add README.md
             git commit -m "Update test results: $PASSED_TESTS passed, $FAILED_TESTS failed, $TOTAL_TESTS total"
             git push
+          fi
+
+      - name: Fail if non-e2e tests failed
+        if: always()
+        run: |
+          if [ "${DOTNET_TEST_EXIT_CODE:-0}" != "0" ] || [ "${CREATEAPP_EXIT_CODE:-0}" != "0" ] || [ "${FRONTEND_EXIT_CODE:-0}" != "0" ]; then
+            echo "One or more non-e2e test suites failed — see above for details."
+            exit 1
           fi
 
       - name: Generate version number

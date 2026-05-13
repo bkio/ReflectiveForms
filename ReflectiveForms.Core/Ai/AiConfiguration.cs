@@ -16,6 +16,7 @@ internal static class AiConfiguration
     internal static IVectorService VectorService { get; private set; } = null!;
     internal static ILLMService HeavyLlmService { get; private set; } = null!;
     internal static ILLMService LightLlmService { get; private set; } = null!;
+    internal static ILLMService EmbeddingLlmService { get; private set; } = null!;
     internal static int EmbeddingDimensions { get; private set; }
 
     internal static bool IsInitialized { get; private set; }
@@ -23,13 +24,14 @@ internal static class AiConfiguration
     internal static void Initialize(
         IDatabaseService db, IMemoryService memory,
         IVectorService vector, ILLMService heavyLlm, ILLMService lightLlm,
-        int embeddingDimensions)
+        int embeddingDimensions, ILLMService? embeddingLlm = null)
     {
         DatabaseService = db;
         MemoryService = memory;
         VectorService = vector;
         HeavyLlmService = heavyLlm;
         LightLlmService = lightLlm;
+        EmbeddingLlmService = embeddingLlm ?? lightLlm;
         EmbeddingDimensions = embeddingDimensions;
         IsInitialized = true;
     }

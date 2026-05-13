@@ -7,7 +7,7 @@ import { RfRoutes } from '../../lib/RfRoutes';
 const mockUseGlobalSettings = vi.fn(() => ({}));
 
 vi.mock('../../hooks/useEntity', () => ({
-  useGlobalSettings: (...args: unknown[]) => mockUseGlobalSettings(...args),
+  useGlobalSettings: (..._args: unknown[]) => mockUseGlobalSettings(),
 }));
 
 // Stub out page components to avoid pulling in complex dependencies

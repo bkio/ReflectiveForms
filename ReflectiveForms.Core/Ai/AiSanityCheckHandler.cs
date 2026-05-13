@@ -56,13 +56,17 @@ internal static class AiSanityCheckHandler
             if (!result.IsSuccessful)
             {
                 RfConfiguration.LogError($"AiSanityCheckHandler: LLM call failed for {entityName}/{fieldName}: {result.ErrorMessage}");
-                // LLM failure → skip this check (don't block saves due to LLM outages)
+                // LLM failure → treat as pass (don't block saves due to LLM outages)
+                results.Add(new AiSanityCheckResult(check.CheckPrompt, true, check.Severity, null));
                 continue;
             }
 
             var content = result.Data.Content?.Trim();
             if (string.IsNullOrEmpty(content))
+            {
+                results.Add(new AiSanityCheckResult(check.CheckPrompt, true, check.Severity, null));
                 continue;
+            }
 
             // Strip markdown fences (```json ... ``` or ``` ... ```) that some models wrap around JSON
             if (content.StartsWith("```"))
