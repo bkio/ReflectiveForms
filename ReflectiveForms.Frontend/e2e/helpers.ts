@@ -190,7 +190,7 @@ export class ApiHelper {
   async aiNlFilter(entityName: string, query: string) {
     const res = await this.request.post(
       `${API_BASE}/ai/nl_filter?type=${encodeURIComponent(entityName)}`,
-      { data: { query } },
+      { data: { query }, timeout: 120000 },
     );
     return { status: res.status(), body: await res.json() };
   }

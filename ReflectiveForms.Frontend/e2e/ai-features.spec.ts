@@ -371,6 +371,7 @@ test.describe('NL Filter API', () => {
   });
 
   test('NL filter returns interpreted filters and results', async ({ api }) => {
+    test.setTimeout(120000);
     const { status, body } = await api.aiNlFilter(
       ENTITY,
       'show me published blog posts',

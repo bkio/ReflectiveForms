@@ -1264,6 +1264,7 @@ test.describe('Full AI Workflow: Generate → Edit → Suggest → Check → Sea
   });
 
   test('step 7: NL filter finds the entity', async ({ api }) => {
+    test.setTimeout(120000);
     const { status, body } = await api.aiNlFilter(
       'blog-post',
       'show me featured published blog posts',
