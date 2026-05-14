@@ -1,7 +1,17 @@
 # ReflectiveForms
-![Tests](https://img.shields.io/badge/Tests-1681%2F1682%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/Tests-1682%2F1682%20passing-brightgreen)
 
 A schema-driven admin panel framework. Define entities with C# attributes, get a full CRUD admin panel with a modern React frontend — auto-save, display conditions, nested repeaters, entity relations, locking, SSO, AI-powered features (centralized AI assistant with tool-calling, semantic search, sanity checks, NL filtering), OpenAPI spec generation, and more.
+## Test Results
+
+**Last Updated:** 2026-05-14 09:33:00 UTC
+
+| Metric | Count |
+|--------|-------|
+| **Tests Passed** | **1682** |
+| **Tests Failed** | **0** |
+| **Total Tests** | **1682** |
+
 
 ## Preview
 
@@ -39,16 +49,6 @@ That's it — register it, and the dashboard, list view, and full create/edit fo
 
 ![Create Form](docs/images/blog-post-form-top.png)
 *Auto-generated create form with rich field types: title, relation dropdowns, tags, WYSIWYG editor*
-
-## Test Results
-
-**Last Updated:** 2026-05-14 08:24:17 UTC
-
-| Metric | Count |
-|--------|-------|
-| **Tests Passed** | **1681** |
-| **Tests Failed** | **1** |
-| **Total Tests** | **1682** |
 
 ## Packages
 
