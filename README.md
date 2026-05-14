@@ -2,6 +2,20 @@
 ![Tests](https://img.shields.io/badge/Tests-1681%2F1682%20passing-brightgreen)
 
 A schema-driven admin panel framework. Define entities with C# attributes, get a full CRUD admin panel with a modern React frontend — auto-save, display conditions, nested repeaters, entity relations, locking, SSO, AI-powered features (centralized AI assistant with tool-calling, semantic search, sanity checks, NL filtering), OpenAPI spec generation, and more.
+
+## Preview
+
+Annotate your C# models — ReflectiveForms generates the full admin UI automatically.
+
+![Dashboard](docs/images/dashboard.png)
+*Dashboard showing all registered entity types with View All / Create New actions*
+
+![Entity List](docs/images/entity-list.png)
+*Searchable, sortable entity list with NL filter, AI search, and per-row actions*
+
+![Create Form](docs/images/blog-post-form-top.png)
+*Auto-generated create form with rich field types: title, relation dropdowns, tags, WYSIWYG editor*
+
 ## Test Results
 
 **Last Updated:** 2026-05-14 08:24:17 UTC

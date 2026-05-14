@@ -57,6 +57,9 @@ npm run dev
 
 Open http://localhost:3000 and log in with `admin@karasoftware.com` / `123456`. You'll see a "Notes" section in the sidebar — that's your first entity, ready to use.
 
+![Dashboard](docs/images/dashboard.png)
+*The admin dashboard auto-generates from your entity registrations — no frontend code required*
+
 **Skip to [Understanding Your Entity Model](#understanding-your-entity-model) to learn how it works.**
 
 ---
@@ -277,6 +280,9 @@ npx vite
 
 Open http://localhost:3000 and log in with `admin@karasoftware.com` / `123456`.
 
+![Dashboard](docs/images/dashboard.png)
+*The admin dashboard auto-generates from your entity registrations — no frontend code required*
+
 ---
 
 ## Understanding Your Entity Model
@@ -308,6 +314,9 @@ public class NoteModel : EntityFieldsModel
 ```
 
 The backend reads these attributes at startup, generates a JSON schema, and exposes it at `/rf/api/schema`. The frontend fetches the schema and renders the correct form fields automatically.
+
+![Create Form](docs/images/blog-post-form-top.png)
+*Example create form — each C# attribute maps to a UI field: `WysiwygEditor` → rich text editor, `Select` → dropdown, `Checkbox` → toggle. The form is generated entirely from your model class.*
 
 ---
 
