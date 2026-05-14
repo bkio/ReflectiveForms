@@ -7,6 +7,30 @@ A schema-driven admin panel framework. Define entities with C# attributes, get a
 
 Annotate your C# models — ReflectiveForms generates the full admin UI automatically.
 
+```csharp
+public class BlogPostModel : EntityFieldsModel
+{
+    [JsonProperty("title"),
+     Text(label: "Title", instructions: "", mandatory: true)]
+    public string Title = "";
+
+    [JsonProperty("author"),
+     Relation(label: "Author", instructions: "", relatedEntity: "user")]
+    public string Author = "";
+
+    [JsonProperty("content"),
+     WysiwygEditor(label: "Post Content", instructions: "")]
+    public string Content = "";
+
+    [JsonProperty("excerpt"),
+     TextArea(label: "Excerpt", instructions: "", mandatory: false),
+     AISuggestion("Write a 1-sentence summary", "title", "content")]
+    public string Excerpt = "";
+}
+```
+
+That's it — register it, and the dashboard, list view, and full create/edit form appear automatically.
+
 ![Dashboard](docs/images/dashboard.png)
 *Dashboard showing all registered entity types with View All / Create New actions*
 
