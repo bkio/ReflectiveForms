@@ -147,7 +147,7 @@ function WysiwygEditor({ content, onChange, hasError, placeholder }: WysiwygEdit
         <button
           type="button"
           onClick={toggleSourceMode}
-          className={`px-2 py-1 text-xs rounded ${isSourceMode ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}`}
+          className={`px-2 py-1 text-xs rounded ${isSourceMode ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-200'}`}
           title="Toggle source mode"
         >
           {isSourceMode ? 'Preview' : 'HTML'}
