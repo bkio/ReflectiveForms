@@ -1,11 +1,11 @@
-# @reflectiveforms/frontend
+# @reflective-forms/frontend
 
 React + TypeScript admin panel library for [ReflectiveForms](../README.md). Renders schema-driven CRUD forms with auto-save, entity locking, display conditions, nested repeaters, searchable selects, live collaborative editing via WebSocket, AI-powered features (centralized AI assistant with tool-calling, semantic search, NL filtering, sanity checks, diff summaries, relation suggestions), and more.
 
 ## Installation
 
 ```bash
-npm install @reflectiveforms/frontend react react-dom react-router-dom
+npm install @reflective-forms/frontend react react-dom react-router-dom
 ```
 
 **Peer dependencies:** React 18+, React DOM 18+, React Router DOM 6+.
@@ -14,7 +14,7 @@ npm install @reflectiveforms/frontend react react-dom react-router-dom
 
 ```tsx
 // main.tsx
-import { createReflectiveFormsApp } from '@reflectiveforms/frontend';
+import { createReflectiveFormsApp } from '@reflective-forms/frontend';
 
 createReflectiveFormsApp({
   apiBaseUrl: 'http://localhost:9000/rf/api',
@@ -26,7 +26,7 @@ This renders a full admin panel into `#root` with login, dashboard, entity list/
 ## Configuration
 
 ```tsx
-import { createReflectiveFormsApp } from '@reflectiveforms/frontend';
+import { createReflectiveFormsApp } from '@reflective-forms/frontend';
 import { BarChart3 } from 'lucide-react';
 import AnalyticsPage from './pages/AnalyticsPage';
 
@@ -93,14 +93,14 @@ interface CustomPage {
 
 The primary color is set via the `--rf-primary` CSS variable. All blue-ish UI elements (buttons, active sidebar items, links) use this variable through Tailwind's `primary` color scale.
 
-When using `@reflectiveforms/frontend` as an npm package, include its CSS and extend your Tailwind config:
+When using `@reflective-forms/frontend` as an npm package, include its CSS and extend your Tailwind config:
 
 ```js
 // tailwind.config.js
 export default {
   content: [
     './src/**/*.{js,ts,jsx,tsx}',
-    './node_modules/@reflectiveforms/frontend/dist/**/*.{js,mjs}',
+    './node_modules/@reflective-forms/frontend/dist/**/*.{js,mjs}',
   ],
   theme: {
     extend: {
@@ -132,7 +132,7 @@ import {
   DashboardPage,
   LoginPage,
   useRfConfig,
-} from '@reflectiveforms/frontend';
+} from '@reflective-forms/frontend';
 
 function App() {
   return (

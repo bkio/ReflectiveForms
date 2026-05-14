@@ -371,7 +371,7 @@ export function aiReplacements(enableAi) {
       AI_README_SECTION: `## AI Features (Optional)
 
 This project does not include AI configuration by default. To re-scaffold with AI
-features enabled, run \`create-reflectiveforms-app\` again and answer **y** to the
+features enabled, run \`create-reflective-forms-app\` again and answer **y** to the
 "Enable AI features?" prompt.`,
     };
   }

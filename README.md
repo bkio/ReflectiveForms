@@ -54,15 +54,15 @@ That's it — register it, and the dashboard, list view, and full create/edit fo
 | Package | Description |
 |---------|-------------|
 | [`ReflectiveForms.Core`](ReflectiveForms.Core/) | .NET 8 NuGet library — entity configuration, schema generation, CRUD API, auth, SSO |
-| [`@reflectiveforms/frontend`](ReflectiveForms.Frontend/) | React + TypeScript npm library — renders schemas as a full admin panel |
-| [`@reflectiveforms/create-app`](ReflectiveForms.CreateApp/) | CLI scaffolder — generates a new project with backend, frontend, Docker, and a sample entity |
+| [`@reflective-forms/frontend`](ReflectiveForms.Frontend/) | React + TypeScript npm library — renders schemas as a full admin panel |
+| [`@reflective-forms/create-app`](ReflectiveForms.CreateApp/) | CLI scaffolder — generates a new project with backend, frontend, Docker, and a sample entity |
 
 ## Quick Start
 
 ### Option 1: Scaffold a new project (recommended)
 
 ```bash
-npx @reflectiveforms/create-app my-project
+npx @reflective-forms/create-app my-project
 cd my-project
 # Start backend
 cd backend && dotnet run
@@ -152,12 +152,12 @@ public static class RfBuilder
 **Frontend:**
 
 ```bash
-npm install @reflectiveforms/frontend react react-dom react-router-dom
+npm install @reflective-forms/frontend react react-dom react-router-dom
 ```
 
 ```tsx
 // main.tsx
-import { createReflectiveFormsApp } from '@reflectiveforms/frontend';
+import { createReflectiveFormsApp } from '@reflective-forms/frontend';
 
 createReflectiveFormsApp({
   apiBaseUrl: 'http://localhost:9000/rf/api',
@@ -342,7 +342,7 @@ When disabled:
 
 ```
 ┌─────────────────────────────┐     ┌─────────────────────────────┐
-│  @reflectiveforms/frontend  │     │  ReflectiveForms.Core       │
+│  @reflective-forms/frontend  │     │  ReflectiveForms.Core       │
 │  React SPA (Vite)           │────▶│  ASP.NET Core Backend       │
 │                             │     │                             │
 │  • React 18 + TypeScript    │     │  • JSON schema generation   │

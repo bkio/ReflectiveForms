@@ -1,10 +1,10 @@
 {
-  "name": "@reflectiveforms/create-app",
+  "name": "@reflective-forms/create-app",
   "version": "1.0.0",
   "description": "CLI scaffolder for ReflectiveForms projects",
   "type": "module",
   "bin": {
-    "create-reflectiveforms-app": "./src/index.js",
+    "create-reflective-forms-app": "./src/index.js",
     "create-app": "./src/index.js"
   },
   "files": ["src/", "templates/", "README.md"],
@@ -20,6 +20,6 @@
     "directory": "ReflectiveForms.CreateApp"
   },
   "homepage": "https://github.com/bkio/ReflectiveForms/tree/main/ReflectiveForms.CreateApp#readme",
-  "keywords": ["reflectiveforms", "scaffold", "cli", "cms"],
+  "keywords": ["reflective-forms", "scaffold", "cli", "cms"],
   "license": "AGPL-3.0"
 }

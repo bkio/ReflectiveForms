@@ -1,11 +1,11 @@
-# @reflectiveforms/create-app
+# @reflective-forms/create-app
 
 CLI scaffolder for [ReflectiveForms](../README.md). Generates a new full-stack project with a .NET backend, React frontend, Docker configuration, and a sample entity — ready to run.
 
 ## Usage
 
 ```bash
-npx @reflectiveforms/create-app my-project
+npx @reflective-forms/create-app my-project
 ```
 
 The CLI will prompt for:
@@ -24,7 +24,7 @@ The CLI will prompt for:
 You can also pass the project name as an argument:
 
 ```bash
-npx @reflectiveforms/create-app my-project
+npx @reflective-forms/create-app my-project
 ```
 
 ## Generated Structure
@@ -191,7 +191,7 @@ The test suite verifies:
   - rf.config.ts only uses valid `RfConfig` properties
   - Vite env variable name matches the real frontend
   - Vite proxy has WebSocket support
-  - Tailwind config includes `@reflectiveforms/frontend` content path
+  - Tailwind config includes `@reflective-forms/frontend` content path
   - Template does not include AI config (intentionally minimal)
 - **Build check**: scaffolds a project and runs `dotnet build` to verify the generated backend compiles
 - **Run check**: scaffolds a project, starts the backend with `dotnet run` (verifies it listens on the configured port), and builds the frontend with `tsc + vite build`

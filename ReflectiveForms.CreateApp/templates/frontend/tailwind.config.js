@@ -3,7 +3,7 @@ export default {
   content: [
     './index.html',
     './src/**/*.{js,ts,jsx,tsx}',
-    './node_modules/@reflectiveforms/frontend/dist/**/*.{js,mjs}',
+    './node_modules/@reflective-forms/frontend/dist/**/*.{js,mjs}',
   ],
   theme: {
     extend: {

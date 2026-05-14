@@ -377,7 +377,7 @@ jobs:
 
           echo "Successfully published all packages to NuGet!"
 
-      - name: Publish @reflectiveforms/frontend to npm
+      - name: Publish @reflective-forms/frontend to npm
         if: env.TESTS_PASSED == 'true'
         run: |
           cd ReflectiveForms.Frontend
@@ -388,7 +388,7 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Publish @reflectiveforms/create-app to npm
+      - name: Publish @reflective-forms/create-app to npm
         if: env.TESTS_PASSED == 'true'
         run: |
           cd ReflectiveForms.CreateApp
@@ -406,5 +406,5 @@ jobs:
           echo ""
           echo "Published packages:"
           echo "  - ReflectiveForms.Core $PACKAGE_VERSION (NuGet)"
-          echo "  - @reflectiveforms/frontend $PACKAGE_VERSION (npm)"
-          echo "  - @reflectiveforms/create-app $PACKAGE_VERSION (npm)"
+          echo "  - @reflective-forms/frontend $PACKAGE_VERSION (npm)"
+          echo "  - @reflective-forms/create-app $PACKAGE_VERSION (npm)"

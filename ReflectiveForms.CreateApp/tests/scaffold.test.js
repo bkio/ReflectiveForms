@@ -229,7 +229,7 @@ describe('aiReplacements() unit tests', () => {
   it('aiReplacements(false) AI_README_SECTION mentions re-scaffold', () => {
     const r = aiReplacements(false);
     assert.ok(
-      r.AI_README_SECTION.toLowerCase().includes('re-scaffold') || r.AI_README_SECTION.includes('create-reflectiveforms-app'),
+      r.AI_README_SECTION.toLowerCase().includes('re-scaffold') || r.AI_README_SECTION.includes('create-reflective-forms-app'),
       'Disabled AI readme should mention how to re-scaffold'
     );
   });
@@ -382,9 +382,9 @@ describe('scaffold', () => {
     assert.ok(!prog.includes('{{BACKEND_PORT}}'));
   });
 
-  it('frontend main.tsx imports from @reflectiveforms/frontend', () => {
+  it('frontend main.tsx imports from @reflective-forms/frontend', () => {
     const main = fs.readFileSync(path.join(TEST_DIR, 'frontend', 'src', 'main.tsx'), 'utf-8');
-    assert.ok(main.includes('@reflectiveforms/frontend'));
+    assert.ok(main.includes('@reflective-forms/frontend'));
   });
 
   it('nginx.conf has SPA fallback', () => {
@@ -763,12 +763,12 @@ describe('sync-check: templates match framework', () => {
   });
 
   // ── Frontend: tailwind content includes RF library ───────────────────────
-  it('template tailwind.config.js includes @reflectiveforms/frontend content path', () => {
+  it('template tailwind.config.js includes @reflective-forms/frontend content path', () => {
     const templateTailwind = fs.readFileSync(
       path.join(TEMPLATES_DIR, 'frontend', 'tailwind.config.js'), 'utf-8');
     assert.ok(
-      templateTailwind.includes('@reflectiveforms/frontend'),
-      'Template tailwind.config.js must include @reflectiveforms/frontend in content paths for Tailwind to process library styles'
+      templateTailwind.includes('@reflective-forms/frontend'),
+      'Template tailwind.config.js must include @reflective-forms/frontend in content paths for Tailwind to process library styles'
     );
   });
 
@@ -1370,10 +1370,10 @@ describe('cross-file consistency', () => {
     );
   });
 
-  it('frontend package.json @reflectiveforms/frontend version is valid semver', () => {
+  it('frontend package.json @reflective-forms/frontend version is valid semver', () => {
     const pkg = JSON.parse(fs.readFileSync(path.join(TEMPLATES_DIR, 'frontend', 'package.json'), 'utf-8'));
-    const version = pkg.dependencies?.['@reflectiveforms/frontend'];
-    assert.ok(version, 'package.json should depend on @reflectiveforms/frontend');
+    const version = pkg.dependencies?.['@reflective-forms/frontend'];
+    assert.ok(version, 'package.json should depend on @reflective-forms/frontend');
     // Valid semver with optional ^ or ~ prefix, OR a dist-tag like "latest"
     const isSemver = /^[~^]?\d+\.\d+\.\d+/.test(version);
     const isDistTag = /^[a-z][a-z0-9._-]*$/.test(version);
@@ -2099,7 +2099,7 @@ describe('README.md per-stack content', () => {
   it('AI disabled: mentions re-scaffold', () => {
     const { readme, cleanup } = renderReadme('local', false);
     try {
-      assert.ok(readme.includes('create-reflectiveforms-app') || readme.includes('re-scaffold'), 're-scaffold');
+      assert.ok(readme.includes('create-reflective-forms-app') || readme.includes('re-scaffold'), 're-scaffold');
     } finally { cleanup(); }
   });
 
@@ -2163,7 +2163,7 @@ describe('frontend template content validation', () => {
 
   it('tailwind.config.js includes RF library and primary color variable', () => {
     const tw = fs.readFileSync(path.join(FE_DIR, 'frontend', 'tailwind.config.js'), 'utf-8');
-    assert.ok(tw.includes('@reflectiveforms/frontend/dist'), 'RF library');
+    assert.ok(tw.includes('@reflective-forms/frontend/dist'), 'RF library');
     assert.ok(tw.includes('.{js,mjs}'), 'js+mjs');
     assert.ok(tw.includes('var(--rf-primary'), 'CSS variable');
   });
@@ -2456,7 +2456,7 @@ describe('run-check: scaffolded apps start and build', () => {
     // Point the scaffolded frontend at the local library instead of npm
     const pkgPath = path.join(RUN_DIR, 'frontend', 'package.json');
     const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-    pkg.dependencies['@reflectiveforms/frontend'] = `file:${frontendLibDir}`;
+    pkg.dependencies['@reflective-forms/frontend'] = `file:${frontendLibDir}`;
     fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
 
     // Install frontend dependencies

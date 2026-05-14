@@ -27,7 +27,7 @@ No frontend code needed — just define a C# class and ReflectiveForms handles t
 ## Option A: Use the CLI Scaffolder (Fastest)
 
 ```bash
-npx @reflectiveforms/create-app my-notes-app
+npx @reflective-forms/create-app my-notes-app
 ```
 
 Answer the prompts (or press Enter to use defaults):
@@ -213,7 +213,7 @@ In a new terminal, go back to the project root:
 cd my-notes-app
 mkdir frontend && cd frontend
 npm init -y
-npm install @reflectiveforms/frontend react react-dom react-router-dom
+npm install @reflective-forms/frontend react react-dom react-router-dom
 npm install -D @vitejs/plugin-react vite typescript @types/react @types/react-dom tailwindcss postcss autoprefixer
 npx tailwindcss init -p
 ```
@@ -221,7 +221,7 @@ npx tailwindcss init -p
 Create `src/main.tsx`:
 
 ```tsx
-import { createReflectiveFormsApp } from '@reflectiveforms/frontend';
+import { createReflectiveFormsApp } from '@reflective-forms/frontend';
 
 createReflectiveFormsApp({
   apiBaseUrl: 'http://localhost:9000/rf/api',
@@ -265,7 +265,7 @@ export default {
   content: [
     './index.html',
     './src/**/*.{js,ts,jsx,tsx}',
-    './node_modules/@reflectiveforms/frontend/dist/**/*.{js,mjs}',
+    './node_modules/@reflective-forms/frontend/dist/**/*.{js,mjs}',
   ],
   theme: { extend: {} },
   plugins: [],
