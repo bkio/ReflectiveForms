@@ -1374,8 +1374,10 @@ describe('cross-file consistency', () => {
     const pkg = JSON.parse(fs.readFileSync(path.join(TEMPLATES_DIR, 'frontend', 'package.json'), 'utf-8'));
     const version = pkg.dependencies?.['@reflectiveforms/frontend'];
     assert.ok(version, 'package.json should depend on @reflectiveforms/frontend');
-    // Valid semver with optional ^ or ~ prefix
-    assert.match(version, /^[~^]?\d+\.\d+\.\d+/, `version "${version}" should be valid semver`);
+    // Valid semver with optional ^ or ~ prefix, OR a dist-tag like "latest"
+    const isSemver = /^[~^]?\d+\.\d+\.\d+/.test(version);
+    const isDistTag = /^[a-z][a-z0-9._-]*$/.test(version);
+    assert.ok(isSemver || isDistTag, `version "${version}" should be valid semver or a dist-tag`);
   });
 });
 

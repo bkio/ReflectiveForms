@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <Title>ReflectiveForms.Core</Title>
-    <Version>0.1.0</Version>
+    <Version>1.0.0</Version>
     <Authors>Burak Kara</Authors>
     <Description>Code-first admin panel and CRUD framework for .NET — define entity models with attributes, get a full admin UI with zero frontend code.</Description>
     <Copyright>Copyright (c) 2022- Burak Kara - AGPL-3.0-only</Copyright>

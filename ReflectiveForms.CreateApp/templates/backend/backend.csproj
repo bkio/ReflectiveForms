@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="ReflectiveForms.Core" Version="0.1.0" />
+    <PackageReference Include="ReflectiveForms.Core" Version="*" />
 {{INFRA_CSPROJ_PACKAGES}}
 {{AI_CSPROJ_PACKAGES}}
   </ItemGroup>
