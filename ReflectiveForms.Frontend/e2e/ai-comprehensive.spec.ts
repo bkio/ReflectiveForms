@@ -78,8 +78,7 @@ test.describe('AI Global Search', () => {
 
   test('clicking AI Search opens the global search modal', async ({ page, ui }) => {
     await ui.gotoDashboard();
-    const aiSearchNav = page.locator('[data-testid="ai-search-nav"]');
-    await aiSearchNav.click();
+    await ui.clickAiSearchNav();
 
     const modal = page.locator('[data-testid="ai-global-search"]');
     await expect(modal).toBeVisible({ timeout: 5000 });
@@ -91,7 +90,7 @@ test.describe('AI Global Search', () => {
 
   test('global search modal closes on Escape key', async ({ page, ui }) => {
     await ui.gotoDashboard();
-    await page.locator('[data-testid="ai-search-nav"]').click();
+    await ui.clickAiSearchNav();
     const modal = page.locator('[data-testid="ai-global-search"]');
     await expect(modal).toBeVisible();
 
@@ -101,7 +100,7 @@ test.describe('AI Global Search', () => {
 
   test('global search modal closes on backdrop click', async ({ page, ui }) => {
     await ui.gotoDashboard();
-    await page.locator('[data-testid="ai-search-nav"]').click();
+    await ui.clickAiSearchNav();
     const modal = page.locator('[data-testid="ai-global-search"]');
     await expect(modal).toBeVisible();
 
@@ -112,7 +111,7 @@ test.describe('AI Global Search', () => {
 
   test('typing in global search triggers debounced results', async ({ page, ui }) => {
     await ui.gotoDashboard();
-    await page.locator('[data-testid="ai-search-nav"]').click();
+    await ui.clickAiSearchNav();
 
     const input = page.locator('[data-testid="ai-search-input"]');
     await input.fill('computing deployment');
@@ -127,7 +126,7 @@ test.describe('AI Global Search', () => {
 
   test('global search shows empty state for nonsense query', async ({ page, ui }) => {
     await ui.gotoDashboard();
-    await page.locator('[data-testid="ai-search-nav"]').click();
+    await ui.clickAiSearchNav();
 
     const input = page.locator('[data-testid="ai-search-input"]');
     await input.fill('xyzzy-nonexistent-gibberish-12345');

@@ -59,7 +59,19 @@ export default defineConfig({
     },
     {
       name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
+      use: {
+        ...devices['Desktop Safari'],
+        launchOptions: {
+          // The VS Code snap sets GIO_MODULE_DIR to its own gio-modules directory,
+          // which loads a snap-built libgiognutls.so that pulls in the incompatible
+          // snap core20 libpthread (glibc 2.31). Override it to use system modules.
+          env: {
+            ...process.env,
+            GIO_MODULE_DIR: '/usr/lib/x86_64-linux-gnu/gio/modules',
+            LIBGL_ALWAYS_SOFTWARE: '1',
+          },
+        },
+      },
     },
     // Mobile viewports
     {

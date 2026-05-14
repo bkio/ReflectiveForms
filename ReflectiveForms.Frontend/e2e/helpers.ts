@@ -478,6 +478,23 @@ export class UiHelper {
     }
   }
 
+  /** Opens the mobile sidebar if the viewport is narrow (< lg breakpoint). */
+  async openSidebar() {
+    const viewport = this.page.viewportSize();
+    if (!viewport || viewport.width >= 1024) return; // already visible on desktop
+    const toggle = this.page.locator('[data-testid="mobile-menu-toggle"]');
+    if (await toggle.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await toggle.click();
+      await this.page.waitForTimeout(300); // wait for slide-in animation
+    }
+  }
+
+  /** Opens the sidebar if needed (mobile), then clicks the AI Search nav item. */
+  async clickAiSearchNav() {
+    await this.openSidebar();
+    await this.page.locator('[data-testid="ai-search-nav"]').click();
+  }
+
   // --- save ---
   async clickSaveNow() {
     const btn = this.page.locator('button[type="submit"]', { hasText: /save now/i });
@@ -493,10 +510,25 @@ export class UiHelper {
 
   /** Wait until the "Saved!" indicator appears or throw on error indicator/toast. */
   async waitForSave(timeoutMs = 30000) {
+    // Capture the URL before saving so we can detect a post-create navigation
+    // (EntityEditPage navigates from ?id=new → ?id=<number> after successful creation)
+    const initialUrl = this.page.url();
     const result = await this.page.waitForFunction(
-      () => {
+      (initUrl: string) => {
         const saved = document.querySelector('[data-testid="autosave-saved"]');
         if (saved) return { saved: true };
+
+        // After creating a new entity the page navigates to the edit URL (?id=<number>).
+        // Detect that URL change as a successful save so we don't time out.
+        const currentUrl = window.location.href;
+        if (
+          currentUrl !== initUrl &&
+          /[?&]id=\d+/.test(currentUrl) &&
+          !/[?&]id=new/.test(currentUrl) &&
+          !/[?&]id=clone_from_/.test(currentUrl)
+        ) {
+          return { saved: true };
+        }
 
         const error = document.querySelector('[data-testid="autosave-error"]');
         if (error) return { error: error.textContent };
@@ -509,7 +541,7 @@ export class UiHelper {
         }
         return null;
       },
-      undefined,
+      initialUrl,
       { timeout: timeoutMs },
     );
     const val = await result.jsonValue();

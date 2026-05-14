@@ -2,6 +2,7 @@
 // See LICENSE file in the project root for full license information.
 
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Net;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -1126,10 +1127,13 @@ public class EntityRepositoryService
             else
             {
                 if (body.TryGetTypedValue(EntityModelAttributes.ModifiedGmt, out string? modifiedGmtString)
-                    && DateUtility.FromDesiredStringToDateTime(modifiedGmtString, out var modifiedGmt))
+                    && (DateUtility.FromDesiredStringToDateTime(modifiedGmtString, out var modifiedGmt)
+                        || (modifiedGmtString != null
+                            && modifiedGmtString.EndsWith("Z", StringComparison.Ordinal)
+                            && DateTime.TryParseExact(modifiedGmtString[..^1], s_nonCanonicalIso8601NoZFormats, null, DateTimeStyles.None, out modifiedGmt))))
                 {
-                    body[EntityModelAttributes.DateGmt] = modifiedGmtString;
-                    body[EntityModelAttributes.Date] = DateUtility.DateTimeToDesiredString(modifiedGmt.AddHours(2));
+                    body[EntityModelAttributes.DateGmt] = DateUtility.DateTimeToDesiredString(modifiedGmt);
+                    body[EntityModelAttributes.Date] = DateUtility.DateTimeToDesiredString(modifiedGmt.ToLocalTime());
                 }
                 else
                 {
@@ -1147,16 +1151,48 @@ public class EntityRepositoryService
                 var dateGmt = (DateTime)body[EntityModelAttributes.DateGmt].NotNull();
                 body[EntityModelAttributes.DateGmt] = DateUtility.DateTimeToDesiredString(dateGmt);
             }
+            else if (body[EntityModelAttributes.DateGmt]?.Type == JTokenType.String)
+            {
+                var s = body[EntityModelAttributes.DateGmt]!.Value<string>();
+                if (s != null
+                    && !DateUtility.FromDesiredStringToDateTime(s, out _)
+                    && s.EndsWith("Z", StringComparison.Ordinal)
+                    && DateTime.TryParseExact(s[..^1], s_nonCanonicalIso8601NoZFormats, null, DateTimeStyles.None, out var parsedGmt))
+                    body[EntityModelAttributes.DateGmt] = DateUtility.DateTimeToDesiredString(parsedGmt);
+            }
             if (body[EntityModelAttributes.Date] is { Type: JTokenType.Date })
             {
                 var date = (DateTime)body[EntityModelAttributes.Date].NotNull();
                 body[EntityModelAttributes.Date] = DateUtility.DateTimeToDesiredString(date);
+            }
+            else if (body[EntityModelAttributes.Date]?.Type == JTokenType.String)
+            {
+                var s = body[EntityModelAttributes.Date]!.Value<string>();
+                if (s != null
+                    && !DateUtility.FromDesiredStringToDateTime(s, out _)
+                    && s.EndsWith("Z", StringComparison.Ordinal)
+                    && DateTime.TryParseExact(s[..^1], s_nonCanonicalIso8601NoZFormats, null, DateTimeStyles.None, out var parsedDate))
+                    body[EntityModelAttributes.Date] = DateUtility.DateTimeToDesiredString(parsedDate);
             }
         }
 
         body[EntityModelAttributes.ModifiedGmt] = gmtNowTimeString;
         body[EntityModelAttributes.Modified] = localNowTimeString;
     }
+
+    // ISO 8601 formats WITHOUT the trailing "Z" literal, used with s[..^1] to strip
+    // the "Z" before parsing. This prevents DateTime.TryParseExact from treating "Z"
+    // as a UTC timezone indicator and converting the result to local time.
+    private static readonly string[] s_nonCanonicalIso8601NoZFormats =
+    [
+        "yyyy-MM-ddTHH:mm:ss.fffffff", // 7-decimal — Newtonsoft "O" round-trip format
+        "yyyy-MM-ddTHH:mm:ss.ffffff",  // 6-decimal
+        "yyyy-MM-ddTHH:mm:ss.fffff",   // 5-decimal
+        "yyyy-MM-ddTHH:mm:ss.ffff",    // 4-decimal
+        "yyyy-MM-ddTHH:mm:ss.ff",      // 2-decimal (FFFFFFF with 10ms precision)
+        "yyyy-MM-ddTHH:mm:ss.f",       // 1-decimal (FFFFFFF with 100ms precision)
+        "yyyy-MM-ddTHH:mm:ss",         // no decimal (FFFFFFF with ms=0)
+    ];
 
     private const string DeleteOneAsyncMethodName = "DeleteOneAsync";
     public async Task<OperationResult<JObject>> DeleteOneAsync<T>(string entityName, int id, int requestingUserId, CancellationToken cancellationToken) where T : EntityFieldsModel, new()

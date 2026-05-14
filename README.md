@@ -41,13 +41,13 @@ public class BlogPostModel : EntityFieldsModel
 
 That's it — register it, and the dashboard, list view, and full create/edit form appear automatically.
 
-![Dashboard](docs/images/dashboard.png)
+![Dashboard](https://raw.githubusercontent.com/bkio/ReflectiveForms/main/docs/images/dashboard.png)
 *Dashboard showing all registered entity types with View All / Create New actions*
 
-![Entity List](docs/images/entity-list.png)
+![Entity List](https://raw.githubusercontent.com/bkio/ReflectiveForms/main/docs/images/entity-list.png)
 *Searchable, sortable entity list with NL filter, AI search, and per-row actions*
 
-![Create Form](docs/images/blog-post-form-top.png)
+![Create Form](https://raw.githubusercontent.com/bkio/ReflectiveForms/main/docs/images/blog-post-form-top.png)
 *Auto-generated create form with rich field types: title, relation dropdowns, tags, WYSIWYG editor*
 
 ## Packages

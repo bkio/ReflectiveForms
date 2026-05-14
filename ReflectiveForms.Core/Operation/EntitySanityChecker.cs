@@ -1,6 +1,7 @@
 // Copyright (c) 2022- Burak Kara, AGPL-3.0 license
 // See LICENSE file in the project root for full license information.
 
+using System.Globalization;
 using System.Net;
 using System.Reflection;
 using CrossCloudKit.Interfaces.Classes;
@@ -185,6 +186,20 @@ internal static class EntitySanityChecker
         return OperationResult<bool>.Success(true);
     }
 
+    // ISO 8601 formats WITHOUT the trailing "Z" literal, used with s[..^1] to strip
+    // the "Z" before parsing. This prevents DateTime.TryParseExact from treating "Z"
+    // as a UTC timezone indicator and converting the result to local time.
+    private static readonly string[] s_nonCanonicalIso8601NoZFormats =
+    [
+        "yyyy-MM-ddTHH:mm:ss.fffffff", // 7-decimal — Newtonsoft "O" round-trip format
+        "yyyy-MM-ddTHH:mm:ss.ffffff",  // 6-decimal
+        "yyyy-MM-ddTHH:mm:ss.fffff",   // 5-decimal
+        "yyyy-MM-ddTHH:mm:ss.ffff",    // 4-decimal
+        "yyyy-MM-ddTHH:mm:ss.ff",      // 2-decimal (FFFFFFF with 10ms precision)
+        "yyyy-MM-ddTHH:mm:ss.f",       // 1-decimal (FFFFFFF with 100ms precision)
+        "yyyy-MM-ddTHH:mm:ss",         // no decimal (FFFFFFF with ms=0)
+    ];
+
     internal static bool DateFieldsSanityCheck(JObject obj, out string failureMessage)
     {
         failureMessage = "";
@@ -198,14 +213,32 @@ internal static class EntitySanityChecker
             return false;
         }
 
-        if (obj[EntityModelAttributes.Date].NotNull().Type == JTokenType.Date)
-            obj[EntityModelAttributes.Date] = DateUtility.DateTimeToDesiredString((DateTime)obj[EntityModelAttributes.Date].NotNull());
-        if (obj[EntityModelAttributes.DateGmt].NotNull().Type == JTokenType.Date)
-            obj[EntityModelAttributes.DateGmt] = DateUtility.DateTimeToDesiredString((DateTime)obj[EntityModelAttributes.DateGmt].NotNull());
-        if (obj[EntityModelAttributes.Modified].NotNull().Type == JTokenType.Date)
-            obj[EntityModelAttributes.Modified] = DateUtility.DateTimeToDesiredString((DateTime)obj[EntityModelAttributes.Modified].NotNull());
-        if (obj[EntityModelAttributes.ModifiedGmt].NotNull().Type == JTokenType.Date)
-            obj[EntityModelAttributes.ModifiedGmt] = DateUtility.DateTimeToDesiredString((DateTime)obj[EntityModelAttributes.ModifiedGmt].NotNull());
+        static void NormalizeDateToken(JObject o, string key)
+        {
+            var token = o[key];
+            if (token == null) return;
+            if (token.Type == JTokenType.Date)
+                o[key] = DateUtility.DateTimeToDesiredString((DateTime)token);
+            else if (token.Type == JTokenType.String)
+            {
+                var s = token.Value<string>();
+                // Normalize valid ISO 8601 strings that aren't in the exact canonical format
+                // (e.g. 7-decimal-place "...1230000Z" produced by Newtonsoft.Json JTokenType.Date round-trip)
+                // Strip the trailing "Z" before parsing to prevent TryParseExact from
+                // treating it as a UTC timezone indicator (which would convert to local time).
+                // After parsing, DateTimeToDesiredString appends the literal "Z" back.
+                if (s != null
+                    && !DateUtility.FromDesiredStringToDateTime(s, out _)
+                    && s.EndsWith("Z", StringComparison.Ordinal)
+                    && DateTime.TryParseExact(s[..^1], s_nonCanonicalIso8601NoZFormats, null, DateTimeStyles.None, out var dt))
+                    o[key] = DateUtility.DateTimeToDesiredString(dt);
+            }
+        }
+
+        NormalizeDateToken(obj, EntityModelAttributes.Date);
+        NormalizeDateToken(obj, EntityModelAttributes.DateGmt);
+        NormalizeDateToken(obj, EntityModelAttributes.Modified);
+        NormalizeDateToken(obj, EntityModelAttributes.ModifiedGmt);
 
         if (!obj.TryGetTypedValue(EntityModelAttributes.Date, out string? dateString)
             || !DateUtility.FromDesiredStringToDateTime(dateString, out var date)
