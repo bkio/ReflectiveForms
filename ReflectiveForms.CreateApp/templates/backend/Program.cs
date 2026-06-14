@@ -12,7 +12,7 @@ var rfLogger = loggerFactory.CreateLogger<Program>();
 
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.Listen(IPAddress.Loopback, {{BACKEND_PORT}});
+    options.Listen(IPAddress.Any, {{BACKEND_PORT}});
 });
 
 var app = builder.BuildWithReflectiveFields(RfBuilder.Build(rfLogger));

@@ -273,6 +273,7 @@ public static class RfBuilder
                     HasTags = false,
                     HasCategories = false,
                     HasParentChildRelationship = false,
+                    ShowInNavigation = false, // Hidden from sidebar/dashboard for e2e testing
                     RequireGlobalTitleUniqueness = false,
                     SupportsSemanticSearch = true,
                     SupportsAiGeneration = true,

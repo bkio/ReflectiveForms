@@ -11,6 +11,7 @@ import { AdminLayout } from '../components/layout/AdminLayout';
 import { RfRoutes } from './RfRoutes';
 import { LoginPage } from '../pages/LoginPage';
 import { SsoLoginPage } from '../pages/SsoLoginPage';
+import { setApiBaseUrl, setAiBaseUrl, setAiDisabled } from '../api/client';
 import type { RfConfig } from './types';
 
 import '../index.css';
@@ -62,6 +63,14 @@ function AuthenticatedApp({
 }
 
 export function createReflectiveFormsApp(config: RfConfig) {
+  // Set API configuration immediately — before any component renders or any
+  // data-fetching hook fires.  This avoids a race where early queries (auth
+  // check, schema, etc.) would use the built-in default URL instead of the
+  // caller-supplied apiBaseUrl.
+  setApiBaseUrl(config.apiBaseUrl);
+  setAiBaseUrl(config.ai?.aiEndpointBase ?? null);
+  setAiDisabled(config.ai?.disabled ?? false);
+
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {

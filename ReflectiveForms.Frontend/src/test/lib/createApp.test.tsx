@@ -14,6 +14,8 @@ vi.mock('react-dom/client', () => ({
 // Mock client setApiBaseUrl
 vi.mock('../../api/client', () => ({
   setApiBaseUrl: vi.fn(),
+  setAiBaseUrl: vi.fn(),
+  setAiDisabled: vi.fn(),
   getApiBaseUrl: vi.fn(() => 'http://test/rf/api'),
 }));
 

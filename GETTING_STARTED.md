@@ -98,7 +98,7 @@ builder.Services.AddCors(options =>
 
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.Listen(System.Net.IPAddress.Loopback, 9000);
+    options.Listen(System.Net.IPAddress.Any, 9000);
 });
 
 // Create rf logger
@@ -162,6 +162,7 @@ public static class RfBuilder
                     HasParentChildRelationship = false,
                     RequireGlobalTitleUniqueness = false,
                     OptionalTitleSanityCheck = null,
+                    ShowInNavigation = true, // Set false to hide from sidebar & dashboard
                 },
             ],
         };
@@ -371,6 +372,7 @@ EntityTypes =
         HasParentChildRelationship = false,
         RequireGlobalTitleUniqueness = false,
         OptionalTitleSanityCheck = null,
+        ShowInNavigation = true,
     },
     new EntityConfigurationBuilder<TaskModel>
     {
@@ -384,6 +386,7 @@ EntityTypes =
         HasParentChildRelationship = false,
         RequireGlobalTitleUniqueness = false,
         OptionalTitleSanityCheck = null,
+        ShowInNavigation = true,
     },
 ],
 ```
@@ -453,6 +456,7 @@ new EntityConfigurationBuilder<TaskModel>
     // Validation
     RequireGlobalTitleUniqueness = true, // No duplicate titles
     OptionalTitleSanityCheck = null,     // No custom title check
+    ShowInNavigation = true,             // Hide from sidebar & dashboard when false
 
     // AI features (requires AiServiceConfiguration on the builder)
     SupportsSemanticSearch = false,          // Vector indexing on save
@@ -637,6 +641,7 @@ new EntityConfigurationBuilder<ProjectModel>
     HasParentChildRelationship = false,
     RequireGlobalTitleUniqueness = false,
     OptionalTitleSanityCheck = null,
+    ShowInNavigation = true,               // Hide from sidebar & dashboard when false
     HasIndividualSharing = true,            // Enables per-entity sharing
     CustomFrontendListRoute = "/projects",  // Sidebar link & route redirect target
 }
@@ -760,6 +765,202 @@ docker compose up --build
 ```
 
 This starts the backend on port 9000 and the frontend (via nginx) on port 3000.
+
+---
+
+## Deployment Topologies & CORS
+
+ReflectiveForms supports two deployment patterns. CORS and auth cookies are handled automatically — you just need the correct env vars.
+
+### Same Domain (nginx reverse proxy)
+
+Frontend and API served from the same origin (recommended):
+
+```
+https://admin.example.com/           → nginx → frontend static files
+https://admin.example.com/rf/api/*   → nginx → backend
+```
+
+No CORS needed — everything is same-origin. The frontend's `apiBaseUrl` stays as the default **relative path** `/rf/api`:
+
+```ts
+// rf.config.ts — dev & same-domain prod
+apiBaseUrl: import.meta.env.VITE_API_BASE_URL || '/rf/api',
+```
+
+The nginx template included by the scaffolder already proxies `/rf/api` to the backend.
+
+### Separate Domains (CORS)
+
+Frontend and API on different origins:
+
+```
+https://admin.example.com   → frontend
+https://api.example.com     → backend (/rf/api/*)
+```
+
+**Frontend** — set `VITE_API_BASE_URL` to the API origin:
+
+```bash
+# .env (production build)
+VITE_API_BASE_URL=https://api.example.com/rf/api
+```
+
+```ts
+// rf.config.ts reads the env var automatically:
+apiBaseUrl: import.meta.env.VITE_API_BASE_URL || '/rf/api',
+```
+
+**Backend** — `PublicFrontendBaseUrl` tells the framework which origin to allow:
+
+```csharp
+EndpointConfiguration = new EndpointConfiguration
+{
+    PublicFrontendBaseUrl = "https://admin.example.com",
+    PublicUrlRootForApi  = "https://api.example.com/rf/api/",
+    // ...
+},
+```
+
+The framework uses `PublicFrontendBaseUrl` to automatically configure CORS (`Access-Control-Allow-Origin` + `AllowCredentials`).
+
+> **⚠️ Cookie auth requires a code change for cross-origin.** By default the auth cookie uses `SameSite=Strict`, which blocks cross-origin requests. For separate-domain deployments you must change `SameSiteMode.Strict` to `SameSiteMode.None` and force `CookieSecurePolicy.Always` (HTTPS required). Add this **before** `BuildWithReflectiveFields()`:
+>
+> ```csharp
+> builder.Services.PostConfigure<CookieAuthenticationOptions>(
+>     CookieAuthenticationDefaults.AuthenticationScheme, options =>
+>     {
+>         options.Cookie.SameSite = SameSiteMode.None;
+>         options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+>     });
+> ```
+>
+> Separate-domain deployments also **require HTTPS** — browsers reject `SameSite=None` cookies without the `Secure` flag.
+
+### Quick Reference
+
+| Setting | Purpose | Example |
+|---------|---------|---------|
+| `apiBaseUrl` (frontend) | Where the browser sends API requests | `/rf/api` or `https://api.example.com/rf/api` |
+| `PublicFrontendBaseUrl` (backend) | CORS allowed origin + auth redirect target | `https://admin.example.com` |
+| `PublicUrlRootForApi` (backend) | Public-facing API root (used in emails, redirects) | `https://api.example.com/rf/api/` |
+
+---
+
+## Field Convention Methods (`___` Naming Pattern)
+
+Beyond the basic field attributes, ReflectiveForms supports four kinds of **field-level customization methods** that are discovered by a naming convention: `{FieldName}___{Suffix}`. Define these methods on your entity model class and the framework discovers them via reflection — no registration required.
+
+> ⚠️ **Critical distinction:** These are **not lifecycle hooks.** Do not confuse them with `PostCreateHook` / `PostUpdateHook` / `PostDeleteHook`, which are fire-and-forget callbacks configured separately in `RfBuilder.cs` via `EntityOnChangedHooksSetup`. Lifecycle hooks run **after** the entity is saved — they are for side effects like logging or recalculating related entities. The `___` methods run **before or during** the save/display pipeline.
+
+### Quick Reference
+
+| Convention | Purpose | Runs | Signature |
+|-----------|---------|------|-----------|
+| `___DynamicChoicesCompileTimeAsync` | Populate `Select` choices from C# at startup | Schema generation (once) | `static Task<string[]>` |
+| `___DynamicChoicesRuntimeAsync` | Populate `Select` choices in-browser from form state | Browser, per interaction | `Task<string>` (returns JS) |
+| `___DynamicDefaultValueAsync` | Compute default value for a field | Schema generation + new-form pre-fill | `Task<object?>` (instance or static) |
+| `___LogicSanityCheckAsync` | Validate field value server-side before save | Create/Update, before write | `Task<string?>` (null = pass) |
+
+### Dynamic Choices — Compile Time
+
+Generate `Select` options once at startup (e.g., date ranges, enum-like values). The method must be `static`:
+
+```csharp
+[JsonProperty("year"),
+ Select(label: "Year", instructions: "", defaultValue: "", choices: null)]
+public string Year { get; init; } = "";
+
+public static Task<string[]> Year___DynamicChoicesCompileTimeAsync(CancellationToken ct)
+{
+    var years = Enumerable.Range(2020, 10)
+        .Select(y => $"{y} : {y}")
+        .ToArray();
+    return Task.FromResult(years);
+}
+```
+
+### Dynamic Choices — Runtime (JavaScript)
+
+Generate options dynamically in the browser based on other field values. The method returns a JavaScript string that runs client-side, where `window.latest_dynamic_options_input` holds all current form field values:
+
+```csharp
+[JsonProperty("subcategory"),
+ Select(label: "Subcategory", instructions: "", defaultValue: "", choices: null)]
+public string Subcategory = "";
+
+public Task<string> Subcategory___DynamicChoicesRuntimeAsync(CancellationToken ct)
+{
+    return Task.FromResult("""
+        const input = window.latest_dynamic_options_input;
+        if (input.category === 'a') return ['a1 : Sub A1', 'a2 : Sub A2'];
+        return [': Select a category first'];
+    """);
+}
+```
+
+### Dynamic Default Values
+
+Compute a field's default value at runtime (e.g., today's date). The method can be `static` or instance-level:
+
+```csharp
+[JsonProperty("start_date"),
+ DatePicker(label: "Start Date", instructions: "", mandatory: true, dateFormat: "yyyyMMdd")]
+public string StartDate = "";
+
+public Task<object?> StartDate___DynamicDefaultValueAsync(CancellationToken ct)
+    => Task.FromResult<object?>(DateTime.UtcNow.ToString("yyyyMMdd"));
+```
+
+### Sanity Checks (Server-Side Validation)
+
+Validate a field value before the entity is saved. Return `null` if the value passes; return a `string` error message if it fails:
+
+```csharp
+[JsonProperty("slug"),
+ Text(label: "URL Slug", instructions: "", mandatory: true, placeholderText: "")]
+public string Slug = "";
+
+public async Task<string?> Slug___LogicSanityCheckAsync(
+    int entityId, EntityOperationState operationState, JObject parentJObject, CancellationToken ct)
+{
+    // Check uniqueness across all entities of this type
+    var all = await operationState.GetAllEntitiesInOperationAsync("note", ct);
+    if (!all.IsSuccessful) return all.ErrorMessage;
+    foreach (var entity in all.Data)
+    {
+        var casted = entity.ToObjectWithPolymorphism<EntityModel<NoteModel>>().NotNull();
+        if (casted.Fields.Slug == Slug && casted.Id != entityId)
+            return "Slug must be unique.";
+    }
+    return null; // pass
+}
+```
+
+> ⚠️ **Always use `ToObjectWithPolymorphism` to access entity data.** Two reasons:
+>
+> 1. **JObject structure** — `GetAllEntitiesInOperationAsync` returns raw `JObject` values structured as `{ id, title, fields: { ... } }`. User-defined fields are nested under `fields` — indexing the JObject directly (e.g. `e["slug"]`) hits the entity-level slug, not your field.
+>
+> 2. **Polymorphism** — Entities are serialized with `TypeNameHandling.All`, embedding `$type` metadata so nested sub-models retain their concrete types. Plain `ToObject<T>()` ignores this and deserializes nested objects to their **declared base type**, silently dropping all custom fields on Groups, Repeater items, etc.
+>
+> `ToObjectWithPolymorphism` preserves the full type graph so every nested `BaseModel` subclass deserializes correctly with all custom properties intact.
+>
+> **Correct pattern:**
+> ```csharp
+> var casted = entity.ToObjectWithPolymorphism<EntityModel<NoteModel>>().NotNull();
+> // casted.Fields.Slug, casted.Id
+> ```
+
+### Comparison: `___` Methods vs. Lifecycle Hooks
+
+| Aspect | `___` Convention Methods | `PostCreateHook` / `PostUpdateHook` / `PostDeleteHook` |
+|--------|--------------------------|-------------------------------------------------------|
+| **Where defined** | On the entity model class | In `RfBuilder.cs` via `EntityOnChangedHooksSetup` |
+| **Discovery** | Reflection by name pattern `{Field}___{Suffix}` | Explicit delegate assignment |
+| **When called** | Schema generation, form interaction, or before save | After save (fire-and-forget) |
+| **Purpose** | Choices, defaults, validation | Side effects: logging, recalculating related entities, sending notifications |
+| **Can prevent save?** | `___LogicSanityCheckAsync` — yes (return error string) | No — save already committed |
+| **Can modify entity?** | No | Yes (with `UpdaterIdentity.DuringHookCallUpdate()` to avoid infinite loops) |
 
 ---
 

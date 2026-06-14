@@ -142,6 +142,7 @@ public static class RfBuilder
                     HasParentChildRelationship = false,
                     RequireGlobalTitleUniqueness = false,
                     OptionalTitleSanityCheck = null,
+                    ShowInNavigation = true, // Set false to hide from sidebar & dashboard
                 },
             ],
         };
@@ -184,6 +185,93 @@ createReflectiveFormsApp({
 - **AI features (optional)** — Centralized AI assistant with multi-turn chat and tool-calling (entity creation, updates, deletion, field suggestions, navigation — all with user approval), semantic search (vector indexing), AI sanity checks (`[AISanityCheck]`), AI field suggestions (`[AISuggestion]`), revision diff AI summaries, natural language filtering, AI relation suggestions (`[AIRelationSuggestion]`). All off by default — enable per entity type
 - **OpenAPI spec generation** — Auto-generated OpenAPI 3.1 spec at `/openapi.json`, independent of AI features
 
+#### Field Convention Methods (`___` Naming Pattern)
+
+ReflectiveForms uses a **naming convention** to discover four kinds of field-level customization methods. These are methods you define **directly on your entity model class**, named `{FieldName}___{Suffix}`. The framework discovers them via reflection — no registration needed.
+
+> ⚠️ **These are NOT lifecycle hooks.** Do not confuse these with `PostCreateHook` / `PostUpdateHook` / `PostDeleteHook`, which are fire-and-forget callbacks configured separately via `EntityOnChangedHooksSetup` in `RfBuilder.cs`.
+
+| Suffix | Purpose | Method Signature | Runs |
+|--------|---------|-----------------|------|
+| `___DynamicChoicesCompileTimeAsync` | Populate `Select` choices at schema generation time | `static Task<string[]>` | Schema generation, sanity checks, view building |
+| `___DynamicChoicesRuntimeAsync` | Populate `Select` choices in the browser based on form state | `Task<string>` returning JavaScript | In browser, on field interaction |
+| `___DynamicDefaultValueAsync` | Compute a default value at runtime | `Task<object?>` (instance or static) | Schema generation and new-entity form pre-fill |
+| `___LogicSanityCheckAsync` | Server-side validation before save | `Task<string?>` (null = pass, string = error) | On create/update, before the entity is written |
+
+```csharp
+public class ProductModel : EntityFieldsModel
+{
+    // 1. Compile-time dynamic choices: called once at schema generation
+    [JsonProperty("category"),
+     Select(label: "Category", instructions: "", defaultValue: "", choices: null)]
+    public string Category = "";
+    public static Task<string[]> Category___DynamicChoicesCompileTimeAsync(CancellationToken ct)
+        => Task.FromResult(new[] { "a : Category A", "b : Category B" });
+
+    // 2. Runtime dynamic choices: returns JS that runs in the browser
+    [JsonProperty("subcategory"),
+     Select(label: "Subcategory", instructions: "", defaultValue: "", choices: null)]
+    public string Subcategory = "";
+    public Task<string> Subcategory___DynamicChoicesRuntimeAsync(CancellationToken ct)
+        => Task.FromResult("""
+            const input = window.latest_dynamic_options_input;
+            if (input.category === 'a') return ['a1 : Sub A1', 'a2 : Sub A2'];
+            return [': Select a category first'];
+            """);
+
+    // 3. Dynamic default value: computed when a new entity form opens
+    [JsonProperty("created_date"),
+     DatePicker(label: "Created", instructions: "", mandatory: true, dateFormat: "yyyyMMdd")]
+    public string CreatedDate = "";
+    public Task<object?> CreatedDate___DynamicDefaultValueAsync(CancellationToken ct)
+        => Task.FromResult<object?>(DateTime.UtcNow.ToString("yyyyMMdd"));
+
+    // 4. Sanity check: server-side validation — return null if valid, error string if not
+    [JsonProperty("sku"),
+     Text(label: "SKU", instructions: "", mandatory: true, placeholderText: "")]
+    public string Sku = "";
+    public async Task<string?> Sku___LogicSanityCheckAsync(
+        int entityId, EntityOperationState operationState, JObject parentJObject, CancellationToken ct)
+    {
+        var all = await operationState.GetAllEntitiesInOperationAsync("product", ct);
+        if (!all.IsSuccessful)
+            return all.ErrorMessage;
+        foreach (var entity in all.Data)
+        {
+            var casted = entity.ToObjectWithPolymorphism<EntityModel<ProductModel>>().NotNull();
+            if (casted.Fields.Sku == Sku && casted.Id != entityId)
+                return "SKU must be unique.";
+        }
+        return null; // pass
+    }
+}
+```
+
+> ⚠️ **Always use `ToObjectWithPolymorphism` when iterating entities.** Two reasons:
+>
+> 1. **JObject structure** — `GetAllEntitiesInOperationAsync` returns raw `JObject` values. User-defined fields are nested under a `fields` key, not at the JObject root:
+>    ```json
+>    { "id": 42, "slug": "...", "title": {...}, "fields": { "sku": "ABC-123" } }
+>    ```
+>    `e["sku"]` would return `null` — the field is at `e["fields"]["sku"]`.
+>
+> 2. **Polymorphism** — The framework serializes entities with `TypeNameHandling.All`, embedding `$type` metadata so nested sub-models (Groups, Repeater items, etc.) retain their concrete type information. Plain `ToObject<T>()` ignores this metadata and deserializes everything to the **declared base type**, silently dropping all custom fields on nested objects.
+>
+> `ToObjectWithPolymorphism` preserves the type graph: every nested `BaseModel` subclass deserializes to its actual concrete type with all custom properties intact.
+>
+> **Correct pattern:**
+> ```csharp
+> var casted = entity.ToObjectWithPolymorphism<EntityModel<ProductModel>>().NotNull();
+> // casted.Fields.Sku, casted.Id, etc.
+> ```
+
+**Key distinction from lifecycle hooks:**
+
+| Pattern | Where defined | Purpose |
+|---------|--------------|---------|
+| `___` convention methods | On the **entity model class** itself | Field-level: choices, defaults, validation |
+| `PostCreateHook` / `PostUpdateHook` / `PostDeleteHook` | In `RfBuilder.cs` via `EntityOnChangedHooksSetup` | Entity-level: fire-and-forget side effects after save (logging, recalculating related entities). These run **after** the entity is persisted and sanity checks have passed |
+
 ### Admin Panel (Frontend)
 
 - **Auto-save** — Debounced saves with toast notifications
@@ -192,6 +280,7 @@ createReflectiveFormsApp({
 - **Searchable selects** — Filterable dropdowns for relations and large choice sets
 - **Read-only view** — Public entity view with metadata, grid layouts, resolved relations
 - **View-only mode** — Entities flagged `SupportsFrontendEdit = false` redirect to view page
+- **Hidden from navigation** — Entities flagged `ShowInNavigation = false` are hidden from the sidebar and dashboard; still fully accessible via direct URL and API
 - **System-managed entity protection** — System-managed entities (root user, Owner role, sharing admin roles) display a "System" badge, hide edit/delete/clone actions, and redirect edit URLs to the view page
 - **Depth-aware nesting** — Nested fields render without redundant card wrappers
 - **Branding** — Configurable app name, logo, primary color via CSS variable
@@ -544,6 +633,7 @@ new EntityConfigurationBuilder<ProjectModel>
     HasParentChildRelationship = false,
     RequireGlobalTitleUniqueness = false,
     OptionalTitleSanityCheck = null,
+    ShowInNavigation = true, // Set false to hide from sidebar & dashboard
     HasIndividualSharing = true,
     CustomFrontendListRoute = "/projects",
 }

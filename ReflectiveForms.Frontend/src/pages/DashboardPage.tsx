@@ -32,7 +32,7 @@ export function DashboardPage() {
   }
 
   const entityTypes = Object.values(schemas ?? {}).filter(
-    (s) => !s.features.has_individual_sharing && (!capabilities || capabilities[s.entity_name]?.can_peek_all)
+    (s) => !s.features.has_individual_sharing && (s.features as any).show_in_navigation !== false && (!capabilities || capabilities[s.entity_name]?.can_peek_all)
   );
   const editableTypes = entityTypes.filter((s) => s.features.supports_frontend_edit);
 

@@ -20,7 +20,7 @@ var rfLogger = loggerFactory.CreateLogger<Program>();
 
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.Listen(IPAddress.Loopback, 9000);
+    options.Listen(IPAddress.Any, 9000);
 });
 
 // Build the app with reflective fields

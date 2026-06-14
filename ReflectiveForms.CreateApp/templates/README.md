@@ -92,6 +92,7 @@ new EntityConfigurationBuilder<TaskModel>
     HasParentChildRelationship = false,
     RequireGlobalTitleUniqueness = false,
     OptionalTitleSanityCheck = null,
+    ShowInNavigation = true,
 }
 ```
 

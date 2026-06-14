@@ -60,6 +60,9 @@ public class EntityFeatures
     [JsonProperty("supports_frontend_edit")]
     public bool SupportsFrontendEdit { get; init; }
 
+    [JsonProperty("show_in_navigation")]
+    public bool ShowInNavigation { get; init; } = true;
+
     [JsonProperty("has_individual_sharing")]
     public bool HasIndividualSharing { get; init; }
 

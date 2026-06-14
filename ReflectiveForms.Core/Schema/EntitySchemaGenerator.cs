@@ -52,6 +52,7 @@ public static class EntitySchemaGenerator
                 HasParentChild = config.HasParentChildRelationship,
                 RequireTitleUniqueness = config.RequireGlobalTitleUniqueness,
                 SupportsFrontendEdit = config.SupportsFrontendEdit,
+                ShowInNavigation = config.ShowInNavigation,
                 HasIndividualSharing = config.HasIndividualSharing,
                 CustomFrontendListRoute = config.CustomFrontendListRoute,
                 SupportsSemanticSearch = config.SupportsSemanticSearch && RfConfiguration.AiServiceConfiguration != null,

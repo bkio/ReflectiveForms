@@ -8,7 +8,7 @@ const mockSchemas: Record<string, EntitySchema> = {
   employee: {
     entity_name: 'employee',
     readable_name: { singular: 'Employee', plural: 'Employees' },
-    features: { has_tags: false, has_categories: false, has_author: false, has_parent_child: false, require_title_uniqueness: false, supports_frontend_edit: true, has_individual_sharing: false, supports_semantic_search: false, supports_ai_generation: false, supports_ai_diff_summary: false, supports_natural_language_filter: false },
+    features: { has_tags: false, has_categories: false, has_author: false, has_parent_child: false, require_title_uniqueness: false, supports_frontend_edit: true, show_in_navigation: true, has_individual_sharing: false, supports_semantic_search: false, supports_ai_generation: false, supports_ai_diff_summary: false, supports_natural_language_filter: false },
     fields: [
       { name: 'name', type: 'Text', label: 'Full Name', required: true, has_dynamic_choices_runtime: false, has_dynamic_choices_compile_time: false, has_logic_sanity_check: false },
       { name: 'email', type: 'Email', label: 'Email Address', required: true, has_dynamic_choices_runtime: false, has_dynamic_choices_compile_time: false, has_logic_sanity_check: false },
@@ -20,7 +20,7 @@ const mockSchemas: Record<string, EntitySchema> = {
   department: {
     entity_name: 'department',
     readable_name: { singular: 'Department', plural: 'Departments' },
-    features: { has_tags: false, has_categories: false, has_author: false, has_parent_child: false, require_title_uniqueness: false, supports_frontend_edit: true, has_individual_sharing: false, supports_semantic_search: false, supports_ai_generation: false, supports_ai_diff_summary: false, supports_natural_language_filter: false },
+    features: { has_tags: false, has_categories: false, has_author: false, has_parent_child: false, require_title_uniqueness: false, supports_frontend_edit: true, show_in_navigation: true, has_individual_sharing: false, supports_semantic_search: false, supports_ai_generation: false, supports_ai_diff_summary: false, supports_natural_language_filter: false },
     fields: [
       { name: 'dept_name', type: 'Text', label: 'Department Name', required: true, has_dynamic_choices_runtime: false, has_dynamic_choices_compile_time: false, has_logic_sanity_check: false },
       { name: 'budget', type: 'Number', label: 'Budget', required: false, has_dynamic_choices_runtime: false, has_dynamic_choices_compile_time: false, has_logic_sanity_check: false },
@@ -31,7 +31,7 @@ const mockSchemas: Record<string, EntitySchema> = {
   'rf-sheets': {
     entity_name: 'rf-sheets',
     readable_name: { singular: 'Sheet', plural: 'Sheets' },
-    features: { has_tags: false, has_categories: false, has_author: false, has_parent_child: false, require_title_uniqueness: false, supports_frontend_edit: true, has_individual_sharing: false, supports_semantic_search: false, supports_ai_generation: false, supports_ai_diff_summary: false, supports_natural_language_filter: false },
+    features: { has_tags: false, has_categories: false, has_author: false, has_parent_child: false, require_title_uniqueness: false, supports_frontend_edit: true, show_in_navigation: true, has_individual_sharing: false, supports_semantic_search: false, supports_ai_generation: false, supports_ai_diff_summary: false, supports_natural_language_filter: false },
     fields: [],
     api_endpoints: { crud: '', sanity_check: '', entity_lock: '', media: '' },
     schema_version: '1.0',

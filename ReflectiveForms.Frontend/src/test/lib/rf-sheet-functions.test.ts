@@ -423,6 +423,7 @@ describe('registerRfFormulas', () => {
           features: {
             has_author: false, has_tags: false, has_categories: false,
             has_parent_child: false, require_title_uniqueness: false, supports_frontend_edit: true,
+            show_in_navigation: true,
             has_individual_sharing: false, supports_semantic_search: false, supports_ai_generation: false, supports_ai_diff_summary: false, supports_natural_language_filter: false,
           },
           fields: [

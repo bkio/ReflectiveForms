@@ -208,6 +208,7 @@ describe('getFieldSchema', () => {
         has_parent_child: false,
         require_title_uniqueness: false,
         supports_frontend_edit: true,
+        show_in_navigation: true,
         has_individual_sharing: false,
         supports_semantic_search: false,
         supports_ai_generation: false,

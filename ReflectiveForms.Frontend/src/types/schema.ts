@@ -22,6 +22,7 @@ export interface EntityFeatures {
   has_parent_child: boolean;
   require_title_uniqueness: boolean;
   supports_frontend_edit: boolean;
+  show_in_navigation: boolean;
   has_individual_sharing: boolean;
   custom_frontend_list_route?: string | null;
   supports_semantic_search: boolean;

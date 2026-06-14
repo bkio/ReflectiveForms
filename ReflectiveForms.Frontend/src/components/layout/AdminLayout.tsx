@@ -99,7 +99,7 @@ export function AdminLayout() {
   }, []);
 
   const entityTypes = Object.values(schemas ?? {}).filter(
-    (s) => !s.features.has_individual_sharing && (!capabilitiesLoaded || capabilities?.[s.entity_name]?.can_peek_all)
+    (s) => !s.features.has_individual_sharing && (s.features as any).show_in_navigation !== false && (!capabilitiesLoaded || capabilities?.[s.entity_name]?.can_peek_all)
   );
 
   // AI: check if any entity supports semantic search and user can peek it

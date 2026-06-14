@@ -125,7 +125,7 @@ This sample registers **6 custom entity types** plus the **6 built-in reserved e
 | Dynamic choices | Compile-time (year list) and Runtime (JavaScript-based, dependent on other fields) || Dynamic defaults | `DynamicDefaultValueAsync` — work start date defaults to today || Custom validation | `LogicSanityCheckAsync` — ensures root cause uniqueness across all objectives |
 | Title sanity check | Rejects "Forbidden title example" |
 | Entity hooks | PostCreate, PostUpdate, PostDelete (logging) |
-| Config | HasAuthor ✓, HasTags ✓, HasCategories ✓, HasParent ✓, TitleUnique ✓ |
+| Config | HasAuthor ✓, HasTags ✓, HasCategories ✓, HasParent ✓, TitleUnique ✓, ShowInNavigation ✓ |
 | AI | SupportsSemanticSearch ✓, SupportsAiGeneration ✓, SupportsAiDiffSummary ✓, SupportsNaturalLanguageFilter ✓ |
 
 ### 2. Blog Posts
@@ -140,7 +140,7 @@ This sample registers **6 custom entity types** plus the **6 built-in reserved e
 | Dynamic choices | `DynamicChoicesCompileTimeAsync` for publication year |
 | Custom validation | `LogicSanityCheckAsync` — ensures URL slug uniqueness |
 | Entity hooks | PostCreate, PostUpdate, PostDelete (logging) |
-| Config | HasAuthor ✓, HasTags ✓, HasCategories ✓, HasParent ✗, TitleUnique ✓ |
+| Config | HasAuthor ✓, HasTags ✓, HasCategories ✓, HasParent ✗, TitleUnique ✓, ShowInNavigation ✓ |
 | AI | SupportsSemanticSearch ✓, SupportsAiGeneration ✓, SupportsAiDiffSummary ✓, SupportsNaturalLanguageFilter ✓ |
 
 ### 3. Team Members
@@ -154,7 +154,7 @@ This sample registers **6 custom entity types** plus the **6 built-in reserved e
 | Repeater #2 | Emergency Contacts (min: 1, max: 3, `Grid2ElementsInRow`, no accordion) |
 | Relation | Links to `blog-post` entity |
 | DisplayCondition | Office address only visible when `is_remote == false` |
-| Config | HasAuthor ✗, HasTags ✗, HasCategories ✗, HasParent ✗, TitleUnique ✓ |
+| Config | HasAuthor ✗, HasTags ✗, HasCategories ✗, HasParent ✗, TitleUnique ✓, ShowInNavigation ✓ |
 | AI | SupportsSemanticSearch ✓ |
 
 ### 4. Products (E-Commerce)
@@ -170,7 +170,7 @@ This sample registers **6 custom entity types** plus the **6 built-in reserved e
 | DisplayCondition | `weight_kg` only visible when `is_digital == false` |
 | Relation | Links to `team-member` entity |
 | Entity hooks | PostCreate only |
-| Config | HasAuthor ✓, HasTags ✓, HasCategories ✓, HasParent ✓, TitleUnique ✗ |
+| Config | HasAuthor ✓, HasTags ✓, HasCategories ✓, HasParent ✓, TitleUnique ✗, ShowInNavigation ✓ |
 | AI | SupportsSemanticSearch ✓ |
 
 ### 5. Events
@@ -183,7 +183,7 @@ This sample registers **6 custom entity types** plus the **6 built-in reserved e
 | Repeater #1 | Sessions/Agenda (full layout, accordion) — contains Text, Email, DatePicker, Number, Select, TextArea |
 | Repeater #2 | Sponsors (min: 0, max: 30, `Grid2ElementsInRow`, no accordion) — contains MediaSourceBase64 |
 | DisplayCondition | `meeting_url` visible when `is_online == true`; `venue` visible when `is_online == false` || Dynamic defaults | `DynamicDefaultValueAsync` — start date defaults to today, end date to tomorrow || Relation | Links to `team-member` entity |
-| Config | HasAuthor ✓, HasTags ✗, HasCategories ✓, HasParent ✗, TitleUnique ✗ |
+| Config | HasAuthor ✓, HasTags ✗, HasCategories ✓, HasParent ✗, TitleUnique ✗, ShowInNavigation ✓ |
 
 ### 6. Surveys
 > `EntityName: "survey"` — A 3-level nested repeater model demonstrating deep nesting.
@@ -194,7 +194,7 @@ This sample registers **6 custom entity types** plus the **6 built-in reserved e
 | 3-level Repeater nesting | Survey → Sections → Questions → Choices |
 | DisplayCondition at every level | `passing_score` visible when `has_scoring == true`, `choices` visible when `question_type == choice`, `help_text` when `is_required == true` |
 | Repeater constraints | Sections (1–10), Questions (1–20), Choices (2–8) |
-| Config | HasAuthor ✓, HasTags ✗, HasCategories ✗, HasParent ✗, TitleUnique ✗ |
+| Config | HasAuthor ✓, HasTags ✗, HasCategories ✗, HasParent ✗, TitleUnique ✗, ShowInNavigation ✗ |
 | AI | SupportsAiDiffSummary ✓ |
 
 ---
@@ -311,6 +311,7 @@ new EntityConfigurationBuilder<YourModel>
     HasParentChildRelationship = true,                    // Enables parent-child hierarchy
     RequireGlobalTitleUniqueness = true,                  // Enforces unique titles
     OptionalTitleSanityCheck = async title => ...,        // Custom title validation
+    ShowInNavigation = true,                                 // Hide from sidebar & dashboard when false
     HasIndividualSharing = false,                         // Per-entity sharing (see below)
     CustomFrontendListRoute = null,                       // Custom sidebar route for sharing entities
     EntityDescription = "...",                             // What this entity is (required when AI enabled)
@@ -581,6 +582,7 @@ EntityTypes =
         HasParentChildRelationship = false,
         RequireGlobalTitleUniqueness = true,
         OptionalTitleSanityCheck = null,
+        ShowInNavigation = true,
         HooksSetup = null
     }
 ]
@@ -659,6 +661,8 @@ All 14 field types and their constructor parameters:
 
 ### Custom Validation with LogicSanityCheckAsync
 
+> ⚠️ **This is a naming convention method on the entity model class, NOT a lifecycle hook.** It is discovered by reflection via the `{FieldName}___LogicSanityCheckAsync` name pattern. It runs **before** the entity is saved and can reject the save by returning an error string. Do not confuse this with `PostUpdateHook`, which is a fire-and-forget callback that runs **after** the save is committed.
+
 Add a method named `{FieldName}___LogicSanityCheckAsync` next to the field:
 
 ```csharp
@@ -685,7 +689,22 @@ public async Task<string?> MyField___LogicSanityCheckAsync(
 }
 ```
 
+> ⚠️ **Always use `ToObjectWithPolymorphism` when iterating over other entities.** Two reasons:
+>
+> 1. **JObject structure** — `GetAllEntitiesInOperationAsync` returns raw `JObject` values structured as `{ id, title, fields: { ... } }`. User-defined fields are nested under `fields` — `e["my_field"]` would be `null`.
+>
+> 2. **Polymorphism** — Entities are serialized with `TypeNameHandling.All`, embedding `$type` metadata so nested sub-models (Groups, Repeater items, etc.) retain their concrete types. Plain `ToObject<T>()` ignores this and deserializes nested objects to their **declared base type**, silently dropping all custom fields.
+>
+> `ToObjectWithPolymorphism` preserves the type graph so every nested `BaseModel` subclass deserializes correctly.
+>
+> ```csharp
+> var casted = entity.ToObjectWithPolymorphism<EntityModel<MyModel>>().NotNull();
+> // Access fields: casted.Fields.MyField, casted.Id
+> ```
+
 ### Dynamic Dropdown Choices
+
+> ⚠️ **These are naming convention methods on the entity model class, NOT lifecycle hooks.** They are discovered by reflection: `{FieldName}___DynamicChoicesCompileTimeAsync` or `{FieldName}___DynamicChoicesRuntimeAsync`. Do not confuse these with `PostCreateHook`/`PostUpdateHook`, which run after save.
 
 #### Compile-Time Dynamic Choices
 
@@ -729,6 +748,8 @@ public Task<string> Subcategory___DynamicChoicesRuntimeAsync(CancellationToken c
 
 ### Dynamic Default Values
 
+> ⚠️ **This is a naming convention method on the entity model class, NOT a lifecycle hook.** It is discovered by reflection via the `{FieldName}___DynamicDefaultValueAsync` name pattern. It runs at schema generation time and for new-form pre-fill. Do not confuse this with `PostCreateHook`, which is a fire-and-forget callback that runs after save.
+
 Compute field default values at runtime via async C# methods. The method naming convention is `{FieldName}___DynamicDefaultValueAsync`:
 
 ```csharp
@@ -736,26 +757,35 @@ Compute field default values at runtime via async C# methods. The method naming 
  DatePicker(label: "Start Date", instructions: "When the event starts.", mandatory: true, dateFormat: "yyyyMMdd")]
 public string StartDate = "";
 
-public static Task<string> StartDate___DynamicDefaultValueAsync(CancellationToken ct)
+public Task<object?> StartDate___DynamicDefaultValueAsync(CancellationToken ct)
 {
     // Default to today's date in the field's date format
-    return Task.FromResult(DateTime.UtcNow.ToString("yyyyMMdd"));
+    return Task.FromResult<object?>(DateTime.UtcNow.ToString("yyyyMMdd"));
 }
 
 [JsonProperty("end_date"),
  DatePicker(label: "End Date", instructions: "When the event ends.", mandatory: true, dateFormat: "yyyyMMdd")]
 public string EndDate = "";
 
-public static Task<string> EndDate___DynamicDefaultValueAsync(CancellationToken ct)
+public Task<object?> EndDate___DynamicDefaultValueAsync(CancellationToken ct)
 {
     // Default to tomorrow
-    return Task.FromResult(DateTime.UtcNow.AddDays(1).ToString("yyyyMMdd"));
+    return Task.FromResult<object?>(DateTime.UtcNow.AddDays(1).ToString("yyyyMMdd"));
 }
 ```
 
 The dynamic default value overrides the static `defaultValue` in the attribute. The schema generator invokes these methods at schema compilation time and includes the computed value in the JSON schema, which the frontend uses to pre-fill new entity forms.
 
 ### Lifecycle Hooks
+
+> ⚠️ **Lifecycle hooks are fire-and-forget callbacks — they run AFTER the entity is saved.** They are configured in `RfBuilder.cs` via `EntityOnChangedHooksSetup`, NOT via naming conventions on the model class.
+>
+> **Do NOT use lifecycle hooks for:**
+> - Validation (use `___LogicSanityCheckAsync` on the model class)
+> - Dynamic dropdown choices (use `___DynamicChoicesCompileTimeAsync` or `___DynamicChoicesRuntimeAsync`)
+> - Dynamic default values (use `___DynamicDefaultValueAsync`)
+>
+> **Use lifecycle hooks for:** logging, recalculating related entities, sending notifications, or any other side effect that should happen after a successful save. If you need to update the entity itself from a hook, you must call `UpdaterIdentity.DuringHookCallUpdate()` to avoid infinite recursion.
 
 React to entity CRUD operations with hooks:
 

@@ -1,7 +1,9 @@
 import type { RfConfig } from '@reflective-forms/frontend';
 
 export const config: RfConfig = {
-  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:{{BACKEND_PORT}}/rf/api',
+  // Relative path → Vite proxy handles forwarding to the backend in dev.
+  // In production, set VITE_API_BASE_URL to your actual API URL (e.g. https://example.com/rf/api).
+  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || '/rf/api',
   appName: '{{APP_NAME}}',
   primaryColor: '{{PRIMARY_COLOR}}',
   // logo: '/logo.svg',

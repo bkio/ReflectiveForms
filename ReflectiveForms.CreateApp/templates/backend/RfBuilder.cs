@@ -60,6 +60,7 @@ public static class RfBuilder
                     HasParentChildRelationship = false,
                     RequireGlobalTitleUniqueness = true,
                     OptionalTitleSanityCheck = null,
+                    // ShowInNavigation = true, // Set false to hide from sidebar & dashboard
                     // HasIndividualSharing = false, // Per-entity access control (requires HasAuthor = true)
                     // CustomFrontendListRoute = null, // Custom sidebar link for sharing entities
                     // HooksSetup = new EntityOnChangedHooksSetup<NoteModel>

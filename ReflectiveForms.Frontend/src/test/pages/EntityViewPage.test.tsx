@@ -25,6 +25,7 @@ const mockSchema = {
     has_parent_child: false,
     require_title_uniqueness: false,
     supports_frontend_edit: true,
+    show_in_navigation: true,
   },
   fields: [
     {

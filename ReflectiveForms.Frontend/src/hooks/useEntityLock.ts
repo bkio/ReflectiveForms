@@ -7,6 +7,21 @@ const DEFAULT_INACTIVITY_TIMEOUT = 600000; // Lock expires after 10 minutes of n
 const TAB_ID_KEY = '__rf_tab_id';
 
 /**
+ * Generate a UUID v4. Uses crypto.randomUUID() in secure contexts
+ * (HTTPS / localhost), falls back to Math.random() otherwise.
+ */
+function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  // Fallback for insecure contexts (e.g. HTTP non-localhost)
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
+/**
  * Get or create a unique tab identifier.
  * Uses sessionStorage which is scoped per browser tab — different tabs get
  * different storage even for the same origin. The value survives page
@@ -17,13 +32,13 @@ function getTabId(): string {
   try {
     let id = sessionStorage.getItem(TAB_ID_KEY);
     if (!id) {
-      id = crypto.randomUUID();
+      id = generateUUID();
       sessionStorage.setItem(TAB_ID_KEY, id);
     }
     return id;
   } catch {
     // sessionStorage unavailable (SSR, iframe sandbox) — fall back to in-memory
-    return crypto.randomUUID();
+    return generateUUID();
   }
 }
 

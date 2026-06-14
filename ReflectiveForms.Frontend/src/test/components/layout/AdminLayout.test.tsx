@@ -54,6 +54,7 @@ describe('AdminLayout', () => {
       readable_name: { singular: 'Article', plural: 'Articles' },
       features: {
         supports_frontend_edit: true,
+        show_in_navigation: true,
         has_author: false,
         has_tags: false,
         has_categories: false,
@@ -67,6 +68,7 @@ describe('AdminLayout', () => {
       readable_name: { singular: 'Page', plural: 'Pages' },
       features: {
         supports_frontend_edit: true,
+        show_in_navigation: true,
         has_author: false,
         has_tags: false,
         has_categories: false,
@@ -160,6 +162,7 @@ describe('AdminLayout', () => {
         readable_name: { singular: 'ViewOnly', plural: 'View Only Entities' },
         features: {
           supports_frontend_edit: false,
+          show_in_navigation: true,
           has_author: false,
           has_tags: false,
           has_categories: false,
@@ -182,6 +185,43 @@ describe('AdminLayout', () => {
       expect(screen.getByText('Articles')).toBeInTheDocument();
       expect(screen.getByText('View Only Entities')).toBeInTheDocument();
     });
+  });
+
+  it('should hide entities with show_in_navigation=false from sidebar', async () => {
+    const schemasWithHidden = {
+      ...mockSchemas,
+      HiddenEntity: {
+        entity_name: 'HiddenEntity',
+        readable_name: { singular: 'Hidden', plural: 'Hidden Entities' },
+        features: {
+          supports_frontend_edit: true,
+          show_in_navigation: false,
+          has_author: false,
+          has_tags: false,
+          has_categories: false,
+          has_parent_child: false,
+          require_title_uniqueness: false,
+        },
+        fields: [],
+      },
+    };
+
+    vi.mocked(useEntityModule.useAllSchemas).mockReturnValue({
+      data: schemasWithHidden,
+      isLoading: false,
+      error: null,
+    } as any);
+
+    renderWithProviders(<AdminLayout />);
+
+    await waitFor(() => {
+      // Visible entities should still appear
+      expect(screen.getByText('Articles')).toBeInTheDocument();
+      expect(screen.getByText('Pages')).toBeInTheDocument();
+    });
+
+    // Hidden entity should NOT appear in the sidebar
+    expect(screen.queryByText('Hidden Entities')).not.toBeInTheDocument();
   });
 
   it('should toggle mobile menu', async () => {

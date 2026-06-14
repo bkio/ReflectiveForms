@@ -66,6 +66,13 @@ public abstract class EntityConfigurationBuilderBase
     public required bool RequireGlobalTitleUniqueness { get; init; }
 
     /// <summary>
+    /// When false, this entity type is hidden from the sidebar navigation and dashboard.
+    /// Direct URL access and all CRUD operations remain fully functional.
+    /// Defaults to true (visible).
+    /// </summary>
+    public bool ShowInNavigation { get; init; } = true;
+
+    /// <summary>
     /// An optional delegate that defines a custom sanity check for an entity's title during update/create operations.
     /// </summary>
     public required Func<TitleRenderedModel, Task<bool>>? OptionalTitleSanityCheck { get; init; }

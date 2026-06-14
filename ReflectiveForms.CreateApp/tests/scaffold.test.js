@@ -1947,7 +1947,8 @@ describe('cross-file API endpoint consistency', () => {
 
   it('rf.config.ts uses correct port and /rf/api path', () => {
     const config = fs.readFileSync(path.join(EP_DIR, 'frontend', 'src', 'rf.config.ts'), 'utf-8');
-    assert.ok(config.includes("'http://localhost:7777/rf/api'"), 'correct URL');
+    assert.ok(config.includes("'/rf/api'"), 'relative /rf/api default');
+    assert.ok(config.includes('VITE_API_BASE_URL'), 'uses VITE_API_BASE_URL env var');
   });
 
   it('rf.config.ts API base URL has no trailing slash', () => {
