@@ -7,6 +7,7 @@ import { useAiAssistantOptional } from '../lib/AiAssistantContext';
 export function DashboardPage() {
   const { data: schemas, isLoading, error } = useAllSchemas();
   const { data: capabilities } = useCapabilities();
+  const settings = useGlobalSettings(); // Must be BEFORE early returns (React hooks rule)
 
   // Push context to AI assistant
   const assistant = useAiAssistantOptional();
@@ -31,7 +32,6 @@ export function DashboardPage() {
     );
   }
 
-  const settings = useGlobalSettings();
   const hiddenReserved = new Set(settings.reserved_entity_types_to_hide_in_navigation ?? []);
 
   const entityTypes = Object.values(schemas ?? {}).filter(

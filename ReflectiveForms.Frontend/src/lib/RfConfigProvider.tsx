@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect } from 'react';
 import type { RfConfig } from './types';
 import { setApiBaseUrl, setAiBaseUrl, setAiDisabled } from '../api/client';
 
-export const RfConfigContext = createContext<RfConfig | null>(null);
+const RfConfigContext = createContext<RfConfig | null>(null);
 
 export function useRfConfig(): RfConfig {
   const config = useContext(RfConfigContext);

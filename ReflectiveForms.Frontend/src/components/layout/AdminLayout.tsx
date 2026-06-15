@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo, useCallback, useContext } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, Outlet, useParams, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X, ChevronRight, Home, Sun, Moon, LogOut, FileText, Settings, Search, Sparkles } from 'lucide-react';
 import { useAllSchemas, useCapabilities, useGlobalSettings } from '../../hooks/useEntity';
-import { RfConfigContext } from '../../lib/RfConfigProvider';
-import { AuthContext } from '../../hooks/useAuth';
+import { useRfConfig } from '../../lib/RfConfigProvider';
+import { useAuth } from '../../hooks/useAuth';
 import { AiGlobalSearch } from '../ai/AiGlobalSearch';
 import { AiAgentChat } from '../ai/AiAgentChat';
 import { AiAssistantProvider, useAiAssistant } from '../../lib/AiAssistantContext';
@@ -37,10 +37,21 @@ export function AdminLayout() {
   const { data: capabilities, isSuccess: capabilitiesLoaded } = useCapabilities();
   const isLoading = schemasLoading;
 
-  // Use context directly (not try/catch around hooks — that corrupts React's
-  // hook cursor and causes "Rendered more hooks than during the previous render")
-  const auth = useContext(AuthContext);
-  const config = useContext(RfConfigContext);
+  // Auth
+  let auth: ReturnType<typeof useAuth> | null = null;
+  try {
+    auth = useAuth();
+  } catch {
+    // Not wrapped in AuthProvider
+  }
+
+  // Read config — may be absent if AdminLayout is used outside RfConfigProvider
+  let config: ReturnType<typeof useRfConfig> | null = null;
+  try {
+    config = useRfConfig();
+  } catch {
+    // Not wrapped in RfConfigProvider — use defaults
+  }
 
   const appName = config?.appName ?? 'ReflectiveForms';
   const Logo = config?.logo;

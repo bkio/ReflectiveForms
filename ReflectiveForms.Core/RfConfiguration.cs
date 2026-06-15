@@ -22,30 +22,25 @@ public static class RfConfiguration
         {
             try
             {
-                // Validate AI flags: if any entity has AI features enabled, AiServiceConfiguration must be set
+                // When AiServiceConfiguration is null, AI features are silently disabled.
+                // This matches the documented behavior on RfConfigurationBuilder.
                 var aiConfig = configurationBuilder.AiServiceConfiguration;
-                foreach (var entityConfig in configurationBuilder.EntityConfigurations!)
+                if (aiConfig != null)
                 {
-                    var ec = entityConfig.EntityConfiguration;
-                    var hasAnyAiFeature = ec.SupportsSemanticSearch || ec.SupportsAiGeneration ||
-                                          ec.SupportsAiDiffSummary || ec.SupportsNaturalLanguageFilter;
-
-                    if (hasAnyAiFeature && aiConfig == null)
+                    foreach (var entityConfig in configurationBuilder.EntityConfigurations!)
                     {
-                        _initialized = false;
-                        return OperationResult<bool>.Failure(
-                            $"Entity '{ec.EntityName}' has AI features enabled but AiServiceConfiguration is null on RfConfigurationBuilder. " +
-                            "Either disable AI features on this entity or provide an AiServiceConfiguration.",
-                            HttpStatusCode.BadRequest);
-                    }
+                        var ec = entityConfig.EntityConfiguration;
+                        var hasAnyAiFeature = ec.SupportsSemanticSearch || ec.SupportsAiGeneration ||
+                                              ec.SupportsAiDiffSummary || ec.SupportsNaturalLanguageFilter;
 
-                    if (hasAnyAiFeature && string.IsNullOrWhiteSpace(ec.EntityDescription))
-                    {
-                        _initialized = false;
-                        return OperationResult<bool>.Failure(
-                            $"Entity '{ec.EntityName}' has AI features enabled but EntityDescription is not set. " +
-                            "Provide a short description of what this entity type represents so the LLM has context.",
-                            HttpStatusCode.BadRequest);
+                        if (hasAnyAiFeature && string.IsNullOrWhiteSpace(ec.EntityDescription))
+                        {
+                            _initialized = false;
+                            return OperationResult<bool>.Failure(
+                                $"Entity '{ec.EntityName}' has AI features enabled but EntityDescription is not set. " +
+                                "Provide a short description of what this entity type represents so the LLM has context.",
+                                HttpStatusCode.BadRequest);
+                        }
                     }
                 }
 
