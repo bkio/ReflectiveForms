@@ -45,6 +45,8 @@ export type AllCapabilities = Record<string, EntityCapabilities>;
 export interface GlobalSettings {
   edit_inactivity_timeout_ms?: number;
   sheets_enabled?: boolean;
+  /** Lowercase entity names of reserved types to hide from navigation. e.g. ["tags", "categories"] */
+  reserved_entity_types_to_hide_in_navigation?: string[];
 }
 
 export interface ApiEndpoints {

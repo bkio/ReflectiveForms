@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, Outlet, useParams, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X, ChevronRight, Home, Sun, Moon, LogOut, FileText, Settings, Search, Sparkles } from 'lucide-react';
-import { useAllSchemas, useCapabilities } from '../../hooks/useEntity';
+import { useAllSchemas, useCapabilities, useGlobalSettings } from '../../hooks/useEntity';
 import { useRfConfig } from '../../lib/RfConfigProvider';
 import { useAuth } from '../../hooks/useAuth';
 import { AiGlobalSearch } from '../ai/AiGlobalSearch';
@@ -98,8 +98,14 @@ export function AdminLayout() {
     }
   }, []);
 
+  const settings = useGlobalSettings();
+  const hiddenReserved = new Set(settings.reserved_entity_types_to_hide_in_navigation ?? []);
+
   const entityTypes = Object.values(schemas ?? {}).filter(
-    (s) => !s.features.has_individual_sharing && (s.features as any).show_in_navigation !== false && (!capabilitiesLoaded || capabilities?.[s.entity_name]?.can_peek_all)
+    (s) => !s.features.has_individual_sharing
+      && (s.features as any).show_in_navigation !== false
+      && !hiddenReserved.has(s.entity_name)
+      && (!capabilitiesLoaded || capabilities?.[s.entity_name]?.can_peek_all)
   );
 
   // AI: check if any entity supports semantic search and user can peek it

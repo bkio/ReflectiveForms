@@ -129,6 +129,11 @@ public static class RfConfiguration
     /// </summary>
     public static int EditInactivityTimeoutMs => _configuration?.EditInactivityTimeoutMs ?? 600_000;
 
+    /// <summary>
+    /// Reserved entity types to hide from the frontend sidebar navigation and dashboard.
+    /// </summary>
+    public static IReadOnlyList<ReservedEntityType>? ReservedEntityTypesToHideInNavigation => _configuration?.ReservedEntityTypesToHideInNavigation;
+
     internal static RootUserCredentials RootUserCredentials => _configuration.NotNull().RootUserCredentials;
 
     internal static void LogInfo(string message)

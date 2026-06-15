@@ -281,6 +281,7 @@ public class ProductModel : EntityFieldsModel
 - **Read-only view** — Public entity view with metadata, grid layouts, resolved relations
 - **View-only mode** — Entities flagged `SupportsFrontendEdit = false` redirect to view page
 - **Hidden from navigation** — Entities flagged `ShowInNavigation = false` are hidden from the sidebar and dashboard; still fully accessible via direct URL and API
+- **Hide reserved entity types** — Set `ReservedEntityTypesToHideInNavigation` on `RfConfigurationBuilder` to hide built-in types (Tags, Categories, Media, Users, IamRoles) from the sidebar and dashboard. All visible by default. Example: `ReservedEntityTypesToHideInNavigation = [ReservedEntityType.Tags, ReservedEntityType.Categories]`
 - **System-managed entity protection** — System-managed entities (root user, Owner role, sharing admin roles) display a "System" badge, hide edit/delete/clone actions, and redirect edit URLs to the view page
 - **Depth-aware nesting** — Nested fields render without redundant card wrappers
 - **Branding** — Configurable app name, logo, primary color via CSS variable
@@ -306,6 +307,7 @@ public class ProductModel : EntityFieldsModel
 | `SheetsEnabled` | No | `true` | Enable/disable the built-in RF Sheets spreadsheet system. When `false`, the `rf-sheets` entity is not registered, sheet routes are hidden in the frontend, and AI sheet tools are disabled. |
 | `EntityTypes` | Yes | — | Entity type registrations |
 | `EditInactivityTimeoutMs` | No | `600000` | Inactivity timeout (ms) before a user's edit lock is released and they are redirected to the view page. Also controls the backend lock TTL safety net. |
+| `ReservedEntityTypesToHideInNavigation` | No | `null` | List of built-in reserved entity types to hide from the sidebar and dashboard. Accepts `ReservedEntityType` enum values: `Tags`, `Categories`, `Media`, `Users`, `IamRoles`. All visible when `null`. Example: `[ReservedEntityType.Tags, ReservedEntityType.Categories]` |
 
 ### Backend (`EndpointConfiguration`)
 

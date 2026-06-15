@@ -23,10 +23,12 @@ internal class FrontendSettings : BaseEndpoint
 
     protected override Task<IResult> HandleAsync(HttpContext context, CancellationToken cancellationToken)
     {
+        var hideList = RfConfiguration.ReservedEntityTypesToHideInNavigation;
         var result = new
         {
             edit_inactivity_timeout_ms = RfConfiguration.EditInactivityTimeoutMs,
             sheets_enabled = RfConfiguration.SheetsEnabled,
+            reserved_entity_types_to_hide_in_navigation = hideList?.Select(t => t.ToString().ToLowerInvariant()).ToList()
         };
 
         return Task.FromResult(Results.Ok(result));

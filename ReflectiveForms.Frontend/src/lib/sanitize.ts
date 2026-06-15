@@ -33,17 +33,27 @@ export function sanitizeWysiwygHtml(html: string): string {
     // Allow more tags for rich content
     ALLOWED_TAGS: [
       'a', 'abbr', 'address', 'article', 'aside', 'b', 'bdi', 'bdo',
-      'blockquote', 'br', 'caption', 'cite', 'code', 'col', 'colgroup',
-      'data', 'dd', 'del', 'dfn', 'div', 'dl', 'dt', 'em', 'figcaption',
-      'figure', 'footer', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header',
-      'hr', 'i', 'img', 'ins', 'kbd', 'li', 'main', 'mark', 'nav', 'ol',
-      'p', 'pre', 'q', 'rp', 'rt', 'ruby', 's', 'samp', 'section', 'small',
-      'span', 'strong', 'sub', 'sup', 'table', 'tbody', 'td', 'tfoot',
-      'th', 'thead', 'time', 'tr', 'u', 'ul', 'var', 'wbr',
+      'big', 'blockquote', 'br', 'caption', 'center', 'cite', 'code',
+      'col', 'colgroup', 'data', 'dd', 'del', 'details', 'dfn', 'div',
+      'dl', 'dt', 'em', 'figcaption', 'figure', 'font', 'footer',
+      'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header', 'hr', 'i', 'img',
+      'ins', 'kbd', 'li', 'main', 'mark', 'nav', 'ol', 'p', 'picture',
+      'pre', 'q', 'rp', 'rt', 'ruby', 's', 'samp', 'section', 'small',
+      'source', 'span', 'strong', 'sub', 'summary', 'sup', 'table',
+      'tbody', 'td', 'tfoot', 'th', 'thead', 'time', 'tr', 'tt',
+      'u', 'ul', 'var', 'wbr',
     ],
     ALLOWED_ATTR: [
       'href', 'src', 'alt', 'title', 'class', 'id', 'target', 'rel',
       'width', 'height', 'colspan', 'rowspan', 'datetime',
+      // Legacy HTML presentational attributes (safe, no JS execution)
+      'align', 'bgcolor', 'border', 'bordercolor', 'cellpadding',
+      'cellspacing', 'color', 'face', 'size', 'valign',
+      // Safe global attributes
+      'dir', 'draggable', 'hidden', 'lang', 'spellcheck', 'style',
+      'tabindex', 'title',
+      // Safe element-specific attributes
+      'cite', 'download', 'loading', 'reversed', 'start', 'type',
     ],
     ALLOW_DATA_ATTR: false,
   });

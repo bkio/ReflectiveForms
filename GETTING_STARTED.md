@@ -170,7 +170,7 @@ public static class RfBuilder
 }
 ```
 
-> **Tip:** You can also set `EditInactivityTimeoutMs` on the builder (default: `600000` = 10 minutes) to control how long a user can be idle before their edit lock is released.
+> **Tip:** You can also set `EditInactivityTimeoutMs` on the builder (default: `600000` = 10 minutes) to control how long a user can be idle before their edit lock is released. Set `ReservedEntityTypesToHideInNavigation` to hide built-in types (Tags, Categories, Media, Users, IamRoles) from the sidebar — e.g., `ReservedEntityTypesToHideInNavigation = [ReservedEntityType.Tags]`.
 
 Create `NoteModel.cs`:
 

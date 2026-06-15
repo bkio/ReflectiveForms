@@ -3,7 +3,7 @@ import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { useSchema, useEntity, useEntityList, useCapabilities, useEntityHistory } from '../hooks/useEntity';
 import { useAiAssistantOptional } from '../lib/AiAssistantContext';
 import { FieldSchema, EntitySchema, PeekEntity, GroupRenderStyle } from '../types/schema';
-import { sanitizeHtml } from '../lib/sanitize';
+import { sanitizeWysiwygHtml } from '../lib/sanitize';
 import { evaluateCompoundCondition } from '../lib/conditionParser';
 import { ArrowLeft, Edit, Tag, FolderTree, User, GitBranch, GitCompare, Radio, Lock } from 'lucide-react';
 import { useLiveUpdates } from '../hooks/useLiveUpdates';
@@ -325,7 +325,7 @@ function ReadOnlyValue({ fieldSchema, value, schema, depth = 0, relationLookup =
       return (
         <div
           className="prose prose-sm max-w-none text-gray-900 dark:text-gray-100 dark:prose-invert"
-          dangerouslySetInnerHTML={{ __html: sanitizeHtml(String(value)) }}
+          dangerouslySetInnerHTML={{ __html: sanitizeWysiwygHtml(String(value)) }}
         />
       );
 

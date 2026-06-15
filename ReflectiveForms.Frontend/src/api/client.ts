@@ -362,6 +362,7 @@ export async function fetchCapabilities(): Promise<ApiResponse<AllCapabilities>>
 export interface FrontendSettingsResponse {
   edit_inactivity_timeout_ms?: number;
   sheets_enabled?: boolean;
+  reserved_entity_types_to_hide_in_navigation?: string[];
 }
 
 export async function fetchFrontendSettings(): Promise<ApiResponse<FrontendSettingsResponse>> {

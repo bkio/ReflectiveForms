@@ -17,6 +17,18 @@ using ReflectiveForms.Core.Utilities;
 
 namespace ReflectiveForms.Core;
 
+/// <summary>
+/// Identifies a framework-reserved entity type for configuration purposes.
+/// </summary>
+public enum ReservedEntityType
+{
+    Tags,
+    Categories,
+    Media,
+    Users,
+    IamRoles
+}
+
 public record EntityRepositoryServiceConfiguration(
     IDatabaseService DatabaseService,
     IMemoryService MemoryService,
@@ -72,6 +84,13 @@ public class RfConfigurationBuilder
     /// Set to false to completely remove the sheet system from the application.
     /// </summary>
     public bool SheetsEnabled { get; init; } = true;
+
+    /// <summary>
+    /// Optional. A list of reserved entity types (Tags, Categories, Media, Users, IamRoles)
+    /// to hide from the sidebar navigation and dashboard. All reserved types are visible by default.
+    /// Set to null or an empty list to keep everything visible.
+    /// </summary>
+    public IReadOnlyList<ReservedEntityType>? ReservedEntityTypesToHideInNavigation { get; init; }
 
     public required IReadOnlyList<EntityConfigurationBuilderBase> EntityTypes
     {

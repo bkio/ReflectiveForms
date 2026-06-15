@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { useSchema, useEntity, useEntityHistory, useEntityList, useCapabilities } from '../hooks/useEntity';
 import { RevisionEntry, FieldSchema, EntitySchema, EntityData } from '../types/schema';
-import { sanitizeHtml } from '../lib/sanitize';
+import { sanitizeWysiwygHtml } from '../lib/sanitize';
 import { evaluateCompoundCondition } from '../lib/conditionParser';
 import { ArrowLeft, ChevronDown, Search } from 'lucide-react';
 import { AiDiffSummary } from '../components/ai/AiDiffSummary';
@@ -568,7 +568,7 @@ function DiffFieldRenderer({ fieldSchema, value, otherValue, allFields, schema, 
         <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{fieldSchema.label}</div>
         <div
           className="prose prose-sm max-w-none text-gray-900 dark:text-gray-100"
-          dangerouslySetInnerHTML={{ __html: sanitizeHtml(valStr) }}
+          dangerouslySetInnerHTML={{ __html: sanitizeWysiwygHtml(valStr) }}
         />
       </div>
     );

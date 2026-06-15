@@ -8,13 +8,14 @@ import { RfConfigProvider } from '../../../lib/RfConfigProvider';
 import type { RfConfig } from '../../../lib/types';
 import * as useEntityModule from '../../../hooks/useEntity';
 
-// Mock the useAllSchemas hook
+// Mock the useAllSchemas hook and useGlobalSettings
 vi.mock('../../../hooks/useEntity', async () => {
   const actual = await vi.importActual('../../../hooks/useEntity');
   return {
     ...actual,
     useAllSchemas: vi.fn(),
     useCapabilities: vi.fn(() => ({ data: undefined, isLoading: false, isSuccess: false })),
+    useGlobalSettings: vi.fn(() => ({})),
   };
 });
 
@@ -346,5 +347,73 @@ describe('AdminLayout', () => {
 
     const customSections = document.querySelectorAll('[data-testid^="custom-section-"]');
     expect(customSections.length).toBe(0);
+  });
+
+  // --- Reserved entity hide-in-navigation tests ---
+
+  it('should hide reserved entities listed in reserved_entity_types_to_hide_in_navigation', async () => {
+    const schemasWithReserved = {
+      ...mockSchemas,
+      tags: {
+        entity_name: 'tags',
+        readable_name: { singular: 'Tag', plural: 'Tags' },
+        features: {
+          supports_frontend_edit: true,
+          show_in_navigation: true,
+          has_author: false,
+          has_tags: false,
+          has_categories: false,
+          has_parent_child: false,
+          require_title_uniqueness: false,
+        },
+        fields: [],
+      },
+      categories: {
+        entity_name: 'categories',
+        readable_name: { singular: 'Category', plural: 'Categories' },
+        features: {
+          supports_frontend_edit: true,
+          show_in_navigation: true,
+          has_author: false,
+          has_tags: false,
+          has_categories: false,
+          has_parent_child: false,
+          require_title_uniqueness: false,
+        },
+        fields: [],
+      },
+    };
+
+    vi.mocked(useEntityModule.useAllSchemas).mockReturnValue({
+      data: schemasWithReserved,
+      isLoading: false,
+      error: null,
+    } as any);
+    vi.mocked(useEntityModule.useGlobalSettings).mockReturnValue({
+      reserved_entity_types_to_hide_in_navigation: ['tags', 'categories'],
+    });
+
+    renderWithProviders(<AdminLayout />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Articles')).toBeInTheDocument();
+      expect(screen.getByText('Pages')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText('Tags')).not.toBeInTheDocument();
+    expect(screen.queryByText('Categories')).not.toBeInTheDocument();
+  });
+
+  it('should show reserved entities when hide list is empty', async () => {
+    vi.mocked(useEntityModule.useGlobalSettings).mockReturnValue({
+      reserved_entity_types_to_hide_in_navigation: [],
+    });
+
+    renderWithProviders(<AdminLayout />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Articles')).toBeInTheDocument();
+      expect(screen.getByText('Pages')).toBeInTheDocument();
+    });
   });
 });

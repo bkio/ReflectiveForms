@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, FileText, ArrowRight, Eye } from 'lucide-react';
-import { useAllSchemas, useCapabilities } from '../hooks/useEntity';
+import { useAllSchemas, useCapabilities, useGlobalSettings } from '../hooks/useEntity';
 import { useAiAssistantOptional } from '../lib/AiAssistantContext';
 
 export function DashboardPage() {
@@ -31,8 +31,14 @@ export function DashboardPage() {
     );
   }
 
+  const settings = useGlobalSettings();
+  const hiddenReserved = new Set(settings.reserved_entity_types_to_hide_in_navigation ?? []);
+
   const entityTypes = Object.values(schemas ?? {}).filter(
-    (s) => !s.features.has_individual_sharing && (s.features as any).show_in_navigation !== false && (!capabilities || capabilities[s.entity_name]?.can_peek_all)
+    (s) => !s.features.has_individual_sharing
+      && (s.features as any).show_in_navigation !== false
+      && !hiddenReserved.has(s.entity_name)
+      && (!capabilities || capabilities[s.entity_name]?.can_peek_all)
   );
   const editableTypes = entityTypes.filter((s) => s.features.supports_frontend_edit);
 

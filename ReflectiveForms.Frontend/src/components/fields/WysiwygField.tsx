@@ -64,12 +64,12 @@ function WysiwygEditor({ content, onChange, hasError, placeholder }: WysiwygEdit
   const [isSourceMode, setIsSourceMode] = useState(false);
   const [sourceContent, setSourceContent] = useState(content);
 
-  // Initialize content
+  // Initialize content (also repopulates div when switching back from source mode)
   useEffect(() => {
-    if (editorRef.current && content !== editorRef.current.innerHTML) {
+    if (!isSourceMode && editorRef.current && content !== editorRef.current.innerHTML) {
       editorRef.current.innerHTML = content;
     }
-  }, [content]);
+  }, [content, isSourceMode]);
 
   const execCommand = useCallback((command: string, value?: string) => {
     if (command === 'createLink') {
@@ -101,19 +101,22 @@ function WysiwygEditor({ content, onChange, hasError, placeholder }: WysiwygEdit
   }, [onChange]);
 
   const toggleSourceMode = useCallback(() => {
-    if (isSourceMode && editorRef.current) {
-      editorRef.current.innerHTML = sourceContent;
-    } else if (!isSourceMode && editorRef.current) {
+    if (!isSourceMode && editorRef.current) {
+      // Switching TO source mode: capture current HTML before div unmounts
       setSourceContent(editorRef.current.innerHTML);
     }
+    // Switching back: the useEffect above repopulates the div after it remounts
     setIsSourceMode(!isSourceMode);
-  }, [isSourceMode, sourceContent]);
+  }, [isSourceMode]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    // Handle tab key for indentation
     if (e.key === 'Tab') {
       e.preventDefault();
       document.execCommand('insertText', false, '    ');
+    } else if (e.key === 'Enter') {
+      // Insert <br> instead of browser-default <div> block
+      e.preventDefault();
+      document.execCommand('insertLineBreak');
     }
   }, []);
 

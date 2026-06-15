@@ -7,6 +7,7 @@ import { DashboardPage } from '../../pages/DashboardPage';
 vi.mock('../../hooks/useEntity', () => ({
   useAllSchemas: vi.fn(),
   useCapabilities: vi.fn(() => ({ data: undefined })),
+  useGlobalSettings: vi.fn(() => ({})),
 }));
 
 vi.mock('../../lib/AiAssistantContext', () => ({
@@ -14,7 +15,7 @@ vi.mock('../../lib/AiAssistantContext', () => ({
   useAiAssistantOptional: vi.fn(() => null),
 }));
 
-import { useAllSchemas } from '../../hooks/useEntity';
+import { useAllSchemas, useGlobalSettings } from '../../hooks/useEntity';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: false } },
@@ -109,16 +110,66 @@ describe('DashboardPage', () => {
     expect(spinner).toBeInTheDocument();
   });
 
-  it('should show error state', () => {
+  it('should hide reserved entities listed in reserved_entity_types_to_hide_in_navigation', () => {
+    const mockSchemas = {
+      articles: makeSchema('articles', 'Articles'),
+      tags: makeSchema('tags', 'Tags'),
+      categories: makeSchema('categories', 'Categories'),
+    };
+
     vi.mocked(useAllSchemas).mockReturnValue({
-      data: undefined,
+      data: mockSchemas,
       isLoading: false,
-      error: new Error('Failed to load'),
+      error: null,
     } as any);
+    vi.mocked(useGlobalSettings).mockReturnValue({
+      reserved_entity_types_to_hide_in_navigation: ['tags', 'categories'],
+    });
 
     renderWithProviders(<DashboardPage />);
 
-    expect(screen.getByText('Error')).toBeInTheDocument();
-    expect(screen.getByText('Failed to load')).toBeInTheDocument();
+    expect(screen.getByText('Articles')).toBeInTheDocument();
+    expect(screen.queryByText('Tags')).not.toBeInTheDocument();
+    expect(screen.queryByText('Categories')).not.toBeInTheDocument();
+  });
+
+  it('should show reserved entities when hide list is empty', () => {
+    const mockSchemas = {
+      articles: makeSchema('articles', 'Articles'),
+      tags: makeSchema('tags', 'Tags'),
+    };
+
+    vi.mocked(useAllSchemas).mockReturnValue({
+      data: mockSchemas,
+      isLoading: false,
+      error: null,
+    } as any);
+    vi.mocked(useGlobalSettings).mockReturnValue({
+      reserved_entity_types_to_hide_in_navigation: [],
+    });
+
+    renderWithProviders(<DashboardPage />);
+
+    expect(screen.getByText('Articles')).toBeInTheDocument();
+    expect(screen.getByText('Tags')).toBeInTheDocument();
+  });
+
+  it('should show reserved entities when hide list is undefined', () => {
+    const mockSchemas = {
+      articles: makeSchema('articles', 'Articles'),
+      media: makeSchema('media', 'Media'),
+    };
+
+    vi.mocked(useAllSchemas).mockReturnValue({
+      data: mockSchemas,
+      isLoading: false,
+      error: null,
+    } as any);
+    vi.mocked(useGlobalSettings).mockReturnValue({});
+
+    renderWithProviders(<DashboardPage />);
+
+    expect(screen.getByText('Articles')).toBeInTheDocument();
+    expect(screen.getByText('Media')).toBeInTheDocument();
   });
 });
