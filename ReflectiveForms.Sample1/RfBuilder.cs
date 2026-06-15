@@ -3,6 +3,8 @@
 
 using CrossCloudKit.Database.Basic;
 using CrossCloudKit.File.Basic;
+using CrossCloudKit.Interfaces;
+using CrossCloudKit.LLM.Basic;
 using CrossCloudKit.LLM.Basic.Completion;
 using CrossCloudKit.LLM.Basic.Embeddings;
 using CrossCloudKit.Memory.Basic;
@@ -27,9 +29,41 @@ public static class RfBuilder
         // AI services — local bundled models (no external dependencies).
         // LLMCompletionServiceBasic: SmolLM2-135M (Q8_0, ~139 MB)
         // LLMEmbeddingServiceBasic: snowflake-arctic-embed-m-long (Q8_0)
-        var completionService = new LLMCompletionServiceBasic();
-        var embeddingService = new LLMEmbeddingServiceBasic();
+        //
+        // In test mode (CROSSCLOUDKIT_DISABLE_BUNDLED_LLM=true), use
+        // LLMServiceBasic which bundles both completion and embedding into a
+        // single GGUF model (SmolLM2-135M). This avoids loading two separate
+        // models simultaneously, preventing out-of-memory segfaults during
+        // E2E test runs.
+        var disableBundledLlm = Environment.GetEnvironmentVariable("CROSSCLOUDKIT_DISABLE_BUNDLED_LLM") == "true";
+
+        LLMServiceBasic? combinedService = null;
+        LLMCompletionServiceBasic? completionService = null;
+        LLMEmbeddingServiceBasic? embeddingService = null;
+        ILLMService heavyLlm, lightLlm, embeddingLlm;
+
+        if (disableBundledLlm)
+        {
+            combinedService = new LLMServiceBasic();
+            heavyLlm = combinedService;
+            lightLlm = combinedService;
+            embeddingLlm = combinedService;
+        }
+        else
+        {
+            completionService = new LLMCompletionServiceBasic();
+            embeddingService = new LLMEmbeddingServiceBasic();
+            heavyLlm = completionService;
+            lightLlm = completionService;
+            embeddingLlm = embeddingService;
+        }
+
         var vectorService = new VectorServiceBasic();
+        var aiConfig = new AiServiceConfiguration(
+            HeavyLlmService: heavyLlm,
+            LightLlmService: lightLlm,
+            VectorService: vectorService,
+            EmbeddingLlmService: embeddingLlm);
 
         return new RfConfigurationBuilder
         {
@@ -54,11 +88,7 @@ public static class RfBuilder
                     ContactEmail = "admin@karasoftware.com"
                 }
             },
-            AiServiceConfiguration = new AiServiceConfiguration(
-                HeavyLlmService: completionService,
-                LightLlmService: completionService,
-                VectorService: vectorService,
-                EmbeddingLlmService: embeddingService),
+            AiServiceConfiguration = aiConfig,
             EntityTypes =
             [
                 // ──────────────────────────────────────────────────────────────

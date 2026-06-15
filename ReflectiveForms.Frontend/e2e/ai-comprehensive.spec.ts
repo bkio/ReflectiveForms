@@ -71,8 +71,11 @@ test.describe('AI Global Search', () => {
 
   test('AI Search button is visible in sidebar', async ({ page, ui }) => {
     await ui.gotoDashboard();
+    await ui.openSidebar();
+    // Wait for schemas/capabilities to load so AI nav renders
+    await page.waitForTimeout(2000);
     const aiSearchNav = page.locator('[data-testid="ai-search-nav"]');
-    await expect(aiSearchNav).toBeVisible({ timeout: 10000 });
+    await expect(aiSearchNav).toBeVisible({ timeout: 15000 });
     await expect(aiSearchNav).toContainText('AI Search');
   });
 
