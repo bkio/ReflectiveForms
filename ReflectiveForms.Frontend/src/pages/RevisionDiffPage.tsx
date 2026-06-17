@@ -567,7 +567,7 @@ function DiffFieldRenderer({ fieldSchema, value, otherValue, allFields, schema, 
       >
         <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{fieldSchema.label}</div>
         <div
-          className="prose prose-sm max-w-none text-gray-900 dark:text-gray-100"
+          className="prose prose-sm max-w-none contain-layout-paint text-gray-900 dark:text-gray-100"
           dangerouslySetInnerHTML={{ __html: sanitizeWysiwygHtml(valStr) }}
         />
       </div>

@@ -324,7 +324,7 @@ function ReadOnlyValue({ fieldSchema, value, schema, depth = 0, relationLookup =
     case 'WysiwygEditor':
       return (
         <div
-          className="prose prose-sm max-w-none text-gray-900 dark:text-gray-100 dark:prose-invert"
+          className="prose prose-sm max-w-none contain-layout-paint text-gray-900 dark:text-gray-100 dark:prose-invert"
           dangerouslySetInnerHTML={{ __html: sanitizeWysiwygHtml(String(value)) }}
         />
       );

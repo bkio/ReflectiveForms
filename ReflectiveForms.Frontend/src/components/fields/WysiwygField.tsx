@@ -171,7 +171,7 @@ function WysiwygEditor({ content, onChange, hasError, placeholder }: WysiwygEdit
           contentEditable
           onInput={handleInput}
           onKeyDown={handleKeyDown}
-          className="w-full min-h-[200px] p-4 prose prose-sm max-w-none focus:outline-none"
+          className="w-full min-h-[200px] p-4 prose prose-sm max-w-none focus:outline-none contain-layout-paint"
           data-placeholder={placeholder || 'Start writing...'}
           style={{
             WebkitUserModify: 'read-write',
@@ -179,14 +179,13 @@ function WysiwygEditor({ content, onChange, hasError, placeholder }: WysiwygEdit
         />
       )}
 
-      {/* Character count (optional) */}
       {/* Character count */}
       <div className="px-4 py-2 border-t border-gray-100 bg-gray-50">
         <span className="text-xs text-gray-400">
           {isSourceMode
             ? `${sourceContent.length} characters (HTML)`
             : editorRef.current
-              ? `${editorRef.current.innerText.length} characters`
+              ? `${(editorRef.current.textContent ?? '').length} characters`
               : '0 characters'
           }
         </span>

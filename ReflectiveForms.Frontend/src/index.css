@@ -73,6 +73,13 @@ body {
   outline: none;
 }
 
+/* CSS containment — traps position:fixed, z-index, viewport units
+   inside the editor. Prevents user-inserted CSS from trashing the
+   application layout. */
+.contain-layout-paint {
+  contain: layout paint;
+}
+
 /* Prose styles for WYSIWYG */
 .prose h1 {
   @apply text-2xl font-bold mt-4 mb-2;
