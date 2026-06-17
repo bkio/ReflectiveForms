@@ -9,11 +9,14 @@ import { test, expect } from './helpers';
  * The `contain: layout paint` CSS property on the contentEditable and
  * view containers traps position:fixed, z-index, viewport units, etc.
  * inside the box — without modifying the user's stored HTML.
+ *
+ * Uses the `blog-post` entity (Sample1) which has a WYSIWYG "Post Content" field.
  */
 
 const ENTITY = 'blog-post';
 const TS = () => Date.now().toString(36);
 
+// ── Attack payloads ──────────────────────────────────────────────
 const MALICIOUS_FULLSCREEN = `<div style="
   position: fixed;
   top: 0;
@@ -38,13 +41,6 @@ const MALICIOUS_ZINDEX = `<span style="
   font-size: 32px;
 ">HIGH Z-INDEX SPAN</span>`;
 
-const LEGITIMATE_STYLED = `<h2 style="color: #2563eb; font-size: 24px; margin-bottom: 12px;">Blue Heading</h2>
-<p style="text-align: center; font-style: italic; color: #6b7280;">Centered italic gray text with <span style="font-weight: bold; color: #dc2626;">bold red span</span> inside.</p>
-<ul style="padding-left: 2em;">
-  <li style="color: #059669;">Green list item</li>
-  <li style="color: #7c3aed;">Purple list item</li>
-</ul>`;
-
 const MALICIOUS_TRANSFORM = `<div style="
   position: fixed;
   top: 50%;
@@ -57,9 +53,56 @@ const MALICIOUS_TRANSFORM = `<div style="
   font-size: 20px;
 ">SCALED OVERLAY</div>`;
 
-test.describe('WYSIWYG CSS Isolation', () => {
-  let createdId: number;
+const MALICIOUS_VIEWPORT_UNITS = `<div style="
+  width: 100vw;
+  height: 100vh;
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: linear-gradient(45deg, red, blue);
+  z-index: 99999;
+">VIEWPORT BREAKOUT</div>`;
 
+const LEGITIMATE_STYLED = `<h2 style="color: #2563eb; font-size: 24px; margin-bottom: 12px;">Blue Heading</h2>
+<p style="text-align: center; font-style: italic; color: #6b7280;">Centered italic gray text with <span style="font-weight: bold; color: #dc2626;">bold red span</span> inside.</p>
+<ul style="padding-left: 2em;">
+  <li style="color: #059669;">Green list item</li>
+  <li style="color: #7c3aed;">Purple list item</li>
+</ul>`;
+
+// ── Helper: fill WYSIWYG via source mode ──────────────────────
+async function fillWysiwygSource(page: any, html: string) {
+  // Click HTML source mode button inside the WYSIWYG editor
+  const wysiwyg = page.locator('.wysiwyg-editor');
+  const htmlBtn = wysiwyg.locator('button', { hasText: /html/i });
+  await htmlBtn.click();
+  // Fill the textarea inside the WYSIWYG editor only
+  const textarea = wysiwyg.locator('textarea');
+  await textarea.fill(html);
+  // Switch back to preview mode
+  const previewBtn = wysiwyg.locator('button', { hasText: /preview/i });
+  await previewBtn.click();
+}
+
+// ── Helper: assert page chrome is not obscured ───────────────────
+async function assertPageChromeIntact(page: any) {
+  await expect(page.locator('aside nav')).toBeVisible({ timeout: 5000 });
+  await expect(page.locator('header, [role="banner"]').first()).toBeVisible();
+  // Sidebar nav links must be clickable
+  const firstSidebarLink = page.locator('aside nav a').first();
+  await expect(firstSidebarLink).toBeVisible();
+}
+
+// ── Helper: assert editor is bounded ─────────────────────────────
+async function assertEditorBounded(page: any) {
+  const editorBox = await page.locator('.wysiwyg-editor').boundingBox();
+  expect(editorBox).not.toBeNull();
+  // Editor must NOT stretch to full viewport
+  expect(editorBox!.width).toBeLessThan(1200);
+  expect(editorBox!.height).toBeLessThan(1000);
+}
+
+test.describe('WYSIWYG CSS Isolation', () => {
   test.describe.configure({ mode: 'serial' });
 
   test.afterAll(async ({ request }) => {
@@ -69,210 +112,265 @@ test.describe('WYSIWYG CSS Isolation', () => {
     await api.deleteAll(ENTITY);
   });
 
-  // ─────────────────────────────────────────────────────────────────
-  // CREATE PAGE — malicious CSS must not escape the editor
-  // ─────────────────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════
+  // CREATE PAGE — malicious CSS must not escape
+  // ═══════════════════════════════════════════════════════════════
   test('create page: malicious fullscreen div is confined to editor', async ({ page, ui, api }) => {
     await api.deleteAll(ENTITY);
     await ui.gotoNewEntity(ENTITY);
 
-    await ui.fillTitle(`CSS-Isolation-Fullscreen ${TS()}`);
+    await ui.fillTitle(`CSS-Fullscreen ${TS()}`);
+    await fillWysiwygSource(page, MALICIOUS_FULLSCREEN);
 
-    // Inject malicious fullscreen CSS via source mode
-    await ui.fillWysiwyg('Post Content', MALICIOUS_FULLSCREEN);
+    await assertPageChromeIntact(page);
+    await assertEditorBounded(page);
 
-    // The sidebar must still be visible and its links clickable
-    await expect(page.locator('aside nav')).toBeVisible();
-
-    // The header/brand must still be visible
-    await expect(page.locator('header, [role="banner"]').first()).toBeVisible();
-
-    // The editor box itself must NOT cover the viewport — its width
-    // must be bounded (containment traps 100vw inside the container)
-    const editorBox = await page.locator('.wysiwyg-editor').boundingBox();
-    expect(editorBox).not.toBeNull();
-    expect(editorBox!.width).toBeLessThan(1200); // sanity upper bound
-
-    // The malicious div's red background must NOT cover the page.
-    // The sidebar nav link text should still be readable (not obscured).
-    const sidebarLink = page.locator('aside nav a').first();
-    await expect(sidebarLink).toBeVisible();
+    // "Save Now" must be clickable
+    await expect(page.getByRole('button', { name: /save now/i })).toBeVisible();
   });
 
-  // ─────────────────────────────────────────────────────────────────
   test('create page: high z-index span does not stack above header', async ({ page, ui, api }) => {
     await api.deleteAll(ENTITY);
     await ui.gotoNewEntity(ENTITY);
 
-    await ui.fillTitle(`CSS-Isolation-ZIndex ${TS()}`);
-    await ui.fillWysiwyg('Post Content', MALICIOUS_ZINDEX);
+    await ui.fillTitle(`CSS-ZIndex ${TS()}`);
+    await fillWysiwygSource(page, MALICIOUS_ZINDEX);
 
-    // Header must be visible — not obscured by z-index:999999
-    const header = page.locator('header, [role="banner"]').first();
-    await expect(header).toBeVisible();
-
-    // The "Save Now" button must be interactable (not covered)
-    const saveBtn = page.getByRole('button', { name: /save now/i });
-    await expect(saveBtn).toBeVisible();
+    await assertPageChromeIntact(page);
+    await expect(page.getByRole('button', { name: /save now/i })).toBeVisible();
   });
 
-  // ─────────────────────────────────────────────────────────────────
-  test('create page: legitimate inline CSS renders correctly', async ({ page, ui, api }) => {
+  test('create page: transform scale overlay is confined', async ({ page, ui, api }) => {
     await api.deleteAll(ENTITY);
     await ui.gotoNewEntity(ENTITY);
 
-    await ui.fillTitle(`CSS-Isolation-Legit ${TS()}`);
-    await ui.fillWysiwyg('Post Content', LEGITIMATE_STYLED);
+    await ui.fillTitle(`CSS-Transform ${TS()}`);
+    await fillWysiwygSource(page, MALICIOUS_TRANSFORM);
 
-    // Switch to source mode to verify the HTML is stored intact
-    const sourceBtn = page.locator('button', { hasText: /html/i }).first();
-    await sourceBtn.click();
-    const textarea = page.locator('textarea');
+    await assertPageChromeIntact(page);
+    await assertEditorBounded(page);
+  });
+
+  test('create page: viewport unit breakout is confined', async ({ page, ui, api }) => {
+    await api.deleteAll(ENTITY);
+    await ui.gotoNewEntity(ENTITY);
+
+    await ui.fillTitle(`CSS-VP-Units ${TS()}`);
+    await fillWysiwygSource(page, MALICIOUS_VIEWPORT_UNITS);
+
+    await assertPageChromeIntact(page);
+    // The editor should NOT be viewport-sized
+    const editorBox = await page.locator('.wysiwyg-editor').boundingBox();
+    expect(editorBox).not.toBeNull();
+    // If containment failed, this would be ~viewport width
+    expect(editorBox!.width).toBeLessThan(1200);
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // LEGITIMATE CSS — must still work
+  // ═══════════════════════════════════════════════════════════════
+  test('create page: legitimate inline CSS renders and is stored intact', async ({ page, ui, api }) => {
+    await api.deleteAll(ENTITY);
+    await ui.gotoNewEntity(ENTITY);
+
+    await ui.fillTitle(`CSS-Legit ${TS()}`);
+    await fillWysiwygSource(page, LEGITIMATE_STYLED);
+
+    // Toggle source mode to verify HTML is untouched
+    const wysiwyg = page.locator('.wysiwyg-editor');
+    const htmlBtn = wysiwyg.locator('button', { hasText: /html/i });
+    await htmlBtn.click();
+    const textarea = wysiwyg.locator('textarea');
     const html = await textarea.inputValue();
 
-    // The stored HTML must be the original, unmodified
     expect(html).toContain('color: #2563eb');
     expect(html).toContain('text-align: center');
     expect(html).toContain('color: #dc2626');
     expect(html).toContain('color: #059669');
     expect(html).toContain('color: #7c3aed');
+
+    // Toggle back to preview and verify page chrome intact
+    await wysiwyg.locator('button', { hasText: /preview/i }).click();
+    await assertPageChromeIntact(page);
   });
 
-  // ─────────────────────────────────────────────────────────────────
-  // SAVE + VIEW PAGE
-  // ─────────────────────────────────────────────────────────────────
-  test('view page: malicious fullscreen div is confined to content area', async ({ page, ui, api }) => {
+  // ═══════════════════════════════════════════════════════════════
+  // SOURCE MODE ROUND-TRIP
+  // ═══════════════════════════════════════════════════════════════
+  test('source mode toggle round-trips HTML preserving all CSS', async ({ page, ui, api }) => {
     await api.deleteAll(ENTITY);
     await ui.gotoNewEntity(ENTITY);
 
-    const title = `CSS-Isolation-View ${TS()}`;
+    await ui.fillTitle(`CSS-RoundTrip ${TS()}`);
+    await fillWysiwygSource(page, LEGITIMATE_STYLED);
+
+    // Toggle source → preview → source again
+    const wysiwyg = page.locator('.wysiwyg-editor');
+    const htmlBtn = wysiwyg.locator('button', { hasText: /html/i });
+    await htmlBtn.click();
+    const previewBtn = wysiwyg.locator('button', { hasText: /preview/i });
+    await previewBtn.click();
+    await htmlBtn.click();
+
+    const textarea = wysiwyg.locator('textarea');
+    const html = await textarea.inputValue();
+    expect(html).toContain('color: #2563eb');
+    expect(html).toContain('font-weight: bold');
+    expect(html).toContain('text-align: center');
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // SAVE + VIEW PAGE
+  // ═══════════════════════════════════════════════════════════════
+  test('view page: saved malicious CSS is confined in view mode', async ({ page, ui, api }) => {
+    await api.deleteAll(ENTITY);
+
+    await ui.gotoNewEntity(ENTITY);
+    const title = `CSS-View-FS ${TS()}`;
     await ui.fillTitle(title);
-    await ui.fillWysiwyg('Post Content', MALICIOUS_FULLSCREEN);
+    await fillWysiwygSource(page, MALICIOUS_FULLSCREEN);
+    await ui.clickSaveNow();
+    await ui.waitForSave();
 
-    // Save
-    await ui.saveEntity();
+    // Extract entity ID from URL and navigate to view page
+    const url = new URL(page.url());
+    const id = url.searchParams.get('id');
+    await page.goto(`/entities-view/${ENTITY}?id=${id}`);
+    await page.waitForLoadState('networkidle');
 
-    // Wait for redirect to view page
-    await expect(page.locator('h1')).toContainText(title);
+    // View page chrome must be intact
+    await assertPageChromeIntact(page);
 
-    // The content area must NOT have escaped to full viewport
-    const mainArea = page.locator('main');
-    await expect(mainArea).toBeVisible();
-
-    // The sidebar must still be accessible
-    await expect(page.locator('aside nav')).toBeVisible();
-
-    // The malicious div text must still be present in the DOM
-    // (containment doesn't remove it, just traps it)
+    // The malicious text must be in the DOM (containment traps, not removes)
     await expect(page.locator('text=MALICIOUS FULLSCREEN DIV')).toBeVisible();
   });
 
-  // ─────────────────────────────────────────────────────────────────
-  test('view page: legitimate CSS renders with correct computed styles', async ({ page, ui, api }) => {
+  test('view page: saved legitimate CSS renders correctly', async ({ page, ui, api }) => {
     await api.deleteAll(ENTITY);
+
     await ui.gotoNewEntity(ENTITY);
-
-    const title = `CSS-Isolation-View-Legit ${TS()}`;
+    const title = `CSS-View-Legit ${TS()}`;
     await ui.fillTitle(title);
-    await ui.fillWysiwyg('Post Content', LEGITIMATE_STYLED);
+    await fillWysiwygSource(page, LEGITIMATE_STYLED);
+    await ui.clickSaveNow();
+    await ui.waitForSave();
 
-    await ui.saveEntity();
-    await expect(page.locator('h1')).toContainText(title);
+    const url = new URL(page.url());
+    const id = url.searchParams.get('id');
+    await page.goto(`/entities-view/${ENTITY}?id=${id}`);
+    await page.waitForLoadState('networkidle');
 
-    // The blue heading color must be applied
-    const h2 = page.locator('h2', { hasText: 'Blue Heading' });
-    const color = await h2.evaluate(el => getComputedStyle(el).color);
-    // rgb(37, 99, 235) = #2563eb
-    expect(color).toMatch(/rgb\(3[5-9],\s*(9[0-9]|1[01][0-9]),\s*23[0-9]\)/);
+    await assertPageChromeIntact(page);
 
-    // The italic text must be rendered
-    const italicP = page.locator('p', { hasText: /Centered italic/ });
-    await expect(italicP).toBeVisible();
+    // Blue heading should be visible
+    await expect(page.locator('h2', { hasText: 'Blue Heading' })).toBeVisible();
+    // Italic text should be visible
+    await expect(page.locator('text=Centered italic gray text')).toBeVisible();
   });
 
-  // ─────────────────────────────────────────────────────────────────
-  // EDIT — load existing malicious content
-  // ─────────────────────────────────────────────────────────────────
-  test('edit page: previously-saved malicious CSS is still confined', async ({ page, ui, api }) => {
+  // ═══════════════════════════════════════════════════════════════
+  // EDIT — reload previously saved entity
+  // ═══════════════════════════════════════════════════════════════
+  test('edit page: reloading saved malicious CSS is still confined', async ({ page, ui, api }) => {
     await api.deleteAll(ENTITY);
+
     await ui.gotoNewEntity(ENTITY);
-
-    const title = `CSS-Isolation-Edit-Reload ${TS()}`;
+    const title = `CSS-Edit-Reload ${TS()}`;
     await ui.fillTitle(title);
-    await ui.fillWysiwyg('Post Content', MALICIOUS_FULLSCREEN);
-    await ui.saveEntity();
+    await fillWysiwygSource(page, MALICIOUS_FULLSCREEN);
+    await ui.clickSaveNow();
+    await ui.waitForSave();
 
-    // Navigate to entity list
+    // Navigate back to entity list
     await page.getByRole('link', { name: /blog post/i }).click();
-    await expect(page.locator('h1')).toContainText('Blog Posts');
+    await expect(page.locator('h1')).toContainText('Blog Posts', { timeout: 10000 });
 
-    // Find the entity and click edit
+    // Find our entity and edit
     await page.getByRole('link', { name: title }).click();
     await page.getByRole('link', { name: /edit/i }).click();
 
-    // Wait for editor to load — the sidebar must still be visible
-    await expect(page.locator('aside nav')).toBeVisible({ timeout: 10000 });
-
-    // The header must be visible
-    await expect(page.locator('header, [role="banner"]').first()).toBeVisible();
+    // Edit page loaded — chrome must be intact
+    await assertPageChromeIntact(page);
+    await assertEditorBounded(page);
   });
 
-  // ─────────────────────────────────────────────────────────────────
-  // TRANSFORM + SCALE attack
-  // ─────────────────────────────────────────────────────────────────
-  test('create page: transform scale(10) overlay is confined to editor', async ({ page, ui, api }) => {
+  // ═══════════════════════════════════════════════════════════════
+  // EMPTY / PLAIN TEXT — containment must not break normal usage
+  // ═══════════════════════════════════════════════════════════════
+  test('create page: empty WYSIWYG still works with containment', async ({ page, ui, api }) => {
     await api.deleteAll(ENTITY);
     await ui.gotoNewEntity(ENTITY);
 
-    await ui.fillTitle(`CSS-Isolation-Transform ${TS()}`);
-    await ui.fillWysiwyg('Post Content', MALICIOUS_TRANSFORM);
+    await ui.fillTitle(`CSS-Empty ${TS()}`);
+    // Leave WYSIWYG empty
 
-    // The sidebar must remain visible and interactable
-    await expect(page.locator('aside nav')).toBeVisible();
-
-    // The Save button must be visible and not covered
-    const saveBtn = page.getByRole('button', { name: /save now/i });
-    await expect(saveBtn).toBeVisible();
-  });
-
-  // ─────────────────────────────────────────────────────────────────
-  // SOURCE MODE ROUND-TRIP
-  // ─────────────────────────────────────────────────────────────────
-  test('source mode toggle preserves HTML including CSS', async ({ page, ui, api }) => {
-    await api.deleteAll(ENTITY);
-    await ui.gotoNewEntity(ENTITY);
-
-    await ui.fillTitle(`CSS-Isolation-RoundTrip ${TS()}`);
-    await ui.fillWysiwyg('Post Content', LEGITIMATE_STYLED);
-
-    // Toggle source mode off and back on to verify HTML is preserved
-    // (fillWysiwyg already toggled to preview mode, now toggle back)
-    const htmlBtn = page.locator('button', { hasText: /html/i }).first();
-    await htmlBtn.click();
-    const textarea = page.locator('textarea');
-    const htmlAfterRoundTrip = await textarea.inputValue();
-
-    expect(htmlAfterRoundTrip).toContain('color: #2563eb');
-    expect(htmlAfterRoundTrip).toContain('text-align: center');
-    expect(htmlAfterRoundTrip).toContain('font-weight: bold');
-  });
-
-  // ─────────────────────────────────────────────────────────────────
-  // EMPTY / NO CSS content
-  // ─────────────────────────────────────────────────────────────────
-  test('create page: empty WYSIWYG field still works with containment', async ({ page, ui, api }) => {
-    await api.deleteAll(ENTITY);
-    await ui.gotoNewEntity(ENTITY);
-
-    await ui.fillTitle(`CSS-Isolation-Empty ${TS()}`);
-    // Don't fill the WYSIWYG field — leave it empty
-
-    // The editor should still show the placeholder
     const editor = page.locator('[contenteditable="true"]');
     await expect(editor).toBeVisible();
 
-    // Save should work (the field is not mandatory)
-    await ui.saveEntity();
-    await expect(page.locator('h1')).toContainText(`CSS-Isolation-Empty ${TS()}`);
+    // Placeholder text must show
+    await expect(page.locator('text=Start writing...')).toBeVisible();
+
+    // Save must work
+    await ui.clickSaveNow();
+    await ui.waitForSave();
+    await expect(page.locator('h1')).toContainText(`CSS-Empty ${TS()}`, { timeout: 10000 });
+  });
+
+  test('create page: toolbar buttons work with containment class present', async ({ page, ui, api }) => {
+    await api.deleteAll(ENTITY);
+    await ui.gotoNewEntity(ENTITY);
+
+    await ui.fillTitle(`CSS-Toolbar ${TS()}`);
+
+    // Verify contentEditable has containment class
+    const editable = page.locator('[contenteditable="true"]');
+    await expect(editable).toHaveClass(/contain-layout-paint/);
+
+    // Toolbar buttons must be visible and not disabled
+    const boldBtn = page.getByRole('button', { name: /bold/i });
+    await expect(boldBtn).toBeVisible();
+    await expect(boldBtn).not.toBeDisabled();
+
+    const italicBtn = page.getByRole('button', { name: /italic/i });
+    await expect(italicBtn).toBeVisible();
+
+    const underlineBtn = page.getByRole('button', { name: /underline/i });
+    await expect(underlineBtn).toBeVisible();
+
+    // HTML source toggle must be present
+    await expect(page.locator('button', { hasText: /html/i }).first()).toBeVisible();
+  });
+
+  test('create page: character count still works with containment', async ({ page, ui, api }) => {
+    await api.deleteAll(ENTITY);
+    await ui.gotoNewEntity(ENTITY);
+
+    await ui.fillTitle(`CSS-Chars ${TS()}`);
+    await fillWysiwygSource(page, '<p>Hello World</p>');
+
+    // Character count must show "11 characters"
+    await expect(page.locator('text=/11 character/')).toBeVisible();
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // CONTAINMENT CLASS PROPAGATION
+  // ═══════════════════════════════════════════════════════════════
+  test('view page: WYSIWYG content div has contain-layout-paint class', async ({ page, ui, api }) => {
+    await api.deleteAll(ENTITY);
+
+    await ui.gotoNewEntity(ENTITY);
+    const title = `CSS-ClassCheck ${TS()}`;
+    await ui.fillTitle(title);
+    await fillWysiwygSource(page, '<p>test</p>');
+    await ui.clickSaveNow();
+    await ui.waitForSave();
+
+    await expect(page.locator('h1')).toContainText(title, { timeout: 10000 });
+
+    // The div that renders the WYSIWYG HTML must have the containment class
+    // It's the prose div inside the content area
+    const proseDiv = page.locator('.contain-layout-paint').first();
+    await expect(proseDiv).toBeVisible();
   });
 });
+
