@@ -2,6 +2,7 @@ import { useRef, useEffect, useCallback, useState } from 'react';
 import { useFormContext, Controller } from 'react-hook-form';
 import { Bold, Italic, Underline, List, ListOrdered, Link as LinkIcon, Quote, Code, Heading1, Heading2, Undo, Redo } from 'lucide-react';
 import { FieldComponentProps } from './types';
+import { sanitizeWysiwygHtml } from '../../lib/sanitize';
 
 interface ToolbarAction {
   command: string;
@@ -64,10 +65,11 @@ function WysiwygEditor({ content, onChange, hasError, placeholder }: WysiwygEdit
   const [isSourceMode, setIsSourceMode] = useState(false);
   const [sourceContent, setSourceContent] = useState(content);
 
-  // Initialize content (also repopulates div when switching back from source mode)
+  // Initialize content (also repopulates div when switching back from source mode).
+  // Sanitize on load — strips <style> tags that would inject global CSS.
   useEffect(() => {
     if (!isSourceMode && editorRef.current && content !== editorRef.current.innerHTML) {
-      editorRef.current.innerHTML = content;
+      editorRef.current.innerHTML = sanitizeWysiwygHtml(content);
     }
   }, [content, isSourceMode]);
 

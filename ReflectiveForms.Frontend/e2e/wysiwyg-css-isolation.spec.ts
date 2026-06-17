@@ -382,5 +382,37 @@ test.describe('WYSIWYG CSS Isolation', () => {
     const proseDiv = page.locator('.contain-layout-paint').first();
     await expect(proseDiv).toBeVisible();
   });
+
+  // ═══════════════════════════════════════════════════════════════
+  // <STYLE> TAG INJECTION — must be stripped from editor rendering
+  // ═══════════════════════════════════════════════════════════════
+  test('create page: style tag CSS is stripped, inline styles survive', async ({ page, ui, api }) => {
+    await api.deleteAll(ENTITY);
+    await ui.gotoNewEntity(ENTITY);
+
+    await ui.fillTitle(`CSS-StyleTag ${TS()}`);
+
+    // Inject content with both <style> and inline style
+    const htmlWithStyleTag = `<style>body { display: none !important; }</style>
+<p style="color: green;">This paragraph should remain green.</p>`;
+
+    await fillWysiwygSource(page, htmlWithStyleTag);
+
+    // The page must NOT be blank — <style> must have been stripped
+    await assertPageChromeIntact(page);
+
+    // Toggle source mode to verify <style> was stripped but inline style survived
+    const wysiwyg = page.locator('.wysiwyg-editor');
+    const htmlBtn = wysiwyg.locator('button', { hasText: /html/i });
+    await htmlBtn.click();
+
+    const textarea = wysiwyg.locator('textarea');
+    const html = await textarea.inputValue();
+
+    // Inline style must survive
+    expect(html).toContain('color: green');
+    // <style> tag must be gone (DOMPurify strips it)
+    expect(html).not.toMatch(/<style/i);
+  });
 });
 
