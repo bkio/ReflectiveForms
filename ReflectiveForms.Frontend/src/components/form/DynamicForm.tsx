@@ -26,6 +26,26 @@ export function useEntityFormContext(): EntityFormContextValue | null {
   return useContext(EntityFormContext);
 }
 
+/**
+ * Fix date formats in the payload so they match what the backend expects.
+ * normalizeDates() converts ALL yyyy-MM-dd strings to yyyyMMdd, but
+ * fields with dateFormat="yyyy-MM-dd" must stay in hyphenated form.
+ */
+function fixDateFormatsForSchema(values: Record<string, unknown>, schema: EntitySchema): void {
+  const fields = values.fields as Record<string, unknown> | undefined;
+  if (!fields) return;
+  for (const fieldSchema of schema.fields) {
+    if (fieldSchema.type !== 'DatePicker') continue;
+    const fmt = fieldSchema.date_options?.format;
+    if (!fmt || fmt === 'yyyyMMdd') continue; // already converted by normalizeDates
+    // fmt is e.g. "yyyy-MM-dd" — convert yyyyMMdd back to yyyy-MM-dd
+    const val = fields[fieldSchema.name];
+    if (typeof val === 'string' && /^\d{8}$/.test(val)) {
+      fields[fieldSchema.name] = `${val.slice(0, 4)}-${val.slice(4, 6)}-${val.slice(6, 8)}`;
+    }
+  }
+}
+
 interface DynamicFormProps {
   schema: EntitySchema;
   initialData?: Partial<EntityData>;
@@ -157,8 +177,12 @@ export function DynamicForm({ schema, initialData, entityId, onSuccess }: Dynami
     if (!isCreateMode && entityId !== undefined) {
       values.id = entityId;
     }
+    // Fix date formats: normalizeDates converts yyyy-MM-dd → yyyyMMdd
+    // unconditionally, but fields with dateFormat="yyyy-MM-dd" must stay
+    // in that format for the backend sanity check.
+    fixDateFormatsForSchema(values, schema);
     return values;
-  }, [form, normalizeDates, isCreateMode, entityId]);
+  }, [form, normalizeDates, isCreateMode, entityId, schema]);
 
   // Strip the backend "Sanity check for X, entity id: N has failed with" prefix
   const humanizeError = useCallback(
