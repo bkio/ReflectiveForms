@@ -1,16 +1,16 @@
 # ReflectiveForms
-![Tests](https://img.shields.io/badge/Tests-1714%2F1716%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/Tests-991%2F991%20passing-brightgreen)
 
 A schema-driven admin panel framework. Define entities with C# attributes, get a full CRUD admin panel with a modern React frontend — auto-save, display conditions, nested repeaters, entity relations, locking, SSO, AI-powered features (centralized AI assistant with tool-calling, semantic search, sanity checks, NL filtering), OpenAPI spec generation, and more.
 ## Test Results
 
-**Last Updated:** 2026-06-17 20:09:17 UTC
+**Last Updated:** 2026-06-20
 
 | Metric | Count |
 |--------|-------|
-| **Tests Passed** | **1714** |
-| **Tests Failed** | **2** |
-| **Total Tests** | **1716** |
+| **Tests Passed** | **991** |
+| **Tests Failed** | **0** |
+| **Total Tests** | **991** |
 
 ## Preview
 
@@ -670,6 +670,20 @@ cd ReflectiveForms.Frontend && npm install && npm run dev   # http://localhost:3
 cd ReflectiveForms.Frontend
 npm run build:lib   # Outputs to dist/
 ```
+
+## Schema Evolution — Adding Fields After Entity Creation
+
+When you add a new property to a C# entity model after entities already exist in the database, ReflectiveForms automatically merges the new field's C# default value into existing entities on every read. No migration step needed.
+
+**How it works:**
+- On read/update, the raw DB JSON is merged with the current model's `DefaultJObject` (pre-computed at startup from a fresh `EntityModel<T>` instance)
+- Nested structures (Group, Repeater, Repeater→Group→Repeater) are fully covered — defaults are injected at every depth
+- Existing values are never overwritten; extra keys not in the model are preserved
+- The merge runs on `GetOneAsync`, `UpdateOneAsync`, `GetAllAsync`, `FullReadAllAsync` — all paths that return full entities
+
+**Byte fields:** If your consumer uses `System.Text.Json`, avoid `byte` fields in entity models. `byte` values above 127 may be silently truncated to 0 in nested arrays. Use `int` instead. ReflectiveForms logs a startup warning for any `byte` fields it detects.
+
+**Bootstrap resilience:** The root user credential update on startup is non-fatal — if the update fails, the existing credentials remain active and the app starts normally. Only a missing root user that can't be created is a fatal error.
 
 ## License
 

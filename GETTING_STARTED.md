@@ -668,6 +668,23 @@ The frontend schema includes `has_individual_sharing: true` and `custom_frontend
 
 ---
 
+## Schema Evolution — Adding Fields Over Time
+
+When you add a new property to your entity model, existing database entities automatically receive the C# default value on every read — no migration step needed.
+
+**Example:** You add `public bool IsArchived;` to `NoteModel`. Existing notes in the DB don't have `is_archived`. On the next read, the API response includes `"is_archived": false` (the C# default). On the next update, the field is persisted to the DB.
+
+**Covered paths:**
+- `GET /api/crud?operation=READ` — returns complete entity with all defaults
+- `POST /api/crud?operation=UPDATE` — merges defaults before applying the update
+- `POST /api/crud?operation=PEEK_ALL` — returns lightweight summaries (no default merge; use READ for full entities)
+
+**Nested structures:** Group fields and Repeater items at any depth also receive defaults. If `ProductVariantModel` gains a new `bool IsAvailable`, every variant inside every product gets `is_available: true` on read.
+
+> Existing values are never overwritten. Extra keys not in the model are preserved.
+
+---
+
 ## Branding & Theming
 
 Customize the admin panel appearance:

@@ -930,3 +930,17 @@ See `RfSheetListPage` and `RfSheetPage` in the frontend source for a complete im
 - Use the root credentials: `admin@karasoftware.com` / `123456`
 - On first startup, the root user is automatically created
 - Data persists in temp directory; delete it to reset: `rm -rf $TMPDIR/reflective-forms-tests-1`
+
+### New fields not appearing on existing entities
+- When you add a property to a C# entity model, existing DB entities automatically receive the C# default value on read (no migration needed)
+- This covers all nesting levels: top-level fields, Group fields, and Repeater item fields
+- If a field's C# default conflicts with a `[Number]` min/max range or `[Text]` mandatory flag, provide an explicit value when creating/updating
+
+### Byte field warnings at startup
+- ReflectiveForms scans all entity models for `byte`-typed fields and logs a warning if any are found
+- Consumers using `System.Text.Json` may silently truncate `byte` values > 127 in nested arrays — use `int` instead
+- The warning includes the full path (e.g. `fields.variants.flags`) and notes if the field is inside a nested type (higher risk)
+
+### Root user update fails on restart
+- The root user credential update on startup is non-fatal — if the DB is inconsistent, the existing credentials remain active
+- Check the logs for `Failed to update root user` warnings; the app continues with the old credentials
