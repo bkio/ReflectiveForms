@@ -3,10 +3,13 @@
 // See LICENSE file in the project root for full license information.
 
 using System.Net;
+using System.Reflection;
 using CrossCloudKit.Interfaces.Classes;
 using CrossCloudKit.Utilities.Common;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using ReflectiveForms.Core.Ai;
+using ReflectiveForms.Core.Attributes.Fields;
 using ReflectiveForms.Core.Endpoints;
 using ReflectiveForms.Core.Repositories;
 
@@ -80,6 +83,10 @@ public static class RfConfiguration
                 return OperationResult<bool>.Failure($"AI initialization failed: {e.GetBaseException().Message}", HttpStatusCode.InternalServerError);
             }
         }
+
+        // Byte-field safety scan — warns about byte-typed fields that may cause
+        // silent truncation in consumers using System.Text.Json.
+        ScanForByteFields(configurationBuilder);
 
         return OperationResult<bool>.Success(true);
     }
@@ -222,5 +229,51 @@ public static class RfConfiguration
         AiVectorSync.StartSyncTimer(aiConfig.SyncInterval);
 
         return OperationResult<bool>.Success(true);
+    }
+
+    /// <summary>
+    /// Scan all registered entity models for byte-typed fields.
+    /// System.Text.Json consumers may silently truncate byte values &gt; 127
+    /// in nested arrays. This scan logs warnings so operators are aware.
+    /// </summary>
+    private static void ScanForByteFields(RfConfigurationBuilder configurationBuilder)
+    {
+        if (configurationBuilder.Logger == null) return;
+
+        foreach (var entityConfig in configurationBuilder.EntityConfigurations!)
+        {
+            var fieldsType = entityConfig.EntityConfiguration.EntityFieldsModelType;
+            ScanTypeForByteFields(fieldsType, entityConfig.EntityConfiguration.EntityName, "fields", configurationBuilder.Logger);
+        }
+    }
+
+    private static void ScanTypeForByteFields(Type type, string entityName, string path, ILogger logger)
+    {
+        foreach (var member in type.GetMembers(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                     .Where(m => m is FieldInfo or PropertyInfo))
+        {
+            var memberType = member is FieldInfo fi ? fi.FieldType : ((PropertyInfo)member).PropertyType;
+            var jsonProp = member.GetCustomAttribute<JsonPropertyAttribute>(true);
+            var name = jsonProp?.PropertyName ?? member.Name;
+            var fullPath = $"{path}.{name}";
+
+            if (memberType == typeof(byte))
+            {
+                var context = type.GetCustomAttribute<Repeater>(true) != null ||
+                              type.GetCustomAttribute<Group>() != null
+                    ? " (inside nested type — higher risk)"
+                    : "";
+                logger.LogWarning(
+                    "Byte-typed field '{Path}' on entity '{Entity}'{Context}. " +
+                    "System.Text.Json consumers may silently truncate values > 127. " +
+                    "Consider using int instead.",
+                    fullPath, entityName, context);
+            }
+            else if (memberType.IsClass && memberType != typeof(string) && memberType.Namespace != null)
+            {
+                // Recurse into nested model types (Groups, Repeater items)
+                ScanTypeForByteFields(memberType, entityName, fullPath, logger);
+            }
+        }
     }
 }

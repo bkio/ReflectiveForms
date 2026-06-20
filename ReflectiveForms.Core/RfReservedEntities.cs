@@ -18,7 +18,17 @@ public sealed class IamRoleEntitiesCache : EntitiesCacheBase<IamRoleEntityFields
 }
 public sealed class UserEntitiesCache : EntitiesCacheBase<UserEntityFieldsModel>
 {
-    public UserEntitiesCache() : base(RfReservedEntities.UsersEntityName) => RootManager.EnsureRootUserExistsAsync(this).GetAwaiter().GetResult();
+    public UserEntitiesCache() : base(RfReservedEntities.UsersEntityName)
+    {
+        try
+        {
+            RootManager.EnsureRootUserExistsAsync(this).GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            RfConfiguration.LogError($"UserEntitiesCache: EnsureRootUserExistsAsync failed: {ex.Message}. Admin login may be unavailable.");
+        }
+    }
 }
 public sealed class SheetEntitiesCache() : EntitiesCacheBase<RfSheetEntityFieldsModel>(RfReservedEntities.SheetsEntityName);
 

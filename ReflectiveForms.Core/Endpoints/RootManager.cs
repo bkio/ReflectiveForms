@@ -189,11 +189,20 @@ internal static class RootManager
             {
                 _rootUserId = rootUser.Id;
 
+                // Null-guards: if the row was corrupted, log and skip the update.
+                // The user can still authenticate with existing credentials.
                 var fields = rootUser.Fields;
+                if (fields == null)
+                {
+                    RfConfiguration.LogError($"Root user (id={rootUser.Id}) has null Fields. Skipping credential update. DB may be corrupted.");
+                    return;
+                }
+
                 if (fields.EmailAddress == newEmail
                     && fields.PasswordSha256 == newPasswordSha256)
                     return;
 
+                // If credentials mismatch, attempt update. Log warning on failure instead of crashing.
                 fields.EmailAddress = newEmail;
                 fields.PasswordSha256 = newPasswordSha256;
 
@@ -204,7 +213,11 @@ internal static class RootManager
                     EntityUpdaterIdentity.NormalUpdate(rootUser.Id, newEmail),
                     cancellationToken);
                 if (!updateResult.IsSuccessful)
-                    throw new Exception($"Failed to update root user with id {rootUser.Id} with the new credentials.");
+                {
+                    RfConfiguration.LogError(
+                        $"Failed to update root user (id={rootUser.Id}) credentials. " +
+                        $"Old credentials remain active. Error: {updateResult.ErrorMessage} ({updateResult.StatusCode})");
+                }
             }
             else
             {

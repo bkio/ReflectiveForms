@@ -414,6 +414,8 @@ Restart the backend (`dotnet run`) and refresh the frontend. "Tasks" appears in 
 | `Group` | Fieldset | Visually group related fields |
 | `Repeater` | Add/remove rows | Lists (e.g. items, contacts) |
 
+> **⚠️ Avoid `byte` fields in entity models.** If your consumer uses `System.Text.Json` (e.g., ASP.NET Core's built-in JSON handling), `byte` values above 127 may be silently truncated to 0 in nested arrays. Use `int` instead and cast to `(byte)` in your consumer. ReflectiveForms logs a startup warning for any `byte` fields it detects.
+
 ---
 
 ## Display Conditions
