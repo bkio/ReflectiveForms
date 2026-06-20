@@ -19,6 +19,11 @@ public sealed class Repeater : Field
 {
     private readonly Type _repeaterFor;
 
+    /// <summary>
+    /// The BaseModel type used for each row in this repeater.
+    /// </summary>
+    internal Type RepeaterFor => _repeaterFor;
+
     private readonly GroupRenderStyle _groupRenderStyle;
     private readonly RepeatUseAccordion _useAccordion;
 

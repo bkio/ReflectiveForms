@@ -156,6 +156,7 @@ public class EntityRepositoryService
         ConditionCoupling? filter = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        var configuration = RfConfiguration.EntityNameToConfiguration[entityName];
         var generatedNo = 0;
         string? nextToken = null;
         do
@@ -186,7 +187,9 @@ public class EntityRepositoryService
 
             foreach (var item in result.Data.Items)
             {
-                yield return OperationResult<JObject>.Success(item);
+                // Merge C# model defaults so that fields added after entity creation appear
+                var merged = EntityDefaultsMerger.MergeDefaults(item, configuration);
+                yield return OperationResult<JObject>.Success(merged);
             }
 
             generatedNo += result.Data.Items.Count;
@@ -255,12 +258,15 @@ public class EntityRepositoryService
             new DbKey(EntityModelAttributes.Id, id),
             null,
             cancellationToken);
-        return !result.IsSuccessful
-            ?
-            OperationResult<JObject>.Failure($"GetOneAsync has failed with: {result.ErrorMessage}", result.StatusCode)
-            : result.Data == null
-                ? OperationResult<JObject>.Failure("Not found.", HttpStatusCode.NotFound)
-                : OperationResult<JObject>.Success(result.Data);
+        if (!result.IsSuccessful)
+            return OperationResult<JObject>.Failure($"GetOneAsync has failed with: {result.ErrorMessage}", result.StatusCode);
+        if (result.Data == null)
+            return OperationResult<JObject>.Failure("Not found.", HttpStatusCode.NotFound);
+
+        // Merge C# model defaults so that fields added after entity creation appear
+        var configuration = RfConfiguration.EntityNameToConfiguration[entityName];
+        var merged = EntityDefaultsMerger.MergeDefaults(result.Data, configuration);
+        return OperationResult<JObject>.Success(merged);
     }
 
     public async Task<OperationResult<bool>> DoesExistAsync(string entityName, int id, CancellationToken cancellationToken)
@@ -486,7 +492,7 @@ public class EntityRepositoryService
                 return OperationResult<JObject>.Failure(error, HttpStatusCode.InternalServerError);
             }
 
-            var newBody = (JObject)oldObject.DeepClone();
+            var newBody = EntityDefaultsMerger.MergeDefaults(oldObject, RfConfiguration.EntityNameToConfiguration[entityName]);
             newBody.Merge(body, new JsonMergeSettings
             {
                 MergeArrayHandling = MergeArrayHandling.Replace
@@ -1307,9 +1313,15 @@ public class EntityRepositoryService
         var scanResult = await _db.ScanTableAsync(
             GetEntityTableName(entityName),
             cancellationToken);
-        return !scanResult.IsSuccessful
-            ? OperationResult<JArray>.Failure($"Error: EntityRepository->FullReadAllAsync: ScanTableAsync has failed with: {scanResult.ErrorMessage}", scanResult.StatusCode)
-            : OperationResult<JArray>.Success(ListOfJObjectToJArray(scanResult.Data.Items));
+        if (!scanResult.IsSuccessful)
+            return OperationResult<JArray>.Failure($"Error: EntityRepository->FullReadAllAsync: ScanTableAsync has failed with: {scanResult.ErrorMessage}", scanResult.StatusCode);
+
+        // Merge C# model defaults into each full entity
+        var configuration = RfConfiguration.EntityNameToConfiguration[entityName];
+        var items = new JArray();
+        foreach (var item in scanResult.Data.Items)
+            items.Add(EntityDefaultsMerger.MergeDefaults(item, configuration));
+        return OperationResult<JArray>.Success(items);
     }
 
     public async Task<OperationResult<JObject>> PeekAllPaginatedAsync(

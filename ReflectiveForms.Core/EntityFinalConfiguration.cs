@@ -39,6 +39,13 @@ public abstract class EntityFinalConfigurationBase
     internal Func<(JObject entityObject, CancellationToken cancellationToken), Task<OperationResult<bool>>> UpsertSanityCheck { get; init; } = null!;
     internal JObject DefaultJObject { get; init; } = null!;
 
+    /// <summary>
+    /// Map from dot-separated JSON property path (e.g. "fields.variants")
+    /// to the default JObject template for one repeater item at that path.
+    /// Built once at startup. Used by EntityDefaultsMerger.
+    /// </summary>
+    internal IReadOnlyDictionary<string, JObject> RepeaterTemplateMap { get; init; } = null!;
+
     public EntityConfigurationBuilderBase EntityConfiguration { get; protected init; } = null!;
 }
 
@@ -149,6 +156,8 @@ public sealed class EntityFinalConfiguration<T> : EntityFinalConfigurationBase w
 
             return OperationResult<bool>.Success(true);
         };
+
+        RepeaterTemplateMap = EntityDefaultsMerger.BuildRepeaterTemplateMap(typeof(T));
 
         DefaultJObject = defaultInstance.FromObjectWithPolymorphism();
     }
