@@ -9,6 +9,7 @@ using CrossCloudKit.Utilities.Common;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using ReflectiveForms.Core.Ai;
+using ReflectiveForms.Core.Attributes;
 using ReflectiveForms.Core.Attributes.Fields;
 using ReflectiveForms.Core.Endpoints;
 using ReflectiveForms.Core.Models;
@@ -253,6 +254,11 @@ public static class RfConfiguration
         foreach (var member in type.GetMembers(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                      .Where(m => m is FieldInfo or PropertyInfo))
         {
+            // Only scan members that carry an RF field attribute — matches the
+            // proven pattern in EntityModelDefaultsBuilder.
+            if (!Attribute.IsDefined(member, typeof(Field), true))
+                continue;
+
             var memberType = member is FieldInfo fi ? fi.FieldType : ((PropertyInfo)member).PropertyType;
             var jsonProp = member.GetCustomAttribute<JsonPropertyAttribute>(true);
             var name = jsonProp?.PropertyName ?? member.Name;
@@ -270,9 +276,20 @@ public static class RfConfiguration
                     "Consider using int instead.",
                     fullPath, entityName, context);
             }
-            else if (memberType.IsClass && memberType != typeof(string) && memberType.IsSubclassOf(typeof(BaseModel)))
+
+            // Recurse into nested model types, matching the structural pattern
+            // used by EntityModelDefaultsBuilder:
+            //   List<T> → recurse into element type T
+            //   Class (not string) → recurse into the type itself
+            if (memberType.IsGenericType &&
+                memberType.GetGenericTypeDefinition() == typeof(List<>))
             {
-                // Recurse into nested model types (Groups, Repeater items)
+                var elementType = memberType.GetGenericArguments()[0];
+                if (elementType.IsClass && elementType != typeof(string))
+                    ScanTypeForByteFields(elementType, entityName, fullPath, logger);
+            }
+            else if (memberType.IsClass && memberType != typeof(string))
+            {
                 ScanTypeForByteFields(memberType, entityName, fullPath, logger);
             }
         }

@@ -129,28 +129,49 @@ public static class EntityDefaultsMerger
                      BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                  .Where(m => m is FieldInfo or PropertyInfo))
         {
-            var repeaterAttr = member.GetCustomAttribute<Repeater>(true);
-            if (repeaterAttr == null) continue;
-
+            var memberType = member is FieldInfo fi ? fi.FieldType : ((PropertyInfo)member).PropertyType;
             var jsonPropAttr = member.GetCustomAttribute<JsonPropertyAttribute>(true);
             var fieldName = jsonPropAttr?.PropertyName ?? member.Name;
             var path = $"{parentPath}.{fieldName}";
-            var itemType = repeaterAttr.RepeaterFor;
 
-            // Create default instance of the repeater item type
-            var defaultInstance = Activator.CreateInstance(itemType, nonPublic: true);
-            if (defaultInstance == null) continue;
+            var repeaterAttr = member.GetCustomAttribute<Repeater>(true);
+            if (repeaterAttr != null)
+            {
+                var itemType = repeaterAttr.RepeaterFor;
 
-            var template = JObject.FromObject(defaultInstance,
-                JsonSerializer.Create(new JsonSerializerSettings
+                // Create default instance of the repeater item type
+                var defaultInstance = Activator.CreateInstance(itemType, nonPublic: true);
+                if (defaultInstance == null) continue;
+
+                var template = JObject.FromObject(defaultInstance,
+                    JsonSerializer.Create(new JsonSerializerSettings
+                    {
+                        ConstructorHandling = ConstructorHandling.AllowNonPublicDefaultConstructor
+                    }));
+
+                map[path] = template;
+
+                // Recurse — the repeater item type may contain nested Repeaters or Groups
+                PopulateTemplateMap(itemType, path, map);
+            }
+            else
+            {
+                // Recurse into nested model types (Group fields) to find repeaters at deeper levels.
+                // Matches the structural pattern used by EntityModelDefaultsBuilder and ScanTypeForByteFields:
+                //   List<T> → recurse into element type T
+                //   Class (not string) → recurse into the type itself
+                if (memberType.IsGenericType &&
+                    memberType.GetGenericTypeDefinition() == typeof(List<>))
                 {
-                    ConstructorHandling = ConstructorHandling.AllowNonPublicDefaultConstructor
-                }));
-
-            map[path] = template;
-
-            // Recurse — the repeater item type may itself contain nested Repeaters
-            PopulateTemplateMap(itemType, path, map);
+                    var elementType = memberType.GetGenericArguments()[0];
+                    if (elementType.IsClass && elementType != typeof(string))
+                        PopulateTemplateMap(elementType, path, map);
+                }
+                else if (memberType.IsClass && memberType != typeof(string))
+                {
+                    PopulateTemplateMap(memberType, path, map);
+                }
+            }
         }
     }
 }
