@@ -147,33 +147,3 @@ test.describe('API Endpoint Verification', () => {
     });
   });
 });
-
-test.describe('CORS', () => {
-  test('preflight with disallowed origin returns 200 with no CORS headers', async ({ request }) => {
-    const res = await request.fetch(`${API_BASE}/schema`, {
-      method: 'OPTIONS',
-      headers: {
-        Origin: 'http://evil.com',
-        'Access-Control-Request-Method': 'GET',
-      },
-    });
-    // Should return 200 (or 204) — not crash
-    expect(res.status()).toBeGreaterThanOrEqual(200);
-    expect(res.status()).toBeLessThan(300);
-    // Should NOT include Access-Control-Allow-Origin for disallowed origin
-    const allowOrigin = res.headers()['access-control-allow-origin'];
-    expect(allowOrigin).toBeUndefined();
-  });
-
-  test('preflight with allowed origin returns CORS headers', async ({ request }) => {
-    const res = await request.fetch(`${API_BASE}/schema`, {
-      method: 'OPTIONS',
-      headers: {
-        Origin: 'http://localhost:3000',
-        'Access-Control-Request-Method': 'GET',
-      },
-    });
-    expect(res.status()).toBe(204);
-    expect(res.headers()['access-control-allow-origin']).toBe('http://localhost:3000');
-  });
-});

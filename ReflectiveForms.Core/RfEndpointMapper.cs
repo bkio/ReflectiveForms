@@ -12,7 +12,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 using ReflectiveForms.Core.Endpoints;
 using ReflectiveForms.Core.Endpoints.Enums;
@@ -98,13 +97,6 @@ public static class RfEndpointMapper
         var initializeResult = RfConfiguration.Initialize(reflectiveFormsBuilder);
         if (!initializeResult.IsSuccessful)
             throw new Exception(initializeResult.ErrorMessage);
-
-        // Configure graceful shutdown so in-flight requests complete before
-        // Kestrel stops — reduces CORS policy execution failure noise during restarts.
-        webAppBuilder.Services.Configure<HostOptions>(options =>
-        {
-            options.ShutdownTimeout = TimeSpan.FromSeconds(30);
-        });
 
         webAppBuilder.Services.AddAuthentication(options =>
         {
