@@ -11,6 +11,7 @@ using Newtonsoft.Json;
 using ReflectiveForms.Core.Ai;
 using ReflectiveForms.Core.Attributes.Fields;
 using ReflectiveForms.Core.Endpoints;
+using ReflectiveForms.Core.Models;
 using ReflectiveForms.Core.Repositories;
 
 namespace ReflectiveForms.Core;
@@ -269,7 +270,7 @@ public static class RfConfiguration
                     "Consider using int instead.",
                     fullPath, entityName, context);
             }
-            else if (memberType.IsClass && memberType != typeof(string) && memberType.Namespace != null)
+            else if (memberType.IsClass && memberType != typeof(string) && memberType.IsSubclassOf(typeof(BaseModel)))
             {
                 // Recurse into nested model types (Groups, Repeater items)
                 ScanTypeForByteFields(memberType, entityName, fullPath, logger);
