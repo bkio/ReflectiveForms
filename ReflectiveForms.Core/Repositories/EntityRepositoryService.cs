@@ -323,11 +323,9 @@ public class EntityRepositoryService
 
             var configuration = RfConfiguration.EntityNameToConfiguration[entityName];
 
-            var newBody = (JObject)configuration.DefaultJObject.DeepClone();
-            newBody.Merge(body, new JsonMergeSettings
-            {
-                MergeArrayHandling = MergeArrayHandling.Replace
-            });
+            // Merge C# model defaults into the body so repeater item defaults are
+            // injected (matching the read-path behavior in GetOneAsync/UpdateOneAsync).
+            var newBody = EntityDefaultsMerger.MergeDefaults(body, configuration);
 
             var sanityCheck = await configuration.UpsertSanityCheck((newBody, cancellationToken));
             if (!sanityCheck.IsSuccessful)
