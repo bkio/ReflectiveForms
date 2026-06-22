@@ -4,7 +4,7 @@
 A schema-driven admin panel framework. Define entities with C# attributes, get a full CRUD admin panel with a modern React frontend — auto-save, display conditions, nested repeaters, entity relations, locking, SSO, AI-powered features (centralized AI assistant with tool-calling, semantic search, sanity checks, NL filtering), OpenAPI spec generation, and more.
 ## Test Results
 
-**Last Updated:** 2026-06-20 20:06:41 UTC
+**Last Updated:** 2026-06-22 07:20:55 UTC
 
 | Metric | Count |
 |--------|-------|
