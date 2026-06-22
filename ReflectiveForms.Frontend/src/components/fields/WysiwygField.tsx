@@ -123,13 +123,13 @@ function WysiwygEditor({ content, onChange, hasError, placeholder }: WysiwygEdit
   }, []);
 
   return (
-    <div className={`wysiwyg-editor border rounded-lg overflow-hidden ${hasError ? 'border-red-500' : 'border-gray-300'}`}>
+    <div className={`wysiwyg-editor border rounded-lg overflow-hidden ${hasError ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}>
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-0.5 p-2 border-b border-gray-200 bg-gray-50">
+      <div className="flex flex-wrap items-center gap-0.5 p-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
         {TOOLBAR_ACTIONS.map((action, index) => {
           if (action.command === 'separator') {
             return (
-              <div key={index} className="w-px h-6 bg-gray-300 mx-1" />
+              <div key={index} className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
             );
           }
           return (
@@ -137,7 +137,7 @@ function WysiwygEditor({ content, onChange, hasError, placeholder }: WysiwygEdit
               key={`${action.command}-${index}`}
               type="button"
               onClick={() => execCommand(action.command, action.value)}
-              className="p-2 rounded hover:bg-gray-200 text-gray-600 hover:text-gray-900 transition-colors"
+              className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
               title={action.title}
               disabled={isSourceMode}
             >
@@ -152,7 +152,7 @@ function WysiwygEditor({ content, onChange, hasError, placeholder }: WysiwygEdit
         <button
           type="button"
           onClick={toggleSourceMode}
-          className={`px-2 py-1 text-xs rounded ${isSourceMode ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-200'}`}
+          className={`px-2 py-1 text-xs rounded ${isSourceMode ? 'bg-blue-500 text-white' : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200'}`}
           title="Toggle source mode"
         >
           {isSourceMode ? 'Preview' : 'HTML'}
@@ -164,7 +164,7 @@ function WysiwygEditor({ content, onChange, hasError, placeholder }: WysiwygEdit
         <textarea
           value={sourceContent}
           onChange={handleSourceChange}
-          className="w-full min-h-[200px] p-4 font-mono text-sm resize-y focus:outline-none"
+          className="w-full min-h-[200px] p-4 font-mono text-sm resize-y focus:outline-none bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
           placeholder="Enter HTML..."
         />
       ) : (
@@ -173,7 +173,7 @@ function WysiwygEditor({ content, onChange, hasError, placeholder }: WysiwygEdit
           contentEditable
           onInput={handleInput}
           onKeyDown={handleKeyDown}
-          className="w-full min-h-[200px] p-4 prose prose-sm max-w-none focus:outline-none contain-layout-paint"
+          className="w-full min-h-[200px] p-4 prose prose-sm max-w-none focus:outline-none contain-layout-paint bg-white dark:bg-gray-800 dark:prose-invert"
           data-placeholder={placeholder || 'Start writing...'}
           style={{
             WebkitUserModify: 'read-write',
@@ -182,8 +182,8 @@ function WysiwygEditor({ content, onChange, hasError, placeholder }: WysiwygEdit
       )}
 
       {/* Character count */}
-      <div className="px-4 py-2 border-t border-gray-100 bg-gray-50">
-        <span className="text-xs text-gray-400">
+      <div className="px-4 py-2 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+        <span className="text-xs text-gray-400 dark:text-gray-500">
           {isSourceMode
             ? `${sourceContent.length} characters (HTML)`
             : editorRef.current

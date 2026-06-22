@@ -68,6 +68,10 @@ body {
   display: block;
 }
 
+.dark .wysiwyg-editor [contenteditable]:empty:before {
+  color: #6b7280;
+}
+
 /* WYSIWYG editor focus styles */
 .wysiwyg-editor [contenteditable]:focus {
   outline: none;
