@@ -3,6 +3,7 @@
 
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using ReflectiveForms.Core.Models;
 
 namespace ReflectiveForms.Core.Utilities;
 
@@ -20,13 +21,38 @@ public static class JsonExtensions
     public static T? ToObjectWithPolymorphism<T>(this JToken jObject)
     {
         RemoveJsonTypeProperties(jObject);
+        NormalizeEntityDateTokens(jObject);
         return jObject.ToObject<T>(Serializer);
     }
 
     public static object? ToObjectWithPolymorphism(this JObject jObject, Type type)
     {
         RemoveJsonTypeProperties(jObject);
+        NormalizeEntityDateTokens(jObject);
         return jObject.ToObject(type, Serializer);
+    }
+
+    private static readonly string[] EntityDateAttributes =
+    [
+        EntityModelAttributes.Date, EntityModelAttributes.DateGmt,
+        EntityModelAttributes.Modified, EntityModelAttributes.ModifiedGmt
+    ];
+
+    /// <summary>
+    /// Rows read back from the database arrive with the entity date attributes already parsed into
+    /// JTokenType.Date. Converting those into EntityModel's string properties would yield culture-formatted
+    /// text ("10/01/2026 12:48:21") that fails the date sanity check as soon as the object is written back,
+    /// e.g. when the owner role is updated at startup after the registered entity types changed.
+    /// Restore the canonical string form first.
+    /// </summary>
+    internal static void NormalizeEntityDateTokens(JToken token)
+    {
+        if (token is not JObject obj) return;
+        foreach (var key in EntityDateAttributes)
+        {
+            if (obj[key] is { Type: JTokenType.Date } dateToken)
+                obj[key] = DateUtility.DateTimeToDesiredString((DateTime)dateToken);
+        }
     }
 
     public static T? DeserializeObjectWithPolymorphism<T>(this string serialized)
