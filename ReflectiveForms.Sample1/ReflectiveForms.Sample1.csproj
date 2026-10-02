@@ -7,8 +7,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="CrossCloudKit.LLM.Basic.Completion" Version="2026.4.22.71" />
-    <PackageReference Include="CrossCloudKit.LLM.Basic.Embeddings" Version="2026.4.22.71" />
+    <PackageReference Include="CrossCloudKit.LLM.Basic.Completion" Version="2026.10.2.72" />
+    <PackageReference Include="CrossCloudKit.LLM.Basic.Embeddings" Version="2026.10.2.72" />
   </ItemGroup>
 
   <ItemGroup>
@@ -20,11 +20,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="CrossCloudKit.Database.Basic" Version="2026.4.22.71" />
-    <PackageReference Include="CrossCloudKit.File.Basic" Version="2026.4.22.71" />
-    <PackageReference Include="CrossCloudKit.Memory.Basic" Version="2026.4.22.71" />
-    <PackageReference Include="CrossCloudKit.PubSub.Basic" Version="2026.4.22.71" />
-    <PackageReference Include="CrossCloudKit.Vector.Basic" Version="2026.4.22.71" />
+    <PackageReference Include="CrossCloudKit.Database.Basic" Version="2026.10.2.72" />
+    <PackageReference Include="CrossCloudKit.File.Basic" Version="2026.10.2.72" />
+    <PackageReference Include="CrossCloudKit.Memory.Basic" Version="2026.10.2.72" />
+    <PackageReference Include="CrossCloudKit.PubSub.Basic" Version="2026.10.2.72" />
+    <PackageReference Include="CrossCloudKit.Vector.Basic" Version="2026.10.2.72" />
   </ItemGroup>
 
 </Project>
