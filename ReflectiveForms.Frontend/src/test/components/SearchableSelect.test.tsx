@@ -11,10 +11,11 @@ vi.mock('../../hooks/useEntity', async (importOriginal) => {
   return {
     ...actual,
     usePaginatedEntityList: vi.fn(),
+    useEntityList: vi.fn(),
   };
 });
 
-import { usePaginatedEntityList } from '../../hooks/useEntity';
+import { useEntityList, usePaginatedEntityList } from '../../hooks/useEntity';
 
 const mockData = {
   pages: [
@@ -48,6 +49,7 @@ describe('SearchableSelect', () => {
       isFetchingNextPage: false,
       isLoading: false,
     } as any);
+    vi.mocked(useEntityList).mockReturnValue({ data: undefined, isLoading: false } as any);
   });
 
   afterEach(() => {
@@ -249,6 +251,76 @@ describe('SearchableSelect', () => {
 
     await waitFor(() => {
       expect(screen.getByText('3 of 3 loaded')).toBeInTheDocument();
+    });
+  });
+
+  describe('selected ids beyond the loaded pages', () => {
+    const fullList = [
+      { id: 1, title: 'Alpha Entity' },
+      { id: 2, title: 'Beta Entity' },
+      { id: 3, title: 'Gamma Entity' },
+      { id: 43, title: 'Far Away Entity' },
+      { id: 45, title: 'Even Further Entity' },
+    ];
+
+    it('does not fetch the full list when every selected id is already loaded', () => {
+      render(
+        <Wrapper>
+          <SearchableSelect entityName="test" value={2} />
+        </Wrapper>
+      );
+      expect(screen.getByText('Beta Entity')).toBeInTheDocument();
+      expect(vi.mocked(useEntityList)).toHaveBeenCalledWith('');
+      expect(vi.mocked(useEntityList)).not.toHaveBeenCalledWith('test');
+    });
+
+    it('resolves a single selection that is not on the loaded pages', () => {
+      vi.mocked(useEntityList).mockImplementation(
+        (name: string) => ({ data: name ? fullList : undefined, isLoading: false }) as any
+      );
+      render(
+        <Wrapper>
+          <SearchableSelect entityName="test" value={43} />
+        </Wrapper>
+      );
+      expect(vi.mocked(useEntityList)).toHaveBeenCalledWith('test');
+      expect(screen.getByText('Far Away Entity')).toBeInTheDocument();
+      expect(screen.queryByText('ID: 43')).not.toBeInTheDocument();
+    });
+
+    it('resolves multi-select chips that are not on the loaded pages', () => {
+      vi.mocked(useEntityList).mockImplementation(
+        (name: string) => ({ data: name ? fullList : undefined, isLoading: false }) as any
+      );
+      render(
+        <Wrapper>
+          <SearchableSelect entityName="test" multiSelect multiValue={[1, 45]} />
+        </Wrapper>
+      );
+      expect(screen.getByText('Alpha Entity')).toBeInTheDocument();
+      expect(screen.getByText('Even Further Entity')).toBeInTheDocument();
+    });
+
+    it('shows a loading label instead of a raw id while the title is being fetched', () => {
+      vi.mocked(useEntityList).mockReturnValue({ data: undefined, isLoading: true } as any);
+      render(
+        <Wrapper>
+          <SearchableSelect entityName="test" value={43} />
+        </Wrapper>
+      );
+      expect(screen.getByText('Loading…')).toBeInTheDocument();
+    });
+
+    it('falls back to the id when the entity no longer exists', () => {
+      vi.mocked(useEntityList).mockImplementation(
+        (name: string) => ({ data: name ? fullList : undefined, isLoading: false }) as any
+      );
+      render(
+        <Wrapper>
+          <SearchableSelect entityName="test" value={999} />
+        </Wrapper>
+      );
+      expect(screen.getByText('ID: 999')).toBeInTheDocument();
     });
   });
 });

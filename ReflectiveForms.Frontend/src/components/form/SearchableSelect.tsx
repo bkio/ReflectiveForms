@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { ChevronDown, Search, Loader2, X } from 'lucide-react';
-import { usePaginatedEntityList } from '../../hooks/useEntity';
+import { useEntityList, usePaginatedEntityList } from '../../hooks/useEntity';
 import { PeekEntity } from '../../types/schema';
 
 interface SearchableSelectProps {
@@ -52,6 +52,29 @@ export function SearchableSelect({
 
   const totalCount = data?.pages[0]?.total_count ?? null;
 
+  // Selected ids that are not on the pages loaded so far (e.g. item #25 of a
+  // 20-per-page list). Their labels come from the full peek list, fetched once
+  // per entity type and shared by every select on the page via the query cache.
+  const hasUnloadedSelection = useMemo(() => {
+    if (isLoading) return false;
+    const loaded = new Set(allEntities.map((e) => e.id));
+    const selected = multiSelect ? multiValue : [value];
+    return selected.some((id) => id > 0 && !loaded.has(id));
+  }, [allEntities, isLoading, multiSelect, multiValue, value]);
+
+  const { data: fullList, isLoading: isFullListLoading } = useEntityList(
+    hasUnloadedSelection ? entityName : ''
+  );
+
+  const labelFor = useCallback(
+    (id: number) => {
+      const found = allEntities.find((e) => e.id === id) ?? fullList?.find((e) => e.id === id);
+      if (found) return found.title ?? found.name ?? `ID: ${id}`;
+      return isLoading || (hasUnloadedSelection && isFullListLoading) ? 'Loading…' : `ID: ${id}`;
+    },
+    [allEntities, fullList, isLoading, hasUnloadedSelection, isFullListLoading]
+  );
+
   // Filter entities by search term (client-side) and excludeId
   const filteredEntities = useMemo(() => {
     let result = allEntities;
@@ -70,19 +93,14 @@ export function SearchableSelect({
   const selectedLabel = useMemo(() => {
     if (multiSelect) return '';
     if (value <= 0) return '';
-    const found = allEntities.find((e) => e.id === value);
-    return found ? (found.title ?? found.name ?? `ID: ${found.id}`) : `ID: ${value}`;
-  }, [allEntities, value, multiSelect]);
+    return labelFor(value);
+  }, [labelFor, value, multiSelect]);
 
   // Get selected entities for multi-select mode
   const selectedEntities = useMemo(() => {
     if (!multiSelect) return [];
-    return multiValue
-      .map((id) => {
-        const found = allEntities.find((e) => e.id === id);
-        return found ? { id, label: found.title ?? found.name ?? `ID: ${id}` } : { id, label: `ID: ${id}` };
-      });
-  }, [allEntities, multiValue, multiSelect]);
+    return multiValue.map((id) => ({ id, label: labelFor(id) }));
+  }, [labelFor, multiValue, multiSelect]);
 
   // Close dropdown on outside click
   useEffect(() => {
