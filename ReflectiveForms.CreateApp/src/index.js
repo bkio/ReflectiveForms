@@ -36,7 +36,7 @@ function copyTemplate(src, dest, replacements) {
   }
 }
 
-const CCK_VERSION = '2026.4.22.71';
+const CCK_VERSION = '2026.10.2.72';
 
 export function infraReplacements(stack) {
   if (stack === 'aws') {
@@ -408,8 +408,8 @@ features enabled, run \`create-reflective-forms-app\` again and answer **y** to 
       '    [AISuggestion("Write a short note based on the title.", "title")]',
     ].join('\n'),
     AI_CSPROJ_PACKAGES: [
-      '    <PackageReference Include="CrossCloudKit.LLM.Basic" Version="2026.4.22.71" ExcludeAssets="contentFiles" />',
-      '    <PackageReference Include="CrossCloudKit.Vector.Basic" Version="2026.4.22.71" />',
+      '    <PackageReference Include="CrossCloudKit.LLM.Basic" Version="2026.10.2.72" ExcludeAssets="contentFiles" />',
+      '    <PackageReference Include="CrossCloudKit.Vector.Basic" Version="2026.10.2.72" />',
     ].join('\n'),
     AI_ENV_VARS: [
       '',
