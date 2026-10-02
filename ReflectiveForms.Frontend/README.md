@@ -86,8 +86,28 @@ interface CustomPage {
   icon: ComponentType<{ className?: string }>;  // Lucide-react icon or any component
   component: ComponentType; // Page component to render
   section?: string;      // Sidebar section group (default: 'Custom')
+  canAccess?: () => Promise<boolean>; // Who may open it (default: everyone)
+  showOnDashboard?: boolean; // Also show it as a Dashboard card (default: false)
+  description?: string;  // Text for the Dashboard card
 }
 ```
+
+**Access control.** With `canAccess`, the page is listed in the sidebar (and on the Dashboard, if
+`showOnDashboard`) only once the check resolves `true` for the signed-in user; until then, or if it
+resolves `false` or fails, the link is hidden and opening the route directly shows a "No access"
+notice (or a Retry button on failure) instead of the component. The answer is cached per user,
+cleared on logout and re-checked every 30 seconds, so role changes apply without a reload. Typical
+use: ask your backend which roles the user has.
+
+```tsx
+{
+  path: '/monitor', label: 'Control Panel', icon: Radio, component: ControlPanel,
+  showOnDashboard: true, description: 'Live show control',
+  canAccess: () => fetch('/api/my-permissions').then(r => r.json()).then(p => p.control_panel),
+}
+```
+
+`canAccess` is a UI gate: protect the data and actions the page uses on your backend as well.
 
 ## Theming
 

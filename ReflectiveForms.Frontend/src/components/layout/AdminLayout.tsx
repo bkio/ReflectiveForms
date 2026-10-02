@@ -8,6 +8,7 @@ import { AiGlobalSearch } from '../ai/AiGlobalSearch';
 import { AiAgentChat } from '../ai/AiAgentChat';
 import { AiAssistantProvider, useAiAssistant } from '../../lib/AiAssistantContext';
 import type { CustomPage } from '../../lib/types';
+import { useAccessibleCustomPages } from '../../hooks/useCustomPageAccess';
 
 function getCookie(name: string): string | null {
   const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
@@ -56,17 +57,19 @@ export function AdminLayout() {
   const appName = config?.appName ?? 'ReflectiveForms';
   const Logo = config?.logo;
 
-  // Group custom pages by section
+  // Group the custom pages this user may open by section (sections left empty are hidden)
+  const accessiblePages = useAccessibleCustomPages(config?.customPages ?? []);
+  const accessibleKey = accessiblePages.map((p) => p.path).join('\n');
   const customPageSections = useMemo(() => {
-    const pages = config?.customPages ?? [];
     const sections: Record<string, CustomPage[]> = {};
-    for (const page of pages) {
+    for (const page of accessiblePages) {
       const section = page.section ?? 'Custom';
       if (!sections[section]) sections[section] = [];
       sections[section].push(page);
     }
     return sections;
-  }, [config?.customPages]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessibleKey]);
 
   // Handle responsive behavior
   useEffect(() => {

@@ -427,7 +427,7 @@ When disabled:
 | `basePath` | No | `"/"` | Router base path |
 | `auth.mode` | No | `"local"` | `"local"` or `"sso"` |
 | `auth.ssoLoginUrl` | No | — | SSO redirect endpoint (required when mode is `"sso"`) |
-| `customPages` | No | `[]` | Extra sidebar pages with `path`, `label`, `icon`, `component`, `section` |
+| `customPages` | No | `[]` | Extra sidebar pages with `path`, `label`, `icon`, `component`, `section`, and optionally `canAccess` (per-user visibility), `showOnDashboard` + `description` (Dashboard card) |
 
 ## Architecture
 

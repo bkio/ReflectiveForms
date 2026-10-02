@@ -3,11 +3,21 @@ import { Link } from 'react-router-dom';
 import { Plus, FileText, ArrowRight, Eye } from 'lucide-react';
 import { useAllSchemas, useCapabilities, useGlobalSettings } from '../hooks/useEntity';
 import { useAiAssistantOptional } from '../lib/AiAssistantContext';
+import { useRfConfig } from '../lib/RfConfigProvider';
+import { useAccessibleCustomPages } from '../hooks/useCustomPageAccess';
+import type { RfConfig } from '../lib/types';
 
 export function DashboardPage() {
   const { data: schemas, isLoading, error } = useAllSchemas();
   const { data: capabilities } = useCapabilities();
   const settings = useGlobalSettings(); // Must be BEFORE early returns (React hooks rule)
+  let config: RfConfig | null = null;
+  try {
+    config = useRfConfig();
+  } catch {
+    // Not wrapped in RfConfigProvider: no custom pages
+  }
+  const dashboardPages = useAccessibleCustomPages((config?.customPages ?? []).filter((p) => p.showOnDashboard));
 
   // Push context to AI assistant
   const assistant = useAiAssistantOptional();
@@ -55,6 +65,32 @@ export function DashboardPage() {
       {/* Entity type cards */}
       <div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {dashboardPages.map((page) => {
+            const PageIcon = page.icon;
+            return (
+              <div
+                key={page.path}
+                className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow flex flex-col"
+                data-testid={`dashboard-page-${page.path.replace(/^\//, '').replace(/[^a-zA-Z0-9]+/g, '-')}`}
+              >
+                <div className="p-5 flex-1">
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <PageIcon className="w-5 h-5 text-blue-600" />
+                    {page.label}
+                  </h3>
+                  {page.description && <p className="mt-1 text-sm text-gray-500">{page.description}</p>}
+                </div>
+                <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex gap-3">
+                  <Link
+                    to={page.path}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <ArrowRight className="w-4 h-4" /> Open
+                  </Link>
+                </div>
+              </div>
+            );
+          })}
           {entityTypes.map((schema) => (
             <div
               key={schema.entity_name}
@@ -123,7 +159,7 @@ export function DashboardPage() {
             </div>
           ))}
 
-          {entityTypes.length === 0 && (
+          {entityTypes.length === 0 && dashboardPages.length === 0 && (
             <div className="col-span-full bg-gray-50 rounded-lg p-8 text-center text-gray-500">
               <FileText className="w-12 h-12 mx-auto text-gray-400 mb-3" />
               <p className="font-medium">No content types available</p>
@@ -134,6 +170,7 @@ export function DashboardPage() {
       </div>
 
       {/* Quick links */}
+      {editableTypes.length > 0 && (
       <div>
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Links</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -156,6 +193,7 @@ export function DashboardPage() {
           ))}
         </div>
       </div>
+      )}
     </div>
   );
 }

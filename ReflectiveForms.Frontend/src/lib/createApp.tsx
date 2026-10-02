@@ -8,6 +8,7 @@ import { ErrorBoundary } from '../components/ErrorBoundary';
 import { RfConfigProvider } from './RfConfigProvider';
 import { AuthProvider, useAuth } from '../hooks/useAuth';
 import { AdminLayout } from '../components/layout/AdminLayout';
+import { CustomPageGate } from '../components/layout/CustomPageGate';
 import { RfRoutes } from './RfRoutes';
 import { LoginPage } from '../pages/LoginPage';
 import { SsoLoginPage } from '../pages/SsoLoginPage';
@@ -86,7 +87,7 @@ export function createReflectiveFormsApp(config: RfConfig) {
       : config.overrides?.LoginPage ?? LoginPage;
 
   const customRoutes = config.customPages?.map((page) => (
-    <Route key={page.path} path={page.path} element={<page.component />} />
+    <Route key={page.path} path={page.path} element={<CustomPageGate page={page} />} />
   ));
 
   const DashboardOverride = config.overrides?.DashboardPage;

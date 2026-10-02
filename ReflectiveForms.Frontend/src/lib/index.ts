@@ -44,6 +44,8 @@ export {
 export { useEntityLock } from '../hooks/useEntityLock';
 export { useAutoSave } from '../hooks/useAutoSave';
 export { useLiveUpdates } from '../hooks/useLiveUpdates';
+export { useCustomPageAccess, useAccessibleCustomPages } from '../hooks/useCustomPageAccess';
+export type { CustomPageAccessStatus } from '../hooks/useCustomPageAccess';
 export type { LiveUpdateRole, LiveConnectionStatus } from '../hooks/useLiveUpdates';
 export { AuthProvider, useAuth } from '../hooks/useAuth';
 export type { UserInfo } from '../hooks/useAuth';

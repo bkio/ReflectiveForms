@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DashboardPage } from '../../pages/DashboardPage';
+import { RfConfigProvider } from '../../lib/RfConfigProvider';
+import type { RfConfig } from '../../lib/types';
 
 vi.mock('../../hooks/useEntity', () => ({
   useAllSchemas: vi.fn(),
@@ -171,5 +173,53 @@ describe('DashboardPage', () => {
 
     expect(screen.getByText('Articles')).toBeInTheDocument();
     expect(screen.getByText('Media')).toBeInTheDocument();
+  });
+
+  describe('custom pages on the dashboard', () => {
+    const Icon = ({ className }: { className?: string }) => <span className={className} />;
+    const P = () => <div />;
+
+    function renderWithConfig(config: RfConfig) {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      return render(
+        <RfConfigProvider config={config}>
+          <QueryClientProvider client={client}>
+            <MemoryRouter><DashboardPage /></MemoryRouter>
+          </QueryClientProvider>
+        </RfConfigProvider>,
+      );
+    }
+
+    it('shows opt-in pages the user may access as cards, and nothing else', async () => {
+      vi.mocked(useAllSchemas).mockReturnValue({ data: { Articles: makeSchema('articles', 'Articles') }, isLoading: false, error: null } as any);
+      renderWithConfig({
+        apiBaseUrl: '/api',
+        customPages: [
+          { path: '/monitor', label: 'Control Panel', description: 'Live show', icon: Icon, component: P, showOnDashboard: true, canAccess: () => Promise.resolve(true) },
+          { path: '/hidden', label: 'Not Opted In', icon: Icon, component: P },
+          { path: '/denied', label: 'Denied Page', icon: Icon, component: P, showOnDashboard: true, canAccess: () => Promise.resolve(false) },
+        ],
+      });
+
+      await waitFor(() => expect(screen.getByTestId('dashboard-page-monitor')).toBeInTheDocument());
+      const card = screen.getByTestId('dashboard-page-monitor');
+      expect(card).toHaveTextContent('Control Panel');
+      expect(card).toHaveTextContent('Live show');
+      expect(card.querySelector('a')?.getAttribute('href')).toBe('/monitor');
+      expect(screen.queryByText('Not Opted In')).not.toBeInTheDocument();
+      expect(screen.queryByText('Denied Page')).not.toBeInTheDocument();
+      expect(screen.getByText('Articles')).toBeInTheDocument();
+    });
+
+    it('does not claim "no content" when the user only has pages', async () => {
+      vi.mocked(useAllSchemas).mockReturnValue({ data: {}, isLoading: false, error: null } as any);
+      renderWithConfig({
+        apiBaseUrl: '/api',
+        customPages: [{ path: '/monitor', label: 'Control Panel', icon: Icon, component: P, showOnDashboard: true }],
+      });
+      expect(screen.getByTestId('dashboard-page-monitor')).toBeInTheDocument();
+      expect(screen.queryByText('No content types available')).not.toBeInTheDocument();
+      expect(screen.queryByText('Quick Links')).not.toBeInTheDocument();
+    });
   });
 });

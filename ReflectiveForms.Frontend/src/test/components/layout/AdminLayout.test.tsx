@@ -349,6 +349,39 @@ describe('AdminLayout', () => {
     expect(customSections.length).toBe(0);
   });
 
+  // --- Custom page access (canAccess) ---
+
+  it('lists only the custom pages whose canAccess allows the user, and hides emptied sections', async () => {
+    const TestIcon = ({ className }: { className?: string }) => <span className={className}>icon</span>;
+    const P = () => <div>p</div>;
+
+    renderWithProviders(<AdminLayout />, {
+      ...defaultConfig,
+      customPages: [
+        { path: '/open', label: 'Open Page', icon: TestIcon, component: P, section: 'Tools' },
+        { path: '/allowed', label: 'Allowed Page', icon: TestIcon, component: P, section: 'Tools', canAccess: () => Promise.resolve(true) },
+        { path: '/denied', label: 'Denied Page', icon: TestIcon, component: P, section: 'Tools', canAccess: () => Promise.resolve(false) },
+        { path: '/failing', label: 'Failing Page', icon: TestIcon, component: P, section: 'Secret', canAccess: () => Promise.reject(new Error('boom')) },
+      ],
+    });
+
+    expect(screen.getByText('Open Page')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('Allowed Page')).toBeInTheDocument());
+    expect(screen.queryByText('Denied Page')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByTestId('custom-section-secret')).not.toBeInTheDocument());
+    expect(screen.queryByText('Failing Page')).not.toBeInTheDocument();
+  });
+
+  it('keeps a page out of the sidebar while its access check is still pending', () => {
+    const TestIcon = ({ className }: { className?: string }) => <span className={className}>icon</span>;
+    renderWithProviders(<AdminLayout />, {
+      ...defaultConfig,
+      customPages: [{ path: '/slow', label: 'Slow Page', icon: TestIcon, component: () => <div />, section: 'Tools', canAccess: () => new Promise<boolean>(() => {}) }],
+    });
+    expect(screen.queryByText('Slow Page')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('custom-section-tools')).not.toBeInTheDocument();
+  });
+
   // --- Reserved entity hide-in-navigation tests ---
 
   it('should hide reserved entities listed in reserved_entity_types_to_hide_in_navigation', async () => {
