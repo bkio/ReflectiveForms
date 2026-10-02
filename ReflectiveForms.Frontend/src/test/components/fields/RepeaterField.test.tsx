@@ -717,6 +717,83 @@ describe('RepeaterField', () => {
     });
   });
 
+  describe('Insert before', () => {
+    const accordionSchema: FieldSchema = {
+      ...baseSchema,
+      repeater_options: { ...baseSchema.repeater_options!, use_accordion: true },
+    };
+    const seeded = { fields: { items: [{ name: 'First' }, { name: 'Second' }, { name: 'Third' }] } };
+
+    const values = () =>
+      (screen.getAllByRole('textbox') as HTMLInputElement[]).map((input) => input.value);
+
+    it('sits to the left of Move up in every item header', () => {
+      render(
+        <FormWrapper defaultValues={seeded}>
+          <RepeaterField schema={baseSchema} path="fields.items" />
+        </FormWrapper>
+      );
+      const titles = screen
+        .getAllByTestId('repeater-header-depth-0')[1]
+        .querySelectorAll('button[title]');
+      expect(Array.from(titles).map((b) => b.getAttribute('title'))).toEqual([
+        'Insert before',
+        'Move up',
+        'Move down',
+        'Remove',
+      ]);
+      expect(screen.getAllByTitle('Insert before')).toHaveLength(3);
+    });
+
+    it('inserts an empty item at that position and shifts the rest down', async () => {
+      const user = userEvent.setup();
+      render(
+        <FormWrapper defaultValues={seeded}>
+          <RepeaterField schema={baseSchema} path="fields.items" />
+        </FormWrapper>
+      );
+
+      await user.click(screen.getByTestId('repeater-insert-before-1'));
+      expect(values()).toEqual(['First', '', 'Second', 'Third']);
+
+      await user.click(screen.getByTestId('repeater-insert-before-0'));
+      expect(values()).toEqual(['', 'First', '', 'Second', 'Third']);
+      expect(screen.getByTestId('repeater-title-4').textContent).toContain('#5');
+    });
+
+    it('is hidden once max_items is reached', () => {
+      const limited: FieldSchema = {
+        ...baseSchema,
+        repeater_options: { ...baseSchema.repeater_options!, max_items: 3 },
+      };
+      render(
+        <FormWrapper defaultValues={seeded}>
+          <RepeaterField schema={limited} path="fields.items" />
+        </FormWrapper>
+      );
+      expect(screen.queryByTitle('Insert before')).not.toBeInTheDocument();
+      expect(screen.getAllByTitle('Move up')).toHaveLength(3);
+    });
+
+    it('opens the inserted item in accordion mode and leaves the others as they were', async () => {
+      const user = userEvent.setup();
+      render(
+        <FormWrapper defaultValues={seeded}>
+          <RepeaterField schema={accordionSchema} path="fields.items" />
+        </FormWrapper>
+      );
+      expect(screen.queryAllByRole('textbox')).toHaveLength(0);
+
+      await user.click(screen.getByTestId('repeater-insert-before-2'));
+      expect(screen.getAllByTestId('repeater-header-depth-0')).toHaveLength(4);
+      expect(values()).toEqual(['']);
+
+      // The new item (#3) stays open; collapsing it closes only that one.
+      await user.click(screen.getAllByTestId('repeater-header-depth-0')[2]);
+      expect(screen.queryAllByRole('textbox')).toHaveLength(0);
+    });
+  });
+
   describe('Render style grid', () => {
     it('applies Grid2 layout to repeater item content', async () => {
       const user = userEvent.setup();

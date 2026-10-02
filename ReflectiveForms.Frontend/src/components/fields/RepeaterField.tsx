@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useFieldArray, useFormContext, useWatch } from 'react-hook-form';
-import { Plus, Trash2, ChevronUp, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, ChevronUp, ChevronDown, ChevronRight, BetweenHorizontalStart } from 'lucide-react';
 import { FormField } from './FormField';
 import { FieldComponentProps } from './types';
 import { FieldSchema, GroupRenderStyle } from '../../types/schema';
@@ -23,7 +23,7 @@ const gridClassMap: Record<GroupRenderStyle, string> = {
 
 export function RepeaterField({ schema, path, depth = 0 }: FieldComponentProps) {
   const { control } = useFormContext();
-  const { fields, append, remove, move } = useFieldArray({
+  const { fields, append, insert, remove, move } = useFieldArray({
     control,
     name: path,
   });
@@ -58,7 +58,7 @@ export function RepeaterField({ schema, path, depth = 0 }: FieldComponentProps) 
     });
   };
 
-  const handleAdd = () => {
+  const createDefaultItem = () => {
     // Generate default values for new item
     const defaultItem: Record<string, unknown> = {
       _unique_field_id: generateRandomId(),
@@ -66,34 +66,33 @@ export function RepeaterField({ schema, path, depth = 0 }: FieldComponentProps) 
     for (const field of itemSchema) {
       defaultItem[field.name] = field.default_value ?? getDefaultForType(field.type);
     }
-    append(defaultItem);
+    return defaultItem;
   };
 
-  // After append, auto-expand the new item. We use an effect-like approach:
-  // We track the last appended id and expand it once fields update.
+  // Index of a just-added item that should open once react-hook-form has
+  // given it a field id (accordion mode only).
+  const [pendingExpandIndex, setPendingExpandIndex] = useState<number | null>(null);
+
   const handleAddAndExpand = () => {
-    handleAdd();
-    // The new item will be at the end; we need to expand it after render.
-    // We'll use a microtask to let react-hook-form update fields first.
-    if (useAccordion) {
-      queueMicrotask(() => {
-        // fields won't be updated yet in this closure, but we know the new index
-        // will be at fields.length (current). We'll expand by id in the next render.
-        setExpandedIds((prev) => new Set([...prev, '__pending_new__']));
-      });
-    }
+    if (useAccordion) setPendingExpandIndex(fields.length);
+    append(createDefaultItem());
   };
 
-  // Resolve pending expansion for newly added items
+  const handleInsertBefore = (index: number) => {
+    if (useAccordion) setPendingExpandIndex(index);
+    insert(index, createDefaultItem());
+  };
+
+  // Resolve pending expansion for newly added items. The current render
+  // already shows it open; the effect makes that stick.
+  const pendingFieldId = pendingExpandIndex !== null ? fields[pendingExpandIndex]?.id : undefined;
   const resolvedExpandedIds = new Set(expandedIds);
-  if (resolvedExpandedIds.has('__pending_new__') && fields.length > 0) {
-    resolvedExpandedIds.delete('__pending_new__');
-    resolvedExpandedIds.add(fields[fields.length - 1].id);
-    // Sync state (deferred to avoid render-during-render)
-    if (expandedIds.has('__pending_new__')) {
-      queueMicrotask(() => setExpandedIds(resolvedExpandedIds));
-    }
-  }
+  if (pendingFieldId) resolvedExpandedIds.add(pendingFieldId);
+  useEffect(() => {
+    if (!pendingFieldId) return;
+    setExpandedIds((prev) => new Set([...prev, pendingFieldId]));
+    setPendingExpandIndex(null);
+  }, [pendingFieldId]);
 
   return (
     <div className="space-y-4">
@@ -108,9 +107,11 @@ export function RepeaterField({ schema, path, depth = 0 }: FieldComponentProps) 
           isExpanded={!useAccordion || resolvedExpandedIds.has(field.id)}
           onToggleExpand={() => toggleExpanded(field.id)}
           canRemove={canRemove}
+          canInsert={canAdd}
           canMoveUp={index > 0}
           canMoveDown={index < fields.length - 1}
           onRemove={() => remove(index)}
+          onInsertBefore={() => handleInsertBefore(index)}
           onMoveUp={() => move(index, index - 1)}
           onMoveDown={() => move(index, index + 1)}
           label={schema.label}
@@ -146,9 +147,11 @@ interface RepeaterItemProps {
   isExpanded: boolean;
   onToggleExpand: () => void;
   canRemove: boolean;
+  canInsert: boolean;
   canMoveUp: boolean;
   canMoveDown: boolean;
   onRemove: () => void;
+  onInsertBefore: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
   label: string;
@@ -165,9 +168,11 @@ function RepeaterItem({
   isExpanded,
   onToggleExpand,
   canRemove,
+  canInsert,
   canMoveUp,
   canMoveDown,
   onRemove,
+  onInsertBefore,
   onMoveUp,
   onMoveDown,
   label,
@@ -216,6 +221,18 @@ function RepeaterItem({
           )}
         </span>
         <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+          {canInsert && (
+            <button
+              type="button"
+              onClick={onInsertBefore}
+              className="p-1 text-gray-500 hover:text-gray-700"
+              title="Insert before"
+              aria-label="Insert before"
+              data-testid={`repeater-insert-before-${index}`}
+            >
+              <BetweenHorizontalStart className="w-4 h-4" />
+            </button>
+          )}
           <button
             type="button"
             onClick={onMoveUp}
