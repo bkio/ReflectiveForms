@@ -225,7 +225,7 @@ function RepeaterItem({
             <button
               type="button"
               onClick={onInsertBefore}
-              className="p-1 text-gray-500 hover:text-gray-700"
+              className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white"
               title="Insert before"
               aria-label="Insert before"
               data-testid={`repeater-insert-before-${index}`}
@@ -237,7 +237,7 @@ function RepeaterItem({
             type="button"
             onClick={onMoveUp}
             disabled={!canMoveUp}
-            className="p-1 text-gray-500 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
+            className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
             title="Move up"
           >
             <ChevronUp className="w-4 h-4" />
@@ -246,7 +246,7 @@ function RepeaterItem({
             type="button"
             onClick={onMoveDown}
             disabled={!canMoveDown}
-            className="p-1 text-gray-500 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
+            className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
             title="Move down"
           >
             <ChevronDown className="w-4 h-4" />
@@ -255,7 +255,7 @@ function RepeaterItem({
             <button
               type="button"
               onClick={onRemove}
-              className="p-1 text-red-500 hover:text-red-700"
+              className="p-1 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
               title="Remove"
             >
               <Trash2 className="w-4 h-4" />
